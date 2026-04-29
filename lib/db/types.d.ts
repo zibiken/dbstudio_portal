@@ -133,6 +133,17 @@ export interface Documents {
   uploadedByAdminId: string | null;
 }
 
+export interface EmailOtpCodes {
+  attempts: Generated<number>;
+  codeHash: string;
+  consumedAt: Timestamp | null;
+  createdAt: Generated<Timestamp>;
+  expiresAt: Timestamp;
+  id: string;
+  userId: string;
+  userType: string;
+}
+
 export interface EmailOutbox {
   attempts: Generated<number>;
   createdAt: Generated<Timestamp>;
@@ -220,6 +231,7 @@ export interface DB {
   customers: Customers;
   customerUsers: CustomerUsers;
   documents: Documents;
+  emailOtpCodes: EmailOtpCodes;
   emailOutbox: EmailOutbox;
   invoices: Invoices;
   ndas: Ndas;
