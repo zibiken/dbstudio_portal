@@ -18,6 +18,8 @@ import { createDb } from './config/db.js';
 import { runSafetyCheck } from './lib/safety-check.js';
 import { loadKek } from './lib/crypto/kek.js';
 import { hibpHasBeenPwned as defaultHibp } from './lib/crypto/hash.js';
+import { makeMailer } from './lib/email.js';
+import { startWorker as startOutboxWorker } from './domain/email-outbox/worker.js';
 import secureHeaders from './lib/secure-headers.js';
 import { registerWelcomeRoutes } from './routes/public/welcome.js';
 import { registerLoginRoutes } from './routes/public/login.js';
@@ -112,5 +114,14 @@ export async function build({
 if (import.meta.url === `file://${process.argv[1]}`) {
   const env = loadEnv();
   const app = await build();
+
+  const mailer = makeMailer({
+    apiKey: env.MAILERSEND_API_KEY,
+    fromEmail: env.MAILERSEND_FROM_EMAIL,
+    fromName: env.MAILERSEND_FROM_NAME,
+  });
+  const stopOutboxWorker = startOutboxWorker({ db: app.db, mailer, log: app.log });
+  app.addHook('onClose', async () => { stopOutboxWorker(); });
+
   await app.listen({ port: env.PORT, host: env.HOST });
 }
