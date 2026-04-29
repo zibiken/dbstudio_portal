@@ -1,0 +1,73 @@
+/* DB Studio Portal — design tokens (CSS variables).
+   Single source of truth for the portal's visual language.
+   These tokens are read by Tailwind (via tailwind.config.js theme.extend)
+   and by NDA / email templates that need consistent typography/colors.
+*/
+
+:root {
+  /* Color scale — neutral ink + restrained accent */
+  --color-bg: #ffffff;
+  --color-bg-subtle: #f7f7f5;
+  --color-ink-900: #0f0f0e;
+  --color-ink-700: #2c2c2a;
+  --color-ink-500: #58585a;
+  --color-ink-300: #a8a8a4;
+  --color-ink-100: #e8e7e2;
+  --color-accent: #1f3a32;
+  --color-accent-hover: #2a4f44;
+  --color-warn: #b35a1f;
+  --color-error: #a32020;
+  --color-success: #2f6b3d;
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-base: 1rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.5rem;
+  --fs-2xl: 2rem;
+  --fs-3xl: 2.5rem;
+
+  /* Spacing & radius */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+html, body {
+  background: var(--color-bg);
+  color: var(--color-ink-900);
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  margin: 0;
+}
+
+h1, h2, h3 { font-family: var(--font-serif); font-weight: 500; letter-spacing: -0.01em; }
+h1 { font-size: var(--fs-3xl); }
+h2 { font-size: var(--fs-2xl); }
+h3 { font-size: var(--fs-xl); }
+
+a { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
+a:hover { color: var(--color-accent-hover); }
+
+main { padding: var(--space-8) var(--space-4); max-width: 64rem; margin: 0 auto; }
+header nav { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-ink-100); }
+
+.coming-soon { text-align: center; padding: var(--space-12) 0; }
+.coming-soon h1 { margin-bottom: var(--space-4); }
+.coming-soon p { color: var(--color-ink-500); }
+.coming-soon .contact { margin-top: var(--space-8); font-size: var(--fs-sm); }

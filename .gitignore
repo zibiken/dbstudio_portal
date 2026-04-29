@@ -23,6 +23,7 @@ build/
 .next/
 coverage/
 *.tsbuildinfo
+public/styles/app.css
 
 # Editor
 .vscode/
