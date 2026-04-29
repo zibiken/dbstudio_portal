@@ -1,0 +1,34 @@
+# Secrets — NEVER commit.
+.env
+.env.local
+.env.*.local
+*.key
+master.key
+*.pem
+*.crt
+*.p12
+
+# Runtime data
+storage/
+backups/
+logs/
+.tmp/
+tmp/
+
+# Build / deps
+node_modules/
+dist/
+build/
+.next/
+coverage/
+*.tsbuildinfo
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Local env
+.envrc
+.direnv/
