@@ -17,6 +17,7 @@ tmp/
 
 # Build / deps
 node_modules/
+.node/
 dist/
 build/
 .next/

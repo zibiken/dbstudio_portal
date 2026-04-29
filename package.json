@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": "20.19.6" },
+  "engines": {
+    "node": "20.19.6"
+  },
   "scripts": {
     "start": "node server.js",
     "start:pdf": "node pdf-service.js",
@@ -16,6 +18,8 @@
     "migrate": "node migrations/runner.js",
     "db:codegen": "kysely-codegen --url \"$DATABASE_URL\" --out-file lib/db/types.d.ts --camel-case"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.5",
+    "vitest": "^4.1.5"
+  }
 }
