@@ -1699,11 +1699,20 @@ Stop. Hand the diff `M0_END..HEAD` to `superpowers:requesting-code-review`. Veri
 
 ---
 
+### Deltas from plan (recorded at M2 start, 2026-04-29)
+
+These are deviations from the plan as originally drafted. They are decisions, not bugs — applied here so the rest of M2 reads cleanly.
+
+1. **Task 2.1 test scope.** The original test exercised the runner against the real `migrations/` directory and asserted `count(*) > 0`, which (a) couldn't pass until Task 2.2 added a real migration file, breaking the red→green cycle within Task 2.1, and (b) called a Kysely method (`db.executeQuery({ sql, parameters })`) that doesn't exist. **Replaced with:** a self-contained test that writes two fake migration files into a tempdir, runs the runner against that, and uses Kysely's real `sql` tagged template. Test exercises: ledger creation, exactly-once application across two runs (idempotency), file-order correctness, transaction rollback on failure.
+2. **`migrations/_meta.sql` dropped.** The runner creates the `_migrations` ledger inline with `CREATE TABLE IF NOT EXISTS`, and `_meta.sql` doesn't match the runner's `^\d{4}_.*\.sql$` regex anyway. The file is redundant; not created.
+3. **`audit_log` append-only enforcement (Task 2.2).** `REVOKE UPDATE, DELETE ON audit_log FROM portal_user` is a no-op when `portal_user` owns the table — owner privileges in Postgres are implicit and not affected by `REVOKE`. **Replaced with:** a `BEFORE UPDATE OR DELETE` trigger that `RAISE EXCEPTION`s for any non-superuser. Self-contained in the migration; survives role drift; passes the §11 acceptance check ("UPDATE as `portal_user` should fail with permission denied" — now fails with a trigger-raised exception, semantically the same: the row is never written).
+
+---
+
 ### Task 2.1: Migration runner (`migrations/runner.js`)
 
 **Files:**
 - Create: `migrations/runner.js`
-- Create: `migrations/_meta.sql` (creates the `_migrations` ledger table)
 - Test: `tests/integration/migrations/runner.test.js`
 
 Hand-rolled, < 100 LoC, sequential SQL files in `migrations/`.
