@@ -150,7 +150,37 @@ Operational notes:
 
 ### Email outbox runner status
 
-(Filled at M4.)
+The worker runs inside `portal.service` on a 5-second tick (`setInterval` registered in `server.js`'s entrypoint branch — `build()` itself stays worker-free so tests don't accidentally start it). Implementation: `domain/email-outbox/repo.js` (`enqueue` / `claim` / `markSent` / `markFailed`) + `domain/email-outbox/worker.js` (`tickOnce` / `startWorker`). `claim` runs `SELECT ... FOR UPDATE SKIP LOCKED` inside the caller's transaction, flips `status='sending'` and increments `attempts` in the same UPDATE, and returns the claimed rows.
+
+Retry policy:
+- Retryable failure (`e.retryable === true`, i.e. MailerSend 429 / 5xx) → `status='queued'`, `send_after = now() + min(2 ** attempts * 60_000, 3_600_000) ms`, `last_error` populated. The next tick re-claims after `send_after`.
+- Non-retryable failure (any other non-202) → `status='failed'` immediately.
+- Cap: rows with `attempts >= 5` are never re-claimed (`attempts < 5` in the WHERE clause). The 5th retryable failure becomes `status='failed'` regardless of `e.retryable`.
+- After a successful send the worker drops `locals.code` from the row (`UPDATE email_outbox SET locals = locals - 'code'`) so the OTP plaintext doesn't linger after delivery.
+
+`idempotency_key` is **never** rewritten by the worker. M3's `noticeLoginDevice` keys by `adminId+fingerprint+YYYYMM` (commit `ada0a20`); that contract has to hold across retries.
+
+### Email outbox — live smoke
+
+Run on the server when MailerSend keys, DNS, or the worker change. Operator must confirm inbox arrival by reading the message in `bram@roxiplus.es`.
+
+```bash
+cd /opt/dbstudio_portal
+sudo -u portal-app bash -c '
+  cd /opt/dbstudio_portal &&
+  set -a; . /opt/dbstudio_portal/.env; set +a;
+  PATH=/opt/dbstudio_portal/.node/bin:/usr/bin:/bin RUN_DB_TESTS=1 RUN_LIVE_EMAIL=1 \
+    ./node_modules/.bin/vitest run tests/integration/email/live-smoke.test.js'
+```
+
+Expected:
+1. Vitest enqueues a `generic-admin-message` row to `bram@roxiplus.es`, runs one tick, and asserts `status='sent'`, `sent_at` populated, `last_error=NULL`, `attempts=1`. Test logs the MailerSend `providerId` from the `x-message-id` header.
+2. Operator opens `bram@roxiplus.es`, confirms the message arrived, and verifies the headers show `dkim=pass` for `dbstudio.one` (later: `mail.portal.dbstudio.one` once the dedicated subdomain replaces v1's shared sender — see "Email provider state" above).
+
+Failure modes worth knowing:
+- 401 Unauthenticated → API key revoked or `.env` quoting bug (the value is wrapped in literal `"…"`; ad-hoc `curl -H "Authorization: Bearer $KEY"` tests must strip the quotes manually first — see "Email provider state").
+- 422 with field errors → DKIM/SPF/DMARC misconfiguration on the verified domain. The MailerSend dashboard's "Domains" page is the authoritative diagnostic.
+- Vitest hangs at "polling" → the worker process inside the test is stuck in `mailer.send`; check `journalctl -u portal.service` for parallel sends, and confirm the smoke test isn't racing with the live `portal.service` worker (the test creates its own `mailer` + `tickOnce` and is otherwise independent of the running service).
 
 ### Display formats — dates and times
 
