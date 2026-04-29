@@ -261,6 +261,62 @@ describe.skipIf(skip)('public auth route flow', () => {
     expect([200, 401]).toContain(cReplay.statusCode);
   });
 
+  it('rate-limits /login/2fa: 5 wrong codes lock the half-auth session and clear sid', async () => {
+    const created = await service.create(
+      db,
+      { email: tagEmail('rl'), name: 'RL' },
+      { actorType: 'system', audit: { tag } },
+    );
+    const password = 'rate-limit-passphrase-29384';
+    const enrolSecret = deriveEnrolSecret(created.inviteToken, env.SESSION_SIGNING_SECRET);
+
+    await service.consumeInvite(
+      db,
+      { token: created.inviteToken, newPassword: password },
+      { audit: { tag }, hibpHasBeenPwned: okHibp },
+    );
+    await service.enroll2faTotp(db, { adminId: created.id, secret: enrolSecret, kek: app.kek }, { audit: { tag } });
+
+    const jar = {};
+    const lGet = await app.inject({ method: 'GET', url: '/login' });
+    mergeCookies(jar, lGet);
+    const lCsrf = extractInputValue(lGet.body, '_csrf');
+    const lOk = await app.inject({
+      method: 'POST',
+      url: '/login',
+      headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
+      payload: `email=${encodeURIComponent(tagEmail('rl'))}&password=${encodeURIComponent(password)}&_csrf=${encodeURIComponent(lCsrf)}`,
+    });
+    mergeCookies(jar, lOk);
+
+    const cGet = await app.inject({ method: 'GET', url: '/login/2fa', headers: { cookie: cookieHeader(jar) } });
+    const cCsrf = extractInputValue(cGet.body, '_csrf');
+    mergeCookies(jar, cGet);
+
+    // Five wrong codes — last one returns 401 and trips the lockout.
+    for (let i = 0; i < 5; i++) {
+      const r = await app.inject({
+        method: 'POST',
+        url: '/login/2fa',
+        headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
+        payload: `method=totp&totp_code=000000&_csrf=${encodeURIComponent(cCsrf)}`,
+      });
+      expect(r.statusCode).toBe(401);
+    }
+
+    // Sixth POST hits the lockout: 429 and the sid cookie is cleared.
+    const blocked = await app.inject({
+      method: 'POST',
+      url: '/login/2fa',
+      headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
+      payload: `method=totp&totp_code=${generateToken(enrolSecret)}&_csrf=${encodeURIComponent(cCsrf)}`,
+    });
+    expect(blocked.statusCode).toBe(429);
+    const cleared = parseSetCookies(blocked).find((c) => c.name === 'sid');
+    expect(cleared).toBeTruthy();
+    expect(cleared.value).toBe('');
+  });
+
   it('reset/:token mirrors welcome flow for forgotten password', async () => {
     const created = await service.create(
       db,
