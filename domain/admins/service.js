@@ -5,8 +5,11 @@ import {
   hashPassword, verifyPassword, hibpHasBeenPwned as defaultHibp,
 } from '../../lib/crypto/hash.js';
 import { writeAudit } from '../../lib/audit.js';
+import { encrypt } from '../../lib/crypto/envelope.js';
+import { saveRegisteredCredential } from '../../lib/auth/webauthn.js';
+import { generateBackupCodes, verifyAndConsume } from '../../lib/auth/backup-codes.js';
 import {
-  insertAdmin, findByEmail, updateAdmin,
+  insertAdmin, findById, findByEmail, updateAdmin,
 } from './repo.js';
 
 export const INVITE_TTL_MS = 7 * 24 * 3_600_000;
@@ -101,4 +104,63 @@ export async function requestPasswordReset(db, { email }, ctx = {}) {
 async function findByInviteHash(db, hash) {
   const r = await sql`SELECT * FROM admins WHERE invite_token_hash = ${hash}`.execute(db);
   return r.rows[0] ?? null;
+}
+
+export async function enroll2faTotp(db, { adminId, secret, kek }, ctx = {}) {
+  const { ciphertext, iv, tag } = encrypt(Buffer.from(secret, 'utf8'), kek);
+  await sql`
+    UPDATE admins
+       SET totp_secret_enc = ${ciphertext},
+           totp_iv = ${iv},
+           totp_tag = ${tag}
+     WHERE id = ${adminId}::uuid
+  `.execute(db);
+  await audit(db, ctx, 'admin.2fa_totp_enrolled', { adminId });
+}
+
+export async function enroll2faWebauthn(db, { adminId, registrationInfo }, ctx = {}) {
+  const admin = await findById(db, adminId);
+  if (!admin) throw new Error('admin not found');
+  const updated = saveRegisteredCredential(admin.webauthn_creds ?? [], registrationInfo);
+  await sql`
+    UPDATE admins
+       SET webauthn_creds = ${JSON.stringify(updated)}::jsonb
+     WHERE id = ${adminId}::uuid
+  `.execute(db);
+  await audit(db, ctx, 'admin.2fa_webauthn_enrolled', {
+    adminId,
+    metadata: { credentialId: registrationInfo.credentialID },
+  });
+}
+
+export async function enroll2faEmailOtp(db, { adminId }, ctx = {}) {
+  await sql`UPDATE admins SET email_otp_enabled = TRUE WHERE id = ${adminId}::uuid`.execute(db);
+  await audit(db, ctx, 'admin.2fa_email_otp_enrolled', { adminId });
+}
+
+export async function regenBackupCodes(db, { adminId }, ctx = {}) {
+  const { codes, stored } = await generateBackupCodes();
+  await sql`
+    UPDATE admins
+       SET backup_codes = ${JSON.stringify(stored)}::jsonb
+     WHERE id = ${adminId}::uuid
+  `.execute(db);
+  await audit(db, ctx, 'admin.backup_codes_regenerated', { adminId });
+  return { codes };
+}
+
+export async function consumeBackupCode(db, { adminId, code }, ctx = {}) {
+  return await db.transaction().execute(async (tx) => {
+    const admin = await findById(tx, adminId);
+    if (!admin) return { ok: false };
+    const stored = admin.backup_codes ?? [];
+    const r = await verifyAndConsume(stored, code);
+    if (!r.ok) return { ok: false };
+    await sql`
+      UPDATE admins SET backup_codes = ${JSON.stringify(r.stored)}::jsonb
+       WHERE id = ${adminId}::uuid
+    `.execute(tx);
+    await audit(tx, ctx, 'admin.backup_code_consumed', { adminId });
+    return { ok: true };
+  });
 }
