@@ -51,7 +51,13 @@ async function main() {
     const { id, inviteToken } = await createAdmin(
       db,
       { email, name },
-      { actorType: 'system', ip: null, userAgentHash: null, audit: { reason: 'create-admin CLI' } },
+      {
+        actorType: 'system',
+        ip: null,
+        userAgentHash: null,
+        audit: { reason: 'create-admin CLI' },
+        portalBaseUrl: env.PORTAL_BASE_URL,
+      },
     );
 
     const welcomeUrl = `${env.PORTAL_BASE_URL.replace(/\/+$/, '')}/welcome/${inviteToken}`;

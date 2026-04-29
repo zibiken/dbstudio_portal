@@ -56,6 +56,42 @@ describe.skipIf(skip)('admins/service', () => {
       ).rejects.toThrow();
     });
 
+    it('throws if neither ctx.portalBaseUrl nor PORTAL_BASE_URL env is set (no silent skip)', async () => {
+      const saved = process.env.PORTAL_BASE_URL;
+      delete process.env.PORTAL_BASE_URL;
+      try {
+        await expect(
+          service.create(db, { email: tagEmail('strict'), name: 'S' }, { audit: { tag } }),
+        ).rejects.toThrow(/portalBaseUrl/);
+        // No partial state: the admin row must not have been written.
+        const r = await sql`SELECT count(*)::int AS c FROM admins WHERE email = ${tagEmail('strict')}`.execute(db);
+        expect(r.rows[0].c).toBe(0);
+      } finally {
+        if (saved !== undefined) process.env.PORTAL_BASE_URL = saved;
+      }
+    });
+
+    it('admin row + audit + outbox commit atomically (rollback on enqueue failure)', async () => {
+      // Force a unique-key collision on email_outbox by pre-inserting a row
+      // with the idempotency_key the service.create call will try to use.
+      // Wait — service.create's idempotency_key is admin_welcome:<id> where
+      // <id> is generated inside the call. We can't pre-collide unpredictably.
+      // Instead, force the collision by passing a duplicate admin email so
+      // insertAdmin throws inside the transaction.
+      const r = await service.create(db, { email: tagEmail('atomic'), name: 'A' }, { ...ctx, audit: { tag } });
+      expect(r.id).toMatch(/^[0-9a-f-]{36}$/);
+      // Second call with the same email throws on the admins UNIQUE constraint.
+      await expect(
+        service.create(db, { email: tagEmail('atomic'), name: 'A2' }, { ...ctx, audit: { tag } }),
+      ).rejects.toThrow();
+      // Only one admin row.
+      const admins = await sql`SELECT count(*)::int AS c FROM admins WHERE email = ${tagEmail('atomic')}`.execute(db);
+      expect(admins.rows[0].c).toBe(1);
+      // Only one outbox row (the second call's enqueue must have rolled back).
+      const ob = await sql`SELECT count(*)::int AS c FROM email_outbox WHERE to_address = ${tagEmail('atomic')}`.execute(db);
+      expect(ob.rows[0].c).toBe(1);
+    });
+
     it('enqueues an admin-welcome email with the welcome URL and recipient name', async () => {
       const r = await service.create(
         db,

@@ -21,6 +21,7 @@ describe.skipIf(skip)('admins/service — 2FA + backup codes', () => {
 
   afterAll(async () => {
     if (db) {
+      await sql`DELETE FROM email_outbox WHERE to_address LIKE ${tag + '%'}`.execute(db);
       await sql`DELETE FROM admins WHERE email LIKE ${tag + '%'}`.execute(db);
       await sql.raw(`ALTER TABLE audit_log DISABLE TRIGGER audit_log_block_modify`).execute(db);
       await sql`DELETE FROM audit_log WHERE metadata->>'tag' = ${tag}`.execute(db);
@@ -30,6 +31,7 @@ describe.skipIf(skip)('admins/service — 2FA + backup codes', () => {
   });
 
   beforeEach(async () => {
+    await sql`DELETE FROM email_outbox WHERE to_address LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM admins WHERE email LIKE ${tag + '%'}`.execute(db);
   });
 

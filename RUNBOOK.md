@@ -160,6 +160,31 @@ Retry policy:
 
 `idempotency_key` is **never** rewritten by the worker. M3's `noticeLoginDevice` keys by `adminId+fingerprint+YYYYMM` (commit `ada0a20`); that contract has to hold across retries.
 
+### Integration tests — stopping portal.service
+
+The outbox worker inside `portal.service` polls `email_outbox` every 5 s. Integration tests that insert rows into that table will race the live worker — the live worker claims the row, tries to send via MailerSend, burns a credit, and the test's own `tickOnce` finds the row already in `status='sending'/'sent'`. Tests fail non-deterministically and (worse) fake test data hits real recipients.
+
+Always run integration tests through:
+
+```bash
+sudo bash /opt/dbstudio_portal/scripts/run-tests.sh        # full suite
+sudo bash /opt/dbstudio_portal/scripts/run-tests.sh tests/integration/admins/   # one path
+```
+
+The wrapper:
+1. Records whether `portal.service` was active.
+2. Stops it for the duration of the run.
+3. Loads `.env` into the environment vitest workers inherit (so `DATABASE_URL`, `PORTAL_BASE_URL`, etc. are present).
+4. Runs `vitest run` as `portal-app` with `RUN_DB_TESTS=1`.
+5. Restarts `portal.service` on exit (success or failure) and re-runs `smoke.sh`.
+
+Unit tests (no DB, no service interaction) can still be run directly:
+
+```bash
+sudo -u portal-app PATH=/opt/dbstudio_portal/.node/bin:/usr/bin:/bin \
+  /opt/dbstudio_portal/node_modules/.bin/vitest run tests/unit/
+```
+
 ### Email outbox — live smoke
 
 Run on the server when MailerSend keys, DNS, or the worker change. Operator must confirm inbox arrival by reading the message in `bram@roxiplus.es`.

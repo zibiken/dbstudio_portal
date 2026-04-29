@@ -66,6 +66,7 @@ describe.skipIf(skip)('public auth route flow', () => {
 
   beforeEach(async () => {
     await sql`DELETE FROM sessions WHERE user_id IN (SELECT id FROM admins WHERE email LIKE ${tag + '%'})`.execute(db);
+    await sql`DELETE FROM email_outbox WHERE to_address LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM rate_limit_buckets WHERE key LIKE ${'%' + tag + '%'}`.execute(db);
     // The distributed-brute-force test uses fixed IPs (10.0.0.1..5, 10.0.0.99).
     // Without this scrub, lockouts left by a previous run on the same IP keys

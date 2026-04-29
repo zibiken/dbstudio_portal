@@ -40,8 +40,12 @@ function trimTrailingSlashes(s) {
   return typeof s === 'string' ? s.replace(/\/+$/, '') : '';
 }
 
-function resolvePortalBaseUrl(ctx) {
-  return trimTrailingSlashes(ctx?.portalBaseUrl ?? process.env.PORTAL_BASE_URL ?? '');
+function requirePortalBaseUrl(ctx, callerName) {
+  const url = trimTrailingSlashes(ctx?.portalBaseUrl ?? process.env.PORTAL_BASE_URL ?? '');
+  if (!url) {
+    throw new Error(`${callerName} requires portalBaseUrl (ctx.portalBaseUrl or PORTAL_BASE_URL env)`);
+  }
+  return url;
 }
 
 export async function create(db, { email, name }, ctx = {}) {
@@ -49,13 +53,12 @@ export async function create(db, { email, name }, ctx = {}) {
   const inviteToken = generateInviteToken();
   const inviteTokenHash = hashToken(inviteToken);
   const inviteExpiresAt = new Date(Date.now() + INVITE_TTL_MS);
+  const baseUrl = requirePortalBaseUrl(ctx, 'admins.create');
 
-  await insertAdmin(db, { id, email, name, inviteTokenHash, inviteExpiresAt });
-  await audit(db, ctx, 'admin.created', { adminId: id, metadata: { email } });
-
-  const baseUrl = resolvePortalBaseUrl(ctx);
-  if (baseUrl) {
-    await enqueueEmail(db, {
+  await db.transaction().execute(async (tx) => {
+    await insertAdmin(tx, { id, email, name, inviteTokenHash, inviteExpiresAt });
+    await audit(tx, ctx, 'admin.created', { adminId: id, metadata: { email } });
+    await enqueueEmail(tx, {
       idempotencyKey: `admin_welcome:${id}`,
       toAddress: email,
       template: 'admin-welcome',
@@ -65,7 +68,7 @@ export async function create(db, { email, name }, ctx = {}) {
         expiresAt: inviteExpiresAt.toISOString(),
       },
     });
-  }
+  });
 
   return { id, inviteToken };
 }
@@ -166,17 +169,16 @@ export async function requestPasswordReset(db, { email }, ctx = {}) {
   const inviteToken = generateInviteToken();
   const inviteTokenHash = hashToken(inviteToken);
   const inviteExpiresAt = new Date(Date.now() + INVITE_TTL_MS);
-  await updateAdmin(db, admin.id, {
-    inviteTokenHash,
-    inviteExpiresAt,
-    inviteConsumedAt: null,
-  });
+  const baseUrl = requirePortalBaseUrl(ctx, 'admins.requestPasswordReset');
 
-  await audit(db, ctx, 'admin.password_reset_requested', { adminId: admin.id });
-
-  const baseUrl = resolvePortalBaseUrl(ctx);
-  if (baseUrl) {
-    await enqueueEmail(db, {
+  await db.transaction().execute(async (tx) => {
+    await updateAdmin(tx, admin.id, {
+      inviteTokenHash,
+      inviteExpiresAt,
+      inviteConsumedAt: null,
+    });
+    await audit(tx, ctx, 'admin.password_reset_requested', { adminId: admin.id });
+    await enqueueEmail(tx, {
       idempotencyKey: `admin_pw_reset:${admin.id}:${inviteTokenHash.slice(0, 16)}`,
       toAddress: admin.email,
       template: 'admin-pw-reset',
@@ -186,7 +188,7 @@ export async function requestPasswordReset(db, { email }, ctx = {}) {
         expiresAt: inviteExpiresAt.toISOString(),
       },
     });
-  }
+  });
 
   return { inviteToken };
 }
@@ -266,8 +268,10 @@ export async function noticeLoginDevice(
   `.execute(db);
   if (r.rows.length > 0) return { isNew: false };
 
-  const baseUrl = trimTrailingSlashes(portalBaseUrl ?? ctx?.portalBaseUrl ?? process.env.PORTAL_BASE_URL ?? '');
-  if (!baseUrl) throw new Error('noticeLoginDevice requires portalBaseUrl');
+  const baseUrl = requirePortalBaseUrl(
+    { portalBaseUrl: portalBaseUrl ?? ctx?.portalBaseUrl },
+    'admins.noticeLoginDevice',
+  );
 
   const idempotencyKey = `new_device_login:${adminId}:${fingerprint}:${monthBucket()}`;
   const locals = {
