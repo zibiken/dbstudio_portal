@@ -1,0 +1,9 @@
+<%# subject: Welcome to the DB Studio admin portal %>
+<div style="<%- S.tagline %>">Admin · Welcome</div>
+<h1 style="<%- S.h1 %>">Set up your admin account</h1>
+<p style="<%- S.body %>">Hi <%= recipientName %>,</p>
+<p style="<%- S.body %>">An admin account has been created for you on the DB Studio portal. Use the link below to set a password, enrol your second factor, and save your backup codes.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="<%- S.ctaWrap %>">
+  <tr><td style="<%- S.ctaCell %>"><a href="<%= welcomeUrl %>" style="<%- S.ctaLink %>">Set up account →</a></td></tr>
+</table>
+<p style="<%- S.note %>">This invitation expires on <%= euDate(expiresAt) %>. If you weren't expecting it, contact the operator who manages the portal before clicking — admin invitations are issued out-of-band.</p>

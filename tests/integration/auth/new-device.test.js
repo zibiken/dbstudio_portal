@@ -183,7 +183,7 @@ describe.skipIf(skip)('new-device detection', () => {
 
       const outbox = await sql`
         SELECT idempotency_key FROM email_outbox
-         WHERE to_address = ${tagEmail('rebuck')}::citext
+         WHERE to_address = ${tagEmail('rebuck')}::citext AND template = 'new_device_login'
          ORDER BY created_at
       `.execute(db);
       expect(outbox.rows).toHaveLength(2);

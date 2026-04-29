@@ -8,6 +8,7 @@ import { writeAudit } from '../../lib/audit.js';
 import { encrypt } from '../../lib/crypto/envelope.js';
 import { saveRegisteredCredential } from '../../lib/auth/webauthn.js';
 import { generateBackupCodes, verifyAndConsume } from '../../lib/auth/backup-codes.js';
+import { enqueue as enqueueEmail } from '../email-outbox/repo.js';
 import {
   insertAdmin, findById, findByEmail, updateAdmin,
 } from './repo.js';
@@ -35,6 +36,14 @@ function audit(db, ctx, action, { adminId, metadata = {} } = {}) {
   });
 }
 
+function trimTrailingSlashes(s) {
+  return typeof s === 'string' ? s.replace(/\/+$/, '') : '';
+}
+
+function resolvePortalBaseUrl(ctx) {
+  return trimTrailingSlashes(ctx?.portalBaseUrl ?? process.env.PORTAL_BASE_URL ?? '');
+}
+
 export async function create(db, { email, name }, ctx = {}) {
   const id = uuidv7();
   const inviteToken = generateInviteToken();
@@ -43,6 +52,20 @@ export async function create(db, { email, name }, ctx = {}) {
 
   await insertAdmin(db, { id, email, name, inviteTokenHash, inviteExpiresAt });
   await audit(db, ctx, 'admin.created', { adminId: id, metadata: { email } });
+
+  const baseUrl = resolvePortalBaseUrl(ctx);
+  if (baseUrl) {
+    await enqueueEmail(db, {
+      idempotencyKey: `admin_welcome:${id}`,
+      toAddress: email,
+      template: 'admin-welcome',
+      locals: {
+        recipientName: name,
+        welcomeUrl: `${baseUrl}/welcome/${inviteToken}`,
+        expiresAt: inviteExpiresAt.toISOString(),
+      },
+    });
+  }
 
   return { id, inviteToken };
 }
@@ -150,6 +173,21 @@ export async function requestPasswordReset(db, { email }, ctx = {}) {
   });
 
   await audit(db, ctx, 'admin.password_reset_requested', { adminId: admin.id });
+
+  const baseUrl = resolvePortalBaseUrl(ctx);
+  if (baseUrl) {
+    await enqueueEmail(db, {
+      idempotencyKey: `admin_pw_reset:${admin.id}:${inviteTokenHash.slice(0, 16)}`,
+      toAddress: admin.email,
+      template: 'admin-pw-reset',
+      locals: {
+        recipientName: admin.name,
+        resetUrl: `${baseUrl}/reset/${inviteToken}`,
+        expiresAt: inviteExpiresAt.toISOString(),
+      },
+    });
+  }
+
   return { inviteToken };
 }
 

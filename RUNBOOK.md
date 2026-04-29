@@ -235,12 +235,16 @@ The master KEK at `/var/lib/portal/master.key` wraps every per-customer DEK. Rot
 
 Use this when an admin has lost their authenticator, forgotten their password, or been locked out by the rate limiter. The procedure issues a fresh single-use invite token; consuming it sets a new password and re-enrols 2FA from scratch (the previous TOTP secret is overwritten). Backup codes are also regenerated; old codes stop working.
 
+Since M4, `service.requestPasswordReset` also enqueues an `admin-pw-reset` email via the outbox worker. The procedure below still prints the URL as a belt-and-braces fallback in case MailerSend is broken or the worker isn't running.
+
 ```bash
 # 1. SSH to server.
 
 # 2. Until scripts/admin-reset.js exists in M9, mint the invite directly.
-#    Generate token + sha256, write the hash to admins, print the
-#    plaintext welcome URL for the operator to hand to the admin.
+#    Generate token + sha256, write the hash to admins. service.requestPasswordReset
+#    enqueues an admin-pw-reset email; the script also prints the URL
+#    as a fallback so the operator can hand it out-of-band if the email
+#    never arrives.
 sudo -u portal-app /opt/dbstudio_portal/.node/bin/node <<'NODE'
 import { createDb } from '/opt/dbstudio_portal/config/db.js';
 import { loadEnv } from '/opt/dbstudio_portal/config/env.js';

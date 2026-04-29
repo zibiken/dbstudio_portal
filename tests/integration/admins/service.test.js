@@ -21,6 +21,7 @@ describe.skipIf(skip)('admins/service', () => {
 
   afterAll(async () => {
     if (db) {
+      await sql`DELETE FROM email_outbox WHERE to_address LIKE ${tag + '%'}`.execute(db);
       await sql`DELETE FROM admins WHERE email LIKE ${tag + '%'}`.execute(db);
       await sql.raw(`ALTER TABLE audit_log DISABLE TRIGGER audit_log_block_modify`).execute(db);
       await sql`DELETE FROM audit_log WHERE action LIKE ${'admin.' + '%'} AND metadata->>'tag' = ${tag}`.execute(db);
@@ -30,6 +31,7 @@ describe.skipIf(skip)('admins/service', () => {
   });
 
   beforeEach(async () => {
+    await sql`DELETE FROM email_outbox WHERE to_address LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM admins WHERE email LIKE ${tag + '%'}`.execute(db);
   });
 
@@ -52,6 +54,27 @@ describe.skipIf(skip)('admins/service', () => {
       await expect(
         service.create(db, { email: tagEmail('dup'), name: 'A' }, { ...ctx, audit: { tag } })
       ).rejects.toThrow();
+    });
+
+    it('enqueues an admin-welcome email with the welcome URL and recipient name', async () => {
+      const r = await service.create(
+        db,
+        { email: tagEmail('welcome'), name: 'Wendy' },
+        { ...ctx, audit: { tag }, portalBaseUrl: 'https://portal.example.test/' },
+      );
+
+      const ob = await sql`
+        SELECT idempotency_key, to_address, template, locals
+          FROM email_outbox WHERE to_address = ${tagEmail('welcome')}
+      `.execute(db);
+      expect(ob.rows).toHaveLength(1);
+      expect(ob.rows[0].template).toBe('admin-welcome');
+      expect(ob.rows[0].idempotency_key).toBe(`admin_welcome:${r.id}`);
+      expect(ob.rows[0].locals.recipientName).toBe('Wendy');
+      expect(ob.rows[0].locals.welcomeUrl).toBe(
+        `https://portal.example.test/welcome/${r.inviteToken}`,
+      );
+      expect(typeof ob.rows[0].locals.expiresAt).toBe('string');
     });
   });
 
@@ -180,6 +203,39 @@ describe.skipIf(skip)('admins/service', () => {
     it('returns the same generic shape for an unknown email (no enumeration)', async () => {
       const r = await service.requestPasswordReset(db, { email: tagEmail('ghost') }, { ...ctx, audit: { tag } });
       expect(r).toEqual({ inviteToken: null });
+
+      const ob = await sql`
+        SELECT count(*)::int AS c FROM email_outbox WHERE to_address = ${tagEmail('ghost')}
+      `.execute(db);
+      expect(ob.rows[0].c).toBe(0); // no enqueue for unknown email
+    });
+
+    it('enqueues an admin-pw-reset email with the reset URL and recipient name', async () => {
+      const created = await service.create(
+        db,
+        { email: tagEmail('reset2'), name: 'Reggie' },
+        { ...ctx, audit: { tag }, portalBaseUrl: 'https://portal.example.test/' },
+      );
+      // Drop the welcome enqueue so the test only sees the pw-reset row.
+      await sql`DELETE FROM email_outbox WHERE to_address = ${tagEmail('reset2')}`.execute(db);
+
+      const r = await service.requestPasswordReset(
+        db,
+        { email: tagEmail('reset2') },
+        { ...ctx, audit: { tag }, portalBaseUrl: 'https://portal.example.test/' },
+      );
+
+      const ob = await sql`
+        SELECT idempotency_key, to_address, template, locals
+          FROM email_outbox WHERE to_address = ${tagEmail('reset2')}
+      `.execute(db);
+      expect(ob.rows).toHaveLength(1);
+      expect(ob.rows[0].template).toBe('admin-pw-reset');
+      expect(ob.rows[0].idempotency_key).toMatch(new RegExp(`^admin_pw_reset:${created.id}:[a-f0-9]{16}$`));
+      expect(ob.rows[0].locals.recipientName).toBe('Reggie');
+      expect(ob.rows[0].locals.resetUrl).toBe(
+        `https://portal.example.test/reset/${r.inviteToken}`,
+      );
     });
   });
 });

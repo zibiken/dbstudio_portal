@@ -6,10 +6,11 @@
 // created via the admin UI in M5+ or via service.requestPasswordReset
 // from a SQL one-liner if you got here in an emergency.
 //
-// Prints the welcome URL to stdout because the email pipeline is not
-// ready until M4. From M4 onwards, the same URL is also delivered by
-// email; the stdout copy stays as a belt-and-braces escape hatch for
-// the operator.
+// Since M4, service.create() also enqueues an admin-welcome email
+// (template 'admin-welcome', delivered by the outbox worker running
+// inside portal.service). The stdout copy stays as a belt-and-braces
+// escape hatch for the operator — useful when MailerSend is misconfigured
+// or the worker isn't running yet.
 //
 // Usage:
 //   sudo -u portal-app /opt/dbstudio_portal/.node/bin/node scripts/create-admin.js
@@ -56,9 +57,10 @@ async function main() {
     const welcomeUrl = `${env.PORTAL_BASE_URL.replace(/\/+$/, '')}/welcome/${inviteToken}`;
     output.write('\n');
     output.write(`admin created: id=${id}\n`);
-    output.write(`welcome url (valid for 7 days, single-use):\n  ${welcomeUrl}\n`);
+    output.write('an admin-welcome email has been queued via the outbox worker.\n');
+    output.write(`fallback welcome url (valid for 7 days, single-use):\n  ${welcomeUrl}\n`);
     output.write('\n');
-    output.write('open it in a browser to set the password and enrol 2FA.\n');
+    output.write('hand the URL out-of-band only if the email never arrives.\n');
   } finally {
     await db.destroy();
   }
