@@ -1,0 +1,36 @@
+<section class="customer-dashboard">
+  <header class="customer-section-header">
+    <h1>Hello, <%= user.name %></h1>
+    <p class="subtitle"><%= customer.razon_social %></p>
+  </header>
+
+  <div class="customer-grid">
+    <article class="customer-card">
+      <h2>Documents</h2>
+      <p class="empty">Your project documents and signed agreements will appear here.</p>
+      <p class="placeholder-note">Coming with the M6 release.</p>
+    </article>
+
+    <article class="customer-card">
+      <h2>Invoices</h2>
+      <p class="empty">Open and paid invoices for the work in progress.</p>
+      <p class="placeholder-note">Coming with the M8 release.</p>
+    </article>
+
+    <article class="customer-card">
+      <h2>Credentials</h2>
+      <p class="empty">Production logins, API keys, and shared secrets — vaulted and decrypted only on a re-authenticated request.</p>
+      <p class="placeholder-note">Coming with the M7 release.</p>
+    </article>
+
+    <article class="customer-card">
+      <h2>Profile</h2>
+      <dl class="customer-fields">
+        <dt>Name</dt><dd><%= user.name %></dd>
+        <dt>Email</dt><dd><%= user.email %></dd>
+        <dt>Company</dt><dd><%= customer.razon_social %></dd>
+      </dl>
+      <p class="placeholder-note">Profile editing comes with the M9 release.</p>
+    </article>
+  </div>
+</section>

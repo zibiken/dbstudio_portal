@@ -3,7 +3,7 @@ import { renderPublic, renderCustomer } from '../../lib/render.js';
 import { deriveEnrolSecret, otpauthUri } from '../../lib/auth/totp-enrol.js';
 import { verify as verifyTotp } from '../../lib/auth/totp.js';
 import { createSession, computeDeviceFingerprint, stepUp } from '../../lib/auth/session.js';
-import { setSessionCookie, readSession } from '../../lib/auth/middleware.js';
+import { setSessionCookie, requireCustomerSession } from '../../lib/auth/middleware.js';
 import * as customersService from '../../domain/customers/service.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { writeAudit } from '../../lib/audit.js';
@@ -26,15 +26,6 @@ async function findInvitedCustomerUser(db, token) {
   if (row.invite_consumed_at) return { error: 'consumed' };
   if (new Date(row.invite_expires_at).getTime() <= Date.now()) return { error: 'expired' };
   return { user: row };
-}
-
-async function requireCustomerSession(app, req, reply) {
-  const session = await readSession(app, req);
-  if (!session || session.user_type !== 'customer' || !session.step_up_at) {
-    reply.redirect('/', 302);
-    return null;
-  }
-  return session;
 }
 
 export function registerCustomerOnboardingRoutes(app, { mountPath = '/customer/welcome' } = {}) {

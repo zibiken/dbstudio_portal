@@ -207,6 +207,28 @@ describe.skipIf(skip)('customer onboarding routes', () => {
     expect(profilePost.statusCode).toBe(302);
     expect(profilePost.headers.location).toBe('/customer/dashboard');
 
+    // Follow the redirect — the dashboard stub is wired up in 5.4 and
+    // shows the user's name, the customer's razon_social, and one
+    // placeholder card per future milestone (M6 documents, M7
+    // credentials, M8 invoices, M9 profile).
+    const dash = await app.inject({
+      method: 'GET',
+      url: '/customer/dashboard',
+      headers: { cookie: cookieHeader(jar) },
+    });
+    expect(dash.statusCode).toBe(200);
+    expect(dash.body).toContain('Cust full');
+    expect(dash.body).toContain(`${tag} full S.L.`);
+    expect(dash.body).toMatch(/Documents/);
+    expect(dash.body).toMatch(/Invoices/);
+    expect(dash.body).toMatch(/Credentials/);
+    expect(dash.body).toMatch(/Profile/);
+
+    // Unauth dashboard probe → 302 / (customer login UI lands later).
+    const dashUnauth = await app.inject({ method: 'GET', url: '/customer/dashboard' });
+    expect(dashUnauth.statusCode).toBe(302);
+    expect(dashUnauth.headers.location).toBe('/');
+
     // Re-using the consumed token must fail.
     const wReplay = await app.inject({
       method: 'GET',
