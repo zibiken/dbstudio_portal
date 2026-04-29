@@ -111,6 +111,77 @@ export async function create(
   return { customerId, primaryUserId, inviteToken };
 }
 
+async function lockCustomerById(tx, customerId) {
+  const r = await sql`
+    SELECT id, status FROM customers WHERE id = ${customerId}::uuid FOR UPDATE
+  `.execute(tx);
+  if (r.rows.length === 0) throw new Error(`customer ${customerId} not found`);
+  return r.rows[0];
+}
+
+async function revokeCustomerSessions(tx, customerId) {
+  await sql`
+    UPDATE sessions
+       SET revoked_at = now()
+     WHERE user_type = 'customer'
+       AND revoked_at IS NULL
+       AND user_id IN (SELECT id FROM customer_users WHERE customer_id = ${customerId}::uuid)
+  `.execute(tx);
+}
+
+function customerAudit(tx, ctx, action, customerId, metadata = {}) {
+  return writeAudit(tx, {
+    actorType: ctx?.actorType ?? 'admin',
+    actorId: ctx?.actorId ?? null,
+    action,
+    targetType: 'customer',
+    targetId: customerId,
+    metadata: { ...(ctx?.audit ?? {}), ...metadata },
+    ip: ctx?.ip ?? null,
+    userAgentHash: ctx?.userAgentHash ?? null,
+  });
+}
+
+export async function suspendCustomer(db, { customerId }, ctx = {}) {
+  return await db.transaction().execute(async (tx) => {
+    const row = await lockCustomerById(tx, customerId);
+    if (row.status !== 'active') {
+      throw new Error(`cannot suspend a customer in status '${row.status}' — must be 'active'`);
+    }
+    await sql`UPDATE customers SET status = 'suspended', updated_at = now() WHERE id = ${customerId}::uuid`.execute(tx);
+    await revokeCustomerSessions(tx, customerId);
+    await customerAudit(tx, ctx, 'customer.suspended', customerId);
+    return { customerId, status: 'suspended' };
+  });
+}
+
+export async function reactivateCustomer(db, { customerId }, ctx = {}) {
+  return await db.transaction().execute(async (tx) => {
+    const row = await lockCustomerById(tx, customerId);
+    if (row.status !== 'suspended') {
+      throw new Error(`cannot reactivate a customer in status '${row.status}' — must be 'suspended'`);
+    }
+    await sql`UPDATE customers SET status = 'active', updated_at = now() WHERE id = ${customerId}::uuid`.execute(tx);
+    // Old sessions stay revoked — reactivation requires the customer to
+    // log in fresh.
+    await customerAudit(tx, ctx, 'customer.reactivated', customerId);
+    return { customerId, status: 'active' };
+  });
+}
+
+export async function archiveCustomer(db, { customerId }, ctx = {}) {
+  return await db.transaction().execute(async (tx) => {
+    const row = await lockCustomerById(tx, customerId);
+    if (row.status === 'archived') {
+      throw new Error(`customer ${customerId} is already archived`);
+    }
+    await sql`UPDATE customers SET status = 'archived', updated_at = now() WHERE id = ${customerId}::uuid`.execute(tx);
+    await revokeCustomerSessions(tx, customerId);
+    await customerAudit(tx, ctx, 'customer.archived', customerId);
+    return { customerId, status: 'archived' };
+  });
+}
+
 async function lockCustomerInviteRow(tx, tokenHash) {
   // Locks both the customer_users row (for the consume) and joins to the
   // customers row (for DEK unwrap). FOR UPDATE on customer_users is enough

@@ -4,6 +4,31 @@
     <span class="status status-<%= customer.status %>"><%= customer.status %></span>
   </header>
 
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
+  <% if (customer.status !== 'archived') { %>
+    <div class="admin-actions">
+      <% if (customer.status === 'active') { %>
+        <form method="post" action="/admin/customers/<%= customer.id %>/suspend">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-warning">Suspend</button>
+        </form>
+      <% } else if (customer.status === 'suspended') { %>
+        <form method="post" action="/admin/customers/<%= customer.id %>/reactivate">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-primary">Reactivate</button>
+        </form>
+      <% } %>
+      <form method="post" action="/admin/customers/<%= customer.id %>/archive"
+            onsubmit="return confirm('Archive this customer? This cannot be undone from the UI.');">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-danger">Archive</button>
+      </form>
+    </div>
+  <% } %>
+
   <dl class="admin-fields">
     <dt>NIF</dt><dd><%= customer.nif ?? '—' %></dd>
     <dt>Domicilio</dt><dd><%= customer.domicilio ?? '—' %></dd>

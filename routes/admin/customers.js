@@ -162,6 +162,57 @@ export function registerAdminCustomerRoutes(app) {
       title: customer.razon_social,
       customer,
       users,
+      csrfToken: await reply.generateCsrf(),
     });
   });
+
+  for (const action of ['suspend', 'reactivate', 'archive']) {
+    app.post(`/admin/customers/:id/${action}`, { preHandler: app.csrfProtection }, async (req, reply) => {
+      const session = await requireAdminSession(app, req, reply);
+      if (!session) return;
+
+      const id = req.params?.id;
+      if (typeof id !== 'string' || !UUID_RE.test(id)) {
+        reply.code(404);
+        return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+      }
+
+      const ctx = {
+        actorType: 'admin',
+        actorId: session.user_id,
+        ip: req.ip ?? null,
+        userAgentHash: null,
+        audit: {},
+      };
+      try {
+        if (action === 'suspend') {
+          await customersService.suspendCustomer(app.db, { customerId: id }, ctx);
+        } else if (action === 'reactivate') {
+          await customersService.reactivateCustomer(app.db, { customerId: id }, ctx);
+        } else {
+          await customersService.archiveCustomer(app.db, { customerId: id }, ctx);
+        }
+      } catch (err) {
+        // Invalid transition or missing customer. Re-render the detail
+        // page with a banner instead of a hard 500. If the customer
+        // genuinely doesn't exist we'll catch that on the next GET.
+        const customer = await findCustomerById(app.db, id);
+        if (!customer) {
+          reply.code(404);
+          return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+        }
+        const users = await listCustomerUsersByCustomer(app.db, customer.id);
+        reply.code(422);
+        return renderAdmin(req, reply, 'admin/customers/detail', {
+          title: customer.razon_social,
+          customer,
+          users,
+          csrfToken: await reply.generateCsrf(),
+          error: err.message,
+        });
+      }
+
+      reply.redirect(`/admin/customers/${id}`, 302);
+    });
+  }
 }
