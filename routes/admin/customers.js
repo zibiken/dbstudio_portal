@@ -135,7 +135,7 @@ export function registerAdminCustomerRoutes(app) {
       customer,
       primaryUser: { name: primaryName, email: primaryEmail },
       invite: {
-        url: `${baseUrl}/welcome/${result.inviteToken}`,
+        url: `${baseUrl}/customer/welcome/${result.inviteToken}`,
         expiresAt: new Date(Date.now() + customersService.INVITE_TTL_MS).toISOString(),
       },
     });

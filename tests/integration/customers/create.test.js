@@ -125,7 +125,7 @@ describe.skipIf(skip)('customers/service', () => {
       expect(ob.rows[0].idempotency_key).toBe(`customer_welcome:${r.customerId}`);
       expect(ob.rows[0].locals.recipientName).toBe('Customer One');
       expect(ob.rows[0].locals.inviteUrl).toBe(
-        `https://portal.example.test/welcome/${r.inviteToken}`,
+        `https://portal.example.test/customer/welcome/${r.inviteToken}`,
       );
       expect(typeof ob.rows[0].locals.expiresAt).toBe('string');
     });

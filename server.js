@@ -27,6 +27,7 @@ import { registerLogin2faRoutes } from './routes/public/login-2fa.js';
 import { registerLogoutRoutes } from './routes/public/logout.js';
 import { registerResetRoutes } from './routes/public/reset.js';
 import { registerAdminCustomerRoutes } from './routes/admin/customers.js';
+import { registerCustomerOnboardingRoutes } from './routes/customer/onboarding.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -111,6 +112,7 @@ export async function build({
   registerLogoutRoutes(app);
   registerResetRoutes(app);
   registerAdminCustomerRoutes(app);
+  registerCustomerOnboardingRoutes(app);
 
   app.addHook('onClose', async () => { await db.destroy(); });
 
