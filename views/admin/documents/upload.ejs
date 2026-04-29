@@ -1,0 +1,66 @@
+<section class="admin-document-upload">
+  <header class="admin-section-header">
+    <h1>Upload document</h1>
+    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>">Cancel</a>
+  </header>
+
+  <p>Customer: <strong><%= customer.razon_social %></strong></p>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
+  <form id="upload-form"
+        method="post"
+        action="/admin/customers/<%= customer.id %>/documents"
+        enctype="multipart/form-data"
+        data-csrf="<%= csrfToken %>"
+        autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <label>Category
+      <select name="category" required>
+        <option value="generic" selected>Generic</option>
+        <option value="invoice">Invoice</option>
+        <option value="nda-draft">NDA draft</option>
+        <option value="nda-signed">NDA signed</option>
+        <option value="nda-audit">NDA audit</option>
+      </select>
+    </label>
+
+    <label>File
+      <input type="file" name="file" required>
+    </label>
+
+    <p class="muted">50 MB max per file. 5 GB total per customer. The MIME
+    type is detected from magic bytes; a mismatch with the filename
+    extension is harmless but a mismatch with the upload's declared
+    Content-Type is rejected.</p>
+
+    <button type="submit" class="btn btn-primary">Upload</button>
+  </form>
+
+  <script nonce="<%= nonce %>">
+    (function () {
+      var f = document.getElementById('upload-form');
+      f.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var fd = new FormData(f);
+        fetch(f.action, {
+          method: 'POST',
+          body: fd,
+          headers: { 'x-csrf-token': f.dataset.csrf },
+          credentials: 'same-origin',
+          redirect: 'follow'
+        }).then(function (r) {
+          if (r.redirected) window.location.href = r.url;
+          else r.text().then(function (t) {
+            document.body.innerHTML = t;
+          });
+        }).catch(function () {
+          alert('Upload failed.');
+        });
+      });
+    })();
+  </script>
+</section>

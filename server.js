@@ -5,6 +5,7 @@ import cookie from '@fastify/cookie';
 import formbody from '@fastify/formbody';
 import csrfProtection from '@fastify/csrf-protection';
 import sensible from '@fastify/sensible';
+import multipart from '@fastify/multipart';
 import ejs from 'ejs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,8 +28,10 @@ import { registerLogin2faRoutes } from './routes/public/login-2fa.js';
 import { registerLogoutRoutes } from './routes/public/logout.js';
 import { registerResetRoutes } from './routes/public/reset.js';
 import { registerAdminCustomerRoutes } from './routes/admin/customers.js';
+import { registerAdminDocumentsRoutes } from './routes/admin/documents.js';
 import { registerCustomerOnboardingRoutes } from './routes/customer/onboarding.js';
 import { registerCustomerDashboardRoutes } from './routes/customer/dashboard.js';
+import { MAX_FILE_BYTES } from './lib/files.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -73,6 +76,9 @@ export async function build({
       signed: true,
     },
   });
+  await app.register(multipart, {
+    limits: { fileSize: MAX_FILE_BYTES, files: 1 },
+  });
   await app.register(secureHeaders);
   await app.register(view, {
     engine: { ejs },
@@ -113,6 +119,7 @@ export async function build({
   registerLogoutRoutes(app);
   registerResetRoutes(app);
   registerAdminCustomerRoutes(app);
+  registerAdminDocumentsRoutes(app);
   registerCustomerOnboardingRoutes(app);
   registerCustomerDashboardRoutes(app);
 
