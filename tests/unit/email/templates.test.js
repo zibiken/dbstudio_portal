@@ -16,6 +16,7 @@ const EXPECTED_SLUGS = [
   'customer-pw-reset',
   'email-change-notification-old',
   'email-change-verification',
+  'email-otp-code',
   'generic-admin-message',
   'invite-expiring-soon',
   'nda-ready',
@@ -60,6 +61,14 @@ const SAMPLES = {
     },
     subjectMatches: /welcome|admin/i,
     bodyContains: ['Bram', 'https://portal.dbstudio.one/welcome/admin-welcome-token', EU_DATE],
+  },
+  'email-otp-code': {
+    locals: {
+      recipientName: 'Bram',
+      code: '482194',
+    },
+    subjectMatches: /sign-in code|verification code|one-time code/i,
+    bodyContains: ['482194'],
   },
   '2fa-reset-by-admin': {
     locals: {
@@ -172,7 +181,7 @@ const SAMPLES = {
 };
 
 describe('email templates', () => {
-  it('lists exactly the 15 expected slugs', () => {
+  it('lists exactly the 16 expected slugs', () => {
     expect(listTemplates()).toEqual(EXPECTED_SLUGS);
   });
 

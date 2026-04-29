@@ -1,0 +1,9 @@
+<%# subject: Your DB Studio sign-in code %>
+<div style="<%- S.tagline %>">Portal · Sign-in code</div>
+<h1 style="<%- S.h1 %>">Use this code to finish signing in</h1>
+<p style="<%- S.body %>">Hi <%= recipientName %>,</p>
+<p style="<%- S.body %>">Enter the six-digit code below in the second-factor screen. The code expires in 5 minutes and can only be used once.</p>
+<div style="margin:8px 0 24px;padding:18px 22px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;text-align:center;">
+  <div style="font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:28px;letter-spacing:0.4em;color:#FFFFFF;font-weight:600;"><%= code %></div>
+</div>
+<p style="<%- S.note %>">If you didn't try to sign in just now, ignore this email and consider rotating your password.</p>

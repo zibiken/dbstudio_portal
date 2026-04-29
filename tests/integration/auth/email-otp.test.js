@@ -43,7 +43,7 @@ describe.skipIf(skip)('email-otp', () => {
 
     const outbox = await sql`SELECT template, locals, to_address, idempotency_key FROM email_outbox WHERE to_address = ${toAddress}`.execute(db);
     expect(outbox.rows).toHaveLength(1);
-    expect(outbox.rows[0].template).toBe('email_otp');
+    expect(outbox.rows[0].template).toBe('email-otp-code');
     expect(outbox.rows[0].locals.code).toMatch(/^\d{6}$/);
   });
 
