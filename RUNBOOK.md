@@ -89,11 +89,48 @@ Confirmed 2026-04-29: staging an env line of the form `MAILERSEND_API_KEY=` foll
 
 ### Deploy
 
-(Filled at M1.)
+```bash
+cd /opt/dbstudio_portal
+sudo -u root git pull --ff-only origin main
+sudo -u portal-app env PATH=/opt/dbstudio_portal/.node/bin:/usr/bin:/bin /opt/dbstudio_portal/.node/bin/npm ci --omit=dev
+sudo -u portal-app env PATH=/opt/dbstudio_portal/.node/bin:/usr/bin:/bin /opt/dbstudio_portal/.node/bin/npm run build
+sudo systemctl restart portal-pdf.service
+sleep 2
+sudo systemctl restart portal.service
+sudo bash /opt/dbstudio_portal/scripts/smoke.sh
+```
+
+Rollback: `git reset --hard <sha>` then re-run the same sequence.
 
 ### Service control
 
-(Filled at M1.)
+```bash
+# Status
+systemctl is-active portal.service portal-pdf.service
+sudo journalctl -u portal.service -f
+sudo journalctl -u portal-pdf.service -f
+
+# Order matters on cold start: portal-pdf first (creates the socket), portal second.
+sudo systemctl restart portal-pdf.service
+sudo systemctl restart portal.service
+
+# Stop everything
+sudo systemctl stop portal.service portal-pdf.service
+```
+
+### Smoke test
+
+```bash
+sudo bash /opt/dbstudio_portal/scripts/smoke.sh
+```
+
+5 checks: both services active, /health green, socket mode 0660 portal-pdf:portal-app, safety-check passes.
+
+### M1 hardening deltas (vs spec §7)
+
+The spec aspired to `MemoryDenyWriteExecute=true` + `SystemCallFilter=@system-service` on portal.service. Both crash Node 20 V8 (status=31/SYS / SIGBUS). Both omitted. The other hardening (ProtectSystem=strict, ProtectHome, PrivateTmp, NoNewPrivileges, RestrictAddressFamilies, ProtectKernel*, RestrictNamespaces, LockPersonality, RestrictRealtime) is intact. Future work: capture syscall list via `auditd` and write a custom narrow `SystemCallFilter=` allowlist.
+
+The spec said the IPC socket lived at `/run/portal-pdf.sock`. The portal-pdf user can't write directly to `/run/`. Implementation uses `RuntimeDirectory=portal-pdf` so systemd creates `/run/portal-pdf/` owned by portal-pdf:portal-app, and the actual socket lives at `/run/portal-pdf/portal.sock`. `pdf-service.js` does an explicit `chmodSync(SOCK, 0o660)` after listen because Node creates Unix sockets with mode 0777 & ~umask which leaves 0770 even with `UMask=0007` in the unit. Safety-check (invariant 7) verifies the final 0660.
 
 ### Email outbox runner status
 

@@ -376,6 +376,10 @@ These need the operator (not the implementer) at the keyboard. Roadmap blocks on
 
 ## 7 · Hardening profiles
 
+> Delta from blueprint (encountered during M1 install on Node 20): `MemoryDenyWriteExecute=true` and the `SystemCallFilter` lines crash Node V8 with status=31/SYS or SIGBUS. Both are omitted from the active unit; everything else remains. The service is still hardened by NoNewPrivileges, ProtectSystem=strict, ProtectHome, PrivateTmp, RestrictAddressFamilies, ProtectKernel*, RestrictNamespaces, LockPersonality, RestrictRealtime. Future work: write a tight allowlist via `SystemCallFilter=…` once we capture exactly which calls Node uses (auditd on a staging run).
+
+> Delta: portal-pdf socket lives at `/run/portal-pdf/portal.sock` (managed via `RuntimeDirectory=portal-pdf`) instead of `/run/portal-pdf.sock` — `portal-pdf` user can't write directly to `/run/`. Mode 0660 portal-pdf:portal-app enforced by an explicit `chmodSync` in `pdf-service.js` after listen.
+
 ### 7.1 `portal.service`
 
 ```ini

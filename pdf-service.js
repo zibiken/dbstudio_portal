@@ -2,7 +2,7 @@
 // Receives JSON-line {html, options} on a Unix socket; replies {ok,pdfBase64,sha256} or {ok:false,error,...}.
 // No DB access, no secrets, no network egress (RestrictAddressFamilies=AF_UNIX in the unit).
 import { createServer } from 'node:net';
-import { unlinkSync, existsSync } from 'node:fs';
+import { unlinkSync, existsSync, chmodSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import puppeteer from 'puppeteer';
 
@@ -66,6 +66,9 @@ const server = createServer((conn) => {
 });
 
 server.listen(SOCK, () => {
+  // Force 0660 (owner+group rw, no world). Node creates the socket with mode
+  // 0777 & ~umask which can leave it 0770 even with UMask=0007 in the unit.
+  chmodSync(SOCK, 0o660);
   process.stdout.write(`portal-pdf listening on ${SOCK}\n`);
 });
 

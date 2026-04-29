@@ -11,6 +11,9 @@ ExecStart=/opt/dbstudio_portal/.node/bin/node pdf-service.js
 Restart=on-failure
 RestartSec=5
 EnvironmentFile=/opt/dbstudio_portal/.env
+UMask=0007
+RuntimeDirectory=portal-pdf
+RuntimeDirectoryMode=0750
 # Service should not actually need most of .env — it ignores everything except PDF_SERVICE_SOCKET.
 # EnvironmentFile mode 0400 portal-app means portal-pdf needs group access; portal-pdf is in
 # portal-app group, so EnvironmentFile parsing succeeds. The vars themselves are unused inside the process.
@@ -21,7 +24,7 @@ ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
 PrivateDevices=true
-ReadWritePaths=/run
+ReadWritePaths=/run/portal-pdf
 ReadOnlyPaths=/opt/dbstudio_portal /var/lib/portal/fonts /var/lib/portal/templates
 ProtectKernelTunables=true
 ProtectKernelModules=true

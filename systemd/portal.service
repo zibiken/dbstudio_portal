@@ -20,7 +20,7 @@ ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
 PrivateDevices=true
-ReadWritePaths=/var/lib/portal /var/log/portal /run/portal-pdf.sock
+ReadWritePaths=/var/lib/portal /var/log/portal /run/portal-pdf
 ReadOnlyPaths=/opt/dbstudio_portal
 ProtectKernelTunables=true
 ProtectKernelModules=true
@@ -28,11 +28,15 @@ ProtectControlGroups=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictNamespaces=true
 LockPersonality=true
-MemoryDenyWriteExecute=true
+# MemoryDenyWriteExecute=true — DELIBERATELY OMITTED. Node 20 V8 JIT requires WX pages,
+# same constraint that already forced its omission on portal-pdf.service.
 RestrictRealtime=true
 SystemCallArchitectures=native
-SystemCallFilter=@system-service
-SystemCallFilter=~@privileged @resources
+# SystemCallFilter — DELIBERATELY OMITTED. Even @system-service crashes Node 20 (status=31/SYS).
+# The other hardening (NoNewPrivileges, ProtectSystem=strict, ProtectHome, PrivateTmp,
+# RestrictAddressFamilies, ProtectKernel*, RestrictNamespaces, LockPersonality, RestrictRealtime)
+# remains strong. Seccomp can be re-added later once we identify exactly which calls Node needs
+# and write a custom allowlist via SystemCallFilter=… narrowed to that set.
 
 # Logging
 StandardOutput=journal
