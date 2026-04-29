@@ -12,7 +12,7 @@
 | **M1** Skeleton | ✅ done | 2026-04-29 | Fastify+EJS, both systemd units running, /health 200, all security headers, Tailwind compiled, smoke.sh 5/5, IPC socket mode 0660. Spec deltas (sender domain, socket path, hardening) recorded in spec §7 + RUNBOOK |
 | **M2** Schema + crypto | ✅ done | 2026-04-29 | Migration runner (4 tests, isolated tempdir + schema), 0001_init.sql (15 tables + audit_log append-only trigger replacing the unenforceable REVOKE — see deltas), Kysely typings, lib/crypto/{kek,envelope,hash,tokens} at 100/100/100/100 coverage, KEK rotation procedure in RUNBOOK |
 | **M3** Admin auth | ✅ done | 2026-04-29 | 3.1–3.13 complete + M3→M4 review fixes (1 Critical + 6 Important). New-device detection now actually fires; /login/2fa rate-limited; welcome flow atomic; constant-time login (sentinel argon2 hash); login bucket split ip/email to defeat distributed brute force; SELECT FOR UPDATE on invite consume. lib/auth/middleware.js bumped to 100/100. 185 tests green. **M3 → M4 review checkpoint cleared.** |
-| **M4** Email pipeline (gate) | — | — | Sender: `portal@dbstudio.one` (shared domain, free-tier MailerSend) |
+| **M4** Email pipeline (gate) | 🛑 awaiting operator | — | OPERATOR GATE M4-A — dbstudio.one MailerSend domain + dedicated `portal-v1` API key + `.env` paste + manual test send. Sender: `portal@dbstudio.one` (shared domain, free-tier MailerSend). Implementer resumes at Task 4.1 once gate is open. |
 | **M5** Customer create + onboarding | — | — | |
 | **M6** Documents + projects | — | — | |
 | **M7** Credential vault + requests | — | — | |
@@ -20,9 +20,11 @@
 | **M9** Profile + activity + polish | — | — | |
 | **M10** Backups + go-live (gates) | — | — | |
 
-**Latest commit on main:** `6fc3374` — `refactor(m3): review-driven polish — auditing, CSP probes, Referer leak, RUNBOOK note`.
+**Latest commit on main:** `1346892` — `docs(m3): record M3→M4 review checkpoint cleared, advance resume pointer to M4 gate`.
 
-**Resume here:** M4 OPERATOR GATE M4-A — MailerSend domain + dedicated API key + .env update. Once that gate is open, the next implementer task is 4.1 (`lib/email.js` MailerSend client). The M3 → M4 review checkpoint has been cleared (one Critical + six Important findings all fixed in commits ada0a20..6fc3374, with new integration tests asserting each fix end-to-end).
+**Resume here:** M4 OPERATOR GATE M4-A — operator must verify the `dbstudio.one` MailerSend domain (SPF/DKIM via Cloudflare, DMARC ≥ quarantine), generate a **dedicated** API key named `portal-v1` (send-only), paste it into `/opt/dbstudio_portal/.env` as `MAILERSEND_API_KEY=mlsn.…`, restart `portal.service`, and send a one-line manual MailerSend test to confirm 202 + inbox arrival at bram@roxiplus.es. After the gate opens the implementer picks up Task 4.1 (`lib/email.js` MailerSend client with retry/backoff and idempotency) under TDD.
+
+**Test/coverage state at the gate:** 185 tests green (vitest run), smoke.sh 5/5, coverage on `lib/auth/**` and `domain/admins/**` at 97.13/88.54/97.10/98.16 aggregate (every file ≥ 80 % every metric; `lib/auth/middleware.js` 100/100). Three review-checkpoint commits worth re-reading before M4 if you context-swap: `ada0a20` (new-device wiring), `5dc1fd2` (atomic completeWelcome), `3a3dbc6` (dual-key login limit).
 
 **Goal:** Build the v1 DB Studio Customer Portal — a security-first, isolated customer portal at `portal.dbstudio.one` running as two systemd units (`portal.service` + sandboxed `portal-pdf.service`) on `127.0.0.1:3400`, behind Cloudflare → NPM → Fastify, with envelope-encrypted credential vault, NDA generation, MailerSend transactional email on a dedicated subdomain, and `age`-encrypted nightly backups to Hetzner Storage Box.
 
