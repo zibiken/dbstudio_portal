@@ -4,11 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0A0A0A">
   <title><%= typeof title !== 'undefined' ? title : 'Admin' %> · DB Studio Portal</title>
+  <link rel="icon" href="/static/brand/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/static/brand/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
+  <link rel="manifest" href="/static/brand/site.webmanifest">
   <link rel="stylesheet" href="/static/styles/app.css" nonce="<%= nonce %>">
 </head>
 <body class="admin">
-  <header><nav><span>DB Studio Portal · Admin</span></nav></header>
+  <header class="brand">
+    <a href="/admin" aria-label="DB Studio Portal — Admin">
+      <img src="/static/brand/logo-white.png" alt="DB Studio" height="28" width="auto">
+    </a>
+    <nav><span>Admin</span></nav>
+  </header>
   <main><%- body %></main>
 </body>
 </html>

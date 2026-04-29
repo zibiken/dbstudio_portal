@@ -88,6 +88,10 @@ export async function build({
 
   app.get('/health', async () => ({ ok: true, version: process.env.npm_package_version || '0.1.0' }));
 
+  app.get('/favicon.ico', (_req, reply) => reply.sendFile('brand/favicon.ico'));
+  app.get('/apple-touch-icon.png', (_req, reply) => reply.sendFile('brand/apple-touch-icon.png'));
+  app.get('/site.webmanifest', (_req, reply) => reply.sendFile('brand/site.webmanifest'));
+
   app.get('/', async (req, reply) => {
     const html = await ejs.renderFile(
       path.join(__dirname, 'views/layouts/public.ejs'),
