@@ -142,7 +142,29 @@ The spec said the IPC socket lived at `/run/portal-pdf.sock`. The portal-pdf use
 
 ### KEK rotation
 
-(Filled at M2 — see plan task 2.8.)
+The master KEK at `/var/lib/portal/master.key` wraps every per-customer DEK. Rotating it means re-wrapping every `customers.dek_*` row with a fresh KEK. Procedure:
+
+1. **Rehearse on a scratch DB before touching production.**
+   - Restore the latest backup into a scratch Postgres database.
+   - Generate a fake new KEK: `openssl rand -out /tmp/master.key.new 32 && chmod 0400 /tmp/master.key.new`.
+   - Run `scripts/rotate-kek.js --dry-run --kek-old /var/lib/portal/master.key --kek-new /tmp/master.key.new --database-url "<scratch-db-url>"`. Output: list of customer rows that would be re-wrapped, no DB writes.
+   - Run `scripts/rotate-kek.js --commit ...` against the scratch DB. Confirm one credential decrypts cleanly afterwards using the new KEK.
+
+2. **Production rotation, scheduled-window only.**
+   - Generate the new KEK: `sudo -u portal-app openssl rand -out /var/lib/portal/master.key.new 32 && sudo chmod 0400 /var/lib/portal/master.key.new && sudo chown portal-app:portal-app /var/lib/portal/master.key.new`.
+   - Off-server backup the new KEK *before* the swap (operator workstation, encrypted password manager).
+   - Dry-run: `sudo -u portal-app /opt/dbstudio_portal/.node/bin/node scripts/rotate-kek.js --dry-run --kek-old /var/lib/portal/master.key --kek-new /var/lib/portal/master.key.new`.
+   - Commit: same command with `--commit`. The script reads each `customers.dek_*` row, unwraps with the old KEK, re-wraps with the new KEK, and writes back inside a transaction per row.
+
+3. **Swap and restart.**
+   - `sudo systemctl stop portal.service`.
+   - `sudo mv /var/lib/portal/master.key /var/lib/portal/master.key.old && sudo mv /var/lib/portal/master.key.new /var/lib/portal/master.key`.
+   - `sudo systemctl start portal.service`.
+   - Verify: `sudo bash /opt/dbstudio_portal/scripts/smoke.sh` (safety-check passes, /health 200), and as a final smoke decrypt one customer credential via the admin UI to confirm the new KEK is live.
+
+4. **24-hour soak.** If no decrypt failures appear in the journal in 24 hours, shred the old KEK: `sudo shred -u /var/lib/portal/master.key.old`. Document the rotation date and reason in the incident log below.
+
+`scripts/rotate-kek.js` is written when first needed (M-after, not in M2). The procedure above defines the contract the script must satisfy.
 
 ### Admin password reset / lockout
 
