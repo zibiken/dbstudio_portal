@@ -44,6 +44,14 @@ describe('tokens', () => {
     it('rejects a malformed token (no dot)', () => {
       expect(() => verify('not-a-token', secret)).toThrow();
     });
+
+    it('rejects a token whose payload-half is empty', () => {
+      expect(() => verify('.somemac', secret)).toThrow(/bad token/);
+    });
+
+    it('rejects a token whose mac-half is empty', () => {
+      expect(() => verify('somepayload.', secret)).toThrow(/bad token/);
+    });
   });
 
   describe('signFileUrl / verifyFileUrl', () => {
