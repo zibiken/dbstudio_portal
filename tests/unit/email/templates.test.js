@@ -4,7 +4,7 @@ import { renderTemplate, listTemplates } from '../../../lib/email-templates.js';
 const ISO_DATE = '2026-05-06';
 const ISO_DATETIME = '2026-04-29T12:32:00Z';
 const EU_DATE = '06/05/2026';
-const EU_DATETIME = '29/04/2026 14:32';
+const EU_DATETIME = '29/04/2026 13:32';
 
 const EXPECTED_SLUGS = [
   '2fa-reset-by-admin',
@@ -223,21 +223,23 @@ describe('email templates', () => {
     expect(() => renderTemplate('not-a-real-slug', 'en', {})).toThrow(/Unknown email template/);
   });
 
-  it('formats dates in DD/MM/YYYY (Europe/Madrid), regardless of system TZ', () => {
+  it('formats dates in DD/MM/YYYY (Atlantic/Canary), regardless of system TZ', () => {
+    // WEST (UTC+1): 23:30 UTC on 6 May → 00:30 7 May Canary time
     const { body } = renderTemplate('customer-invitation', 'en', {
       recipientName: 'Bram',
       inviteUrl: 'https://portal.dbstudio.one/welcome/abc',
-      expiresAt: '2026-05-06T22:00:00Z',
+      expiresAt: '2026-05-06T23:30:00Z',
     });
     expect(body).toContain('07/05/2026');
   });
 
-  it('formats datetimes in DD/MM/YYYY HH:mm 24h (Europe/Madrid)', () => {
+  it('formats datetimes in DD/MM/YYYY HH:mm 24h (Atlantic/Canary)', () => {
+    // WEST (UTC+1): 23:32 UTC on 29 April → 00:32 30 April Canary time
     const { body } = renderTemplate('new-device-login', 'en', {
       recipientName: 'Bram',
       ip: '1.2.3.4',
       userAgent: 'UA',
-      when: '2026-04-29T22:32:00Z',
+      when: '2026-04-29T23:32:00Z',
       sessionsUrl: 'https://portal.dbstudio.one/profile/sessions',
     });
     expect(body).toContain('30/04/2026 00:32');

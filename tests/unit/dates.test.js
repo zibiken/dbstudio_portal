@@ -11,9 +11,9 @@ describe('lib/dates', () => {
       expect(euDate(new Date(Date.UTC(2026, 4, 6, 12, 0, 0)))).toBe('06/05/2026');
     });
 
-    it('rolls over the day at the Madrid TZ boundary (UTC 22:00 winter / 22:00 summer)', () => {
-      // Summer (CEST = UTC+2): 22:00 UTC on 6 May is 00:00 7 May Madrid time.
-      expect(euDate('2026-05-06T22:00:00Z')).toBe('07/05/2026');
+    it('rolls over the day at the Canary TZ boundary', () => {
+      // Summer (WEST = UTC+1): 23:00 UTC on 6 May is 00:00 7 May Canary time.
+      expect(euDate('2026-05-06T23:00:00Z')).toBe('07/05/2026');
     });
 
     it('returns the input as-is for non-parseable strings', () => {
@@ -34,19 +34,21 @@ describe('lib/dates', () => {
 
   describe('euDateTime', () => {
     it('formats datetimes in DD/MM/YYYY HH:mm 24h, no comma', () => {
-      // CEST (UTC+2) in late April 2026: 12:32 UTC → 14:32 Madrid.
-      expect(euDateTime('2026-04-29T12:32:00Z')).toBe('29/04/2026 14:32');
+      // WEST (UTC+1) in late April 2026: 12:32 UTC → 13:32 Canary.
+      expect(euDateTime('2026-04-29T12:32:00Z')).toBe('29/04/2026 13:32');
     });
 
     it('uses 24-hour clock (not AM/PM)', () => {
-      // 21:00 UTC = 23:00 Madrid in summer
-      expect(euDateTime('2026-04-29T21:00:00Z')).toBe('29/04/2026 23:00');
-      expect(euDateTime('2026-04-29T22:30:00Z')).toBe('30/04/2026 00:30');
+      // 22:00 UTC = 23:00 Canary in summer (WEST = UTC+1)
+      expect(euDateTime('2026-04-29T22:00:00Z')).toBe('29/04/2026 23:00');
+      expect(euDateTime('2026-04-29T23:30:00Z')).toBe('30/04/2026 00:30');
     });
 
-    it('respects Madrid winter TZ (CET = UTC+1)', () => {
-      // 23:30 UTC on 15 December → 00:30 16 December Madrid time
-      expect(euDateTime('2026-12-15T23:30:00Z')).toBe('16/12/2026 00:30');
+    it('respects Canary winter TZ (WET = UTC+0)', () => {
+      // 23:30 UTC on 15 December → 23:30 same day Canary time (UTC offset 0)
+      expect(euDateTime('2026-12-15T23:30:00Z')).toBe('15/12/2026 23:30');
+      // And the rollover sits at 00:00 UTC
+      expect(euDateTime('2026-12-16T00:00:00Z')).toBe('16/12/2026 00:00');
     });
 
     it('returns the input as-is for non-parseable strings', () => {
