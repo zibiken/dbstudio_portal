@@ -92,8 +92,22 @@ export async function uploadForCustomer(db, {
   declaredMime = null,
   stream,
 }, ctx = {}) {
-  if (!ALLOWED_CATEGORIES.has(category)) {
-    throw new Error(`upload: invalid category '${category}'`);
+  // If a parent_id is provided, the new doc INHERITS the parent's
+  // category — versioning is one document evolving over time, switching
+  // categories mid-chain would be a footgun. Cross-customer parents
+  // are rejected here (defence-in-depth on top of the FK constraint
+  // which only verifies the parent exists, not who owns it).
+  let resolvedCategory = category;
+  if (parentId) {
+    const parent = await findDocumentById(db, parentId);
+    if (!parent) throw new Error(`upload: parent document ${parentId} not found`);
+    if (parent.customer_id !== customerId) {
+      throw new Error('upload: parent document belongs to a different customer');
+    }
+    resolvedCategory = parent.category;
+  }
+  if (!ALLOWED_CATEGORIES.has(resolvedCategory)) {
+    throw new Error(`upload: invalid category '${resolvedCategory}'`);
   }
   // Pre-flight check: catches archived/suspended/missing before we touch
   // the disk. The transactional re-check below is the load-bearing gate.
@@ -146,7 +160,7 @@ export async function uploadForCustomer(db, {
           customerId,
           projectId,
           parentId,
-          category,
+          category: resolvedCategory,
           storagePath: finalPath,
           originalFilename: cleanName,
           mimeType: sniffed.mime,
@@ -165,7 +179,7 @@ export async function uploadForCustomer(db, {
             customerId,
             projectId,
             parentId,
-            category,
+            category: resolvedCategory,
             sizeBytes: streamed.sizeBytes,
             mimeType: sniffed.mime,
             ...(ctx?.audit ?? {}),

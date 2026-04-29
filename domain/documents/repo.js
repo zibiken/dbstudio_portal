@@ -40,6 +40,34 @@ export async function customerStorageBytes(db, customerId) {
   return Number(r.rows[0].total);
 }
 
+// Returns the full version chain a document belongs to, in chronological
+// order from root (no parent_id) to the most recent leaf. Walks the
+// parent_id pointers — chains are typically short (3-10 entries) so the
+// iterative SELECTs are cheaper than a recursive CTE round-trip.
+export async function listVersionChain(db, documentId) {
+  let cur = await findDocumentById(db, documentId);
+  if (!cur) return [];
+  // Walk up to root.
+  while (cur.parent_id) {
+    const parent = await findDocumentById(db, cur.parent_id);
+    if (!parent) break;
+    cur = parent;
+  }
+  const chain = [cur];
+  // Walk down via parent_id pointers from each child.
+  for (;;) {
+    const r = await sql`
+      SELECT * FROM documents
+       WHERE parent_id = ${chain[chain.length - 1].id}::uuid
+       ORDER BY uploaded_at ASC
+       LIMIT 1
+    `.execute(db);
+    if (r.rows.length === 0) break;
+    chain.push(r.rows[0]);
+  }
+  return chain;
+}
+
 export async function listDocumentsByCustomer(db, customerId, { projectId = null } = {}) {
   if (projectId) {
     const r = await sql`
