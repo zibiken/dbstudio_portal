@@ -128,6 +128,31 @@ describe.skipIf(skip)('admins/service', () => {
       expect(await service.verifyLogin(db, { email: tagEmail('absent'), password: 'x' })).toBeNull();
     });
 
+    it('takes comparable wall-clock time for missing user vs wrong password (no enumeration via timing)', async () => {
+      const created = await service.create(db, { email: tagEmail('time'), name: 'T' }, { ...ctx, audit: { tag } });
+      await service.consumeInvite(db, {
+        token: created.inviteToken,
+        newPassword: 'astrong-passphrase-9342',
+      }, { ...ctx, audit: { tag }, hibpHasBeenPwned: okHibp });
+
+      // Warm caches so the first run does not skew the comparison.
+      await service.verifyLogin(db, { email: tagEmail('time'), password: 'wrong' });
+
+      const t0 = Date.now();
+      await service.verifyLogin(db, { email: tagEmail('time'), password: 'wrong' });
+      const dWrong = Date.now() - t0;
+
+      const t1 = Date.now();
+      await service.verifyLogin(db, { email: tagEmail('ghost-no-such-admin'), password: 'wrong' });
+      const dMissing = Date.now() - t1;
+
+      // Both branches run argon2.verify, so the timing difference should be small.
+      // Allow a generous 4× ratio and 50ms floor to keep this stable on shared CI.
+      const lo = Math.min(dWrong, dMissing);
+      const hi = Math.max(dWrong, dMissing);
+      expect(hi - lo).toBeLessThan(Math.max(50, lo * 3));
+    });
+
     it('returns null when password not yet set (admin still pre-welcome)', async () => {
       await service.create(db, { email: tagEmail('preset'), name: 'P' }, { ...ctx, audit: { tag } });
       expect(await service.verifyLogin(db, { email: tagEmail('preset'), password: 'anything' })).toBeNull();

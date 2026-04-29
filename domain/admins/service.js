@@ -2,7 +2,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import { v7 as uuidv7 } from 'uuid';
 import { sql } from 'kysely';
 import {
-  hashPassword, verifyPassword, hibpHasBeenPwned as defaultHibp,
+  hashPassword, verifyPassword, hibpHasBeenPwned as defaultHibp, SENTINEL_HASH,
 } from '../../lib/crypto/hash.js';
 import { writeAudit } from '../../lib/audit.js';
 import { encrypt } from '../../lib/crypto/envelope.js';
@@ -124,11 +124,12 @@ export async function completeWelcome(
 }
 
 export async function verifyLogin(db, { email, password }) {
-  const admin = await findByEmail(db, email);
-  if (!admin) return null;
-  if (!admin.password_hash) return null;
-  const ok = await verifyPassword(admin.password_hash, password);
-  return ok ? admin : null;
+  const admin = typeof email === 'string' ? await findByEmail(db, email) : null;
+  // Always run argon2 verify so the wall-clock cost is constant regardless
+  // of whether the email exists or has a password set. Without this an
+  // attacker can enumerate valid admin emails by timing the response.
+  const ok = await verifyPassword(admin?.password_hash ?? SENTINEL_HASH, password ?? '');
+  return ok && admin?.password_hash ? admin : null;
 }
 
 export async function requestPasswordReset(db, { email }, ctx = {}) {

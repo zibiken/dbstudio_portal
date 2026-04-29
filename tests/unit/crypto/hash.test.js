@@ -4,6 +4,7 @@ import {
   verifyPassword,
   sha1Hex,
   hibpHasBeenPwned,
+  SENTINEL_HASH,
 } from '../../../lib/crypto/hash.js';
 
 describe('hash', () => {
@@ -25,6 +26,12 @@ describe('hash', () => {
     it('produces a hash starting with $argon2id$', async () => {
       const h = await hashPassword('hello');
       expect(h.startsWith('$argon2id$')).toBe(true);
+    });
+
+    it('SENTINEL_HASH does not verify any plausible password (constant-time guard)', async () => {
+      expect(await verifyPassword(SENTINEL_HASH, '')).toBe(false);
+      expect(await verifyPassword(SENTINEL_HASH, 'password')).toBe(false);
+      expect(await verifyPassword(SENTINEL_HASH, 'correct horse battery staple')).toBe(false);
     });
   });
 
