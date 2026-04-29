@@ -2603,20 +2603,20 @@ Hand `M2_END..HEAD` to `superpowers:requesting-code-review`. Verify:
 
 ---
 
-### 🛑 OPERATOR GATE M4-A — DNS + MailerSend verification
+### 🛑 OPERATOR GATE M4-A — confirm MailerSend domain + dedicated API key
 
 **Blocker:** the implementer cannot complete M4 without these. Do them first.
 
-- [ ] **Operator: in Cloudflare, add DNS records for `mail.portal.dbstudio.one`:**
-  - SPF (`TXT @`): `"v=spf1 include:_spf.mailersend.net -all"` (only if MailerSend uses an SPF include for this subdomain — confirm in their dashboard).
-  - DKIM (`TXT mlsend2._domainkey.mail.portal.dbstudio.one`): value provided by MailerSend.
-  - DMARC (`TXT _dmarc.mail.portal.dbstudio.one`): `"v=DMARC1; p=quarantine; rua=mailto:dmarc@dbstudio.one"`.
-  - MX: not required for outbound-only.
+> v1 sender is `portal@dbstudio.one` (shared with DB Studio marketing — see spec §2.9 / §10 risk register). Reputation isolation to `mail.portal.dbstudio.one` is deferred.
+
+- [ ] **Operator: confirm `dbstudio.one` is already verified in MailerSend** (it is, if marketing email goes through it). If not yet verified:
+  - In MailerSend dashboard → Domains → Add `dbstudio.one`
+  - Add the SPF/DKIM TXT records they show in Cloudflare; wait for verification (≤ 1 h)
+  - DMARC: confirm `_dmarc.dbstudio.one` is set to at least `v=DMARC1; p=quarantine; rua=mailto:bram@roxiplus.es`
 
 - [ ] **Operator: in MailerSend dashboard:**
-  - Add domain `mail.portal.dbstudio.one`.
-  - Wait for verification (DNS prop ≤ 1 h).
-  - Generate a **dedicated API key** scoped to this domain only. Copy once.
+  - Generate a **dedicated API key** for the portal (separate from any marketing key, so it can be revoked independently). Token name: `portal-v1`. Permissions: send only.
+  - Copy the key once — MailerSend won't show it again.
 
 - [ ] **Operator: paste the key into `.env` on the server.**
 
@@ -2627,7 +2627,7 @@ sudo systemctl restart portal.service
 sudo journalctl -u portal.service -n 30   # confirm safety-check passes; no "missing MAILERSEND_API_KEY" lines
 ```
 
-- [ ] **Operator: confirm the gate.** Send a one-line manual test email via `curl` against the MailerSend API as a sanity check — expect 202 and an inbox arrival at `bram@roxiplus.es`. Document key fingerprint (last 4 chars only) in `RUNBOOK.md` under "Email provider state".
+- [ ] **Operator: confirm the gate.** Send a one-line manual test email via `curl` against the MailerSend API (from `portal@dbstudio.one`) as a sanity check — expect 202 and an inbox arrival at `bram@roxiplus.es`. Document key fingerprint (last 4 chars only) in `RUNBOOK.md` under "Email provider state".
 
 ---
 

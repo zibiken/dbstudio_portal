@@ -29,7 +29,7 @@ Where this spec disagrees with the original blueprint, **this spec wins.** Delta
 | Q4 | Deploy model | In-place `git pull --ff-only origin main` → `npm ci --omit=dev` → `npm run build` → `systemctl restart portal.service portal-pdf.service`. Rollback = `git reset --hard <sha>` + rebuild + restart. **No symlink farm.** |
 | Q5 | Secrets workflow | `.env.example` in repo. `scripts/bootstrap-secrets.sh` generates the master KEK, session-signing secret, and file-URL signing secret on the server (mode 0400). `scripts/precommit-secrets-check.sh` blocks committing anything that smells like a secret. |
 | Q6 | NDA template handling | Committed at `templates/nda.html`. The `ndas` table records `template_version_sha` (sha256 of the rendered template at generation time) so we can answer "what exact wording did Customer X sign?" Install rewrites the template's Google Fonts `@import` → local woff2. |
-| Q7 | Email provider | **MailerSend** (matches DB Studio), but with a dedicated verified subdomain `mail.portal.dbstudio.one` for reputation isolation. **Operator-assisted DNS step required.** |
+| Q7 | Email provider | **MailerSend** (matches DB Studio). v1 sends from `portal@dbstudio.one` (shared with marketing) to stay inside MailerSend's free tier. Reputation-isolation to a dedicated subdomain (`mail.portal.dbstudio.one`) is deferred — see §10 risk register and §13 deferred-isolation plan. **Operator-assisted at M4: confirm `dbstudio.one` is already verified in MailerSend and issue a dedicated API key for the portal.** |
 | Q8 | i18n | i18next scaffolded throughout v1, all user-facing strings wrapped in `t()`, `locales/en/` populated, `locales/es/` empty placeholder for later translator drop-in. |
 | Q9 | Off-server backups | Hetzner Storage Box. Nightly `pg_dump` + storage-tree archive, `age`-encrypted with public key on server, **private key offline** (operator workstation, *not* on the server). |
 | Q10 | Puppeteer + Chromium | **Two systemd units.** `portal.service` (full hardening, no Chromium) + `portal-pdf.service` (looser hardening, Chromium V8 needs JIT) running as a separate Linux user (`portal-pdf`) and talking only over a Unix socket. |
@@ -265,11 +265,11 @@ The trust contract: **every admin view of a customer credential is timestamped, 
 
 ### 2.9 Email
 
-MailerSend, dedicated verified subdomain `mail.portal.dbstudio.one`. Templates are compiled at build time from EJS sources in `emails/` and rendered in-app — MailerSend is the SMTP delivery layer only, never the templating layer. Every send is logged in `email_outbox` with idempotency key + retry handling.
+MailerSend, sender `portal@dbstudio.one` for v1 (shared with marketing — see Q7 delta). Templates are compiled at build time from EJS sources in `emails/` and rendered in-app — MailerSend is the SMTP delivery layer only, never the templating layer. Every send is logged in `email_outbox` with idempotency key + retry handling. Admin notification email lands at `bram@roxiplus.es`.
 
 Templates needed (14): customer invitation, customer pw reset, admin-initiated pw reset, 2FA reset by admin, email change verification (new addr), email change notification (old addr w/ revert), new-device login, new document available, new invoice, credential request created, NDA ready, generic admin→customer free-form, invite expiring soon, admin alert (invite unused 7d).
 
-> Delta from blueprint: provider is MailerSend (not Mandrill); sender domain is `mail.portal.dbstudio.one` (not `portal@dbstudio.one`).
+> Delta from blueprint: provider is MailerSend (not Mandrill); sender for v1 is `portal@dbstudio.one`. The dedicated subdomain `mail.portal.dbstudio.one` was originally chosen for reputation isolation but is deferred to post-launch (free-tier MailerSend allows one verified domain).
 
 ### 2.10 NDA generation
 
@@ -475,7 +475,7 @@ The PDF service unit deliberately omits `MemoryDenyWriteExecute` and broadens `R
 |---|---|---|---|
 | Master KEK file lost | Low | Catastrophic (all credentials unrecoverable) | Backup the KEK separately on a secure offline medium during install. KEK rotation procedure rehearsed. |
 | Backup `age` private key lost | Low | Catastrophic (no restore possible) | Operator's responsibility; documented. Two copies on two physical media. |
-| MailerSend domain reputation hit | Medium | High (transactional emails fail) | Dedicated subdomain `mail.portal.dbstudio.one` isolates from DB Studio. Documented escape hatch: temporarily proxy via SES/Postmark with the same DKIM domain. |
+| MailerSend domain reputation hit | Medium | High (transactional + marketing emails fail) | v1 ships from shared `dbstudio.one` (free-tier constraint). If portal volume grows or a deliverability issue appears, split to a dedicated subdomain (`mail.portal.dbstudio.one`) and reissue API key. Documented escape hatch: temporarily proxy via SES/Postmark. |
 | Chromium RCE in `portal-pdf.service` | Very low | Medium | Sub-service has no DB access, no secrets, no network egress. Worst case: process compromise, no data exfil. |
 | Pre-commit secret hook bypassed (`git commit --no-verify`) | Medium (human error) | High | Server-side git hook on the `dbstudio_portal` GitHub repo (push gate). Out-of-scope for client repo, must be configured in GitHub settings. **Operator-assisted at install time.** |
 | `portal_user` Postgres grants drift | Low | High | Safety-check verifies grants on startup. CI test runs `\du portal_user` and diffs. |
@@ -510,7 +510,7 @@ The blueprint's §24 checklist is adopted in full. Additions specific to this de
 
 ### Mail isolation
 
-- [ ] DKIM signature on a portal email shows `d=mail.portal.dbstudio.one`, not `d=dbstudio.one`. Verifies isolation from DB Studio's marketing mail.
+- [ ] DKIM signature on a portal email shows `d=dbstudio.one` (shared with marketing in v1). Verifies that the From header matches the DKIM-signed domain. (Reputation-isolation to a dedicated subdomain is deferred — tracked in the risk register.)
 
 ---
 
