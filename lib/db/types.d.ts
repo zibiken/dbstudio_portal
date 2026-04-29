@@ -36,9 +36,12 @@ export interface Admins {
   email: string;
   emailOtpEnabled: Generated<boolean>;
   id: string;
+  inviteConsumedAt: Timestamp | null;
+  inviteExpiresAt: Timestamp | null;
+  inviteTokenHash: string | null;
   language: Generated<string>;
   name: string;
-  passwordHash: string;
+  passwordHash: string | null;
   totpIv: Buffer | null;
   totpSecretEnc: Buffer | null;
   totpTag: Buffer | null;
