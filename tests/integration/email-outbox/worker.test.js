@@ -230,13 +230,21 @@ describe.skipIf(skip)('email-outbox/worker', () => {
     expect(r.rows[0].last_error).toMatch(/mailersend 422/);
   });
 
-  it("drops sensitive locals.'code' from the row after a successful send", async () => {
+  it('drops sensitive token-bearing locals (code + URL keys) after a successful send while preserving the rest', async () => {
     const key = `${tag}-scrub`;
     await enqueue(db, {
       idempotencyKey: key,
       toAddress: tagAddr('s'),
       template: 'generic-admin-message',
-      locals: { ...baseLocals, code: '123456' },
+      locals: {
+        ...baseLocals,
+        code: '123456',
+        welcomeUrl: 'https://portal.example.test/welcome/aaa',
+        resetUrl: 'https://portal.example.test/reset/bbb',
+        inviteUrl: 'https://portal.example.test/welcome/ccc',
+        verifyUrl: 'https://portal.example.test/verify/ddd',
+        revertUrl: 'https://portal.example.test/revert/eee',
+      },
     });
 
     const mailer = { send: vi.fn(async () => ({ ok: true, providerId: 'ok' })) };
@@ -246,8 +254,13 @@ describe.skipIf(skip)('email-outbox/worker', () => {
       SELECT locals FROM email_outbox WHERE idempotency_key = ${key}
     `.execute(db);
 
-    expect(r.rows[0].locals.code).toBeUndefined();
-    expect('code' in r.rows[0].locals).toBe(false);
+    // Every token-bearing key must be gone — these are bearer credentials
+    // and the email_outbox row outlives the send (kept for forensics).
+    for (const k of ['code', 'welcomeUrl', 'resetUrl', 'inviteUrl', 'verifyUrl', 'revertUrl']) {
+      expect(r.rows[0].locals[k], `${k} should be scrubbed`).toBeUndefined();
+      expect(k in r.rows[0].locals, `${k} key should be gone`).toBe(false);
+    }
+    // Non-token locals stay so an operator can still tell who the row was for.
     expect(r.rows[0].locals.recipientName).toBe('Rec');
     expect(r.rows[0].locals.adminName).toBe('Op');
   });

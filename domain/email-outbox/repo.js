@@ -43,13 +43,26 @@ export async function claim(tx, { batchSize }) {
   return r.rows;
 }
 
+// Token-bearing locals are bearer credentials. The outbox row outlives
+// the send (kept for forensics + idempotency dedupe), so plaintext
+// magic-link URLs and OTP codes must not linger past delivery.
+const SENSITIVE_LOCAL_KEYS = Object.freeze([
+  'code',
+  'welcomeUrl',
+  'resetUrl',
+  'inviteUrl',
+  'verifyUrl',
+  'revertUrl',
+]);
+
 export async function markSent(tx, { id }) {
+  // jsonb minus a text[] removes every named key in one statement.
   await sql`
     UPDATE email_outbox
        SET status = 'sent',
            sent_at = now(),
            last_error = NULL,
-           locals = locals - 'code'
+           locals = locals - ${SENSITIVE_LOCAL_KEYS}::text[]
      WHERE id = ${id}::uuid
   `.execute(tx);
 }
