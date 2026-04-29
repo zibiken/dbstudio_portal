@@ -11,9 +11,12 @@ const LOCKOUT_MS = 30 * 60_000;
 
 const GENERIC_ERROR = 'Email or password is incorrect.';
 
-function bucketKey(req, email) {
-  const id = (email ?? '').trim().toLowerCase();
-  return `login:${req.ip ?? 'unknown'}:${id}`;
+function ipBucket(req) {
+  return `login:ip:${req.ip ?? 'unknown'}`;
+}
+
+function emailBucket(email) {
+  return `login:email:${(email ?? '').trim().toLowerCase()}`;
 }
 
 export function registerLoginRoutes(app) {
@@ -26,10 +29,17 @@ export function registerLoginRoutes(app) {
 
   app.post('/login', { preHandler: app.csrfProtection }, async (req, reply) => {
     const { email, password } = req.body ?? {};
-    const key = bucketKey(req, email);
+    const ipKey = ipBucket(req);
+    const emailKey = emailBucket(email);
 
-    const lock = await checkLockout(app.db, key);
-    if (lock.locked) {
+    // Lock if EITHER bucket is over: ip-only protects against single-source
+    // brute force; email-only protects the account from distributed attacks
+    // through rotating IPs.
+    const [ipLock, emailLock] = await Promise.all([
+      checkLockout(app.db, ipKey),
+      checkLockout(app.db, emailKey),
+    ]);
+    if (ipLock.locked || emailLock.locked) {
       reply.code(429);
       return renderPublic(req, reply, 'public/login', {
         title: 'Sign in',
@@ -43,7 +53,10 @@ export function registerLoginRoutes(app) {
       : null;
 
     if (!admin) {
-      await recordFail(app.db, key, { limit: LIMIT, windowMs: WINDOW_MS, lockoutMs: LOCKOUT_MS });
+      await Promise.all([
+        recordFail(app.db, ipKey, { limit: LIMIT, windowMs: WINDOW_MS, lockoutMs: LOCKOUT_MS }),
+        recordFail(app.db, emailKey, { limit: LIMIT, windowMs: WINDOW_MS, lockoutMs: LOCKOUT_MS }),
+      ]);
       await writeAudit(app.db, {
         actorType: 'system',
         action: 'admin.login_failed',
@@ -58,7 +71,7 @@ export function registerLoginRoutes(app) {
       });
     }
 
-    await resetBucket(app.db, key);
+    await Promise.all([resetBucket(app.db, ipKey), resetBucket(app.db, emailKey)]);
     const fingerprint = computeDeviceFingerprint(req.headers['user-agent'], req.ip);
     const sid = await createSession(app.db, {
       userType: 'admin',

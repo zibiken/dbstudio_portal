@@ -261,6 +261,49 @@ describe.skipIf(skip)('public auth route flow', () => {
     expect([200, 401]).toContain(cReplay.statusCode);
   });
 
+  it('locks the email-keyed bucket even if the attacker rotates source IP (account protected from distributed brute-force)', async () => {
+    await service.create(
+      db,
+      { email: tagEmail('dist'), name: 'Dist' },
+      { actorType: 'system', audit: { tag } },
+    );
+
+    // Five failed POSTs simulating distinct source IPs through the proxy
+    // header all targeting the same email. With only IP-keyed limiting the
+    // account never locks; with email-keyed limiting it does.
+    const lGet = await app.inject({ method: 'GET', url: '/login' });
+    const csrf = extractInputValue(lGet.body, '_csrf');
+    const csrfCookie = parseSetCookies(lGet).find((c) => c.name === 'csrf');
+
+    for (let i = 0; i < 5; i++) {
+      const r = await app.inject({
+        method: 'POST',
+        url: '/login',
+        headers: {
+          cookie: `csrf=${csrfCookie.value}`,
+          'content-type': 'application/x-www-form-urlencoded',
+          'x-forwarded-for': `10.0.0.${i + 1}`,
+        },
+        payload: `email=${encodeURIComponent(tagEmail('dist'))}&password=wrong${i}&_csrf=${encodeURIComponent(csrf)}`,
+      });
+      expect([401, 429]).toContain(r.statusCode);
+    }
+
+    // The email bucket has now tripped its limit. A POST from a fresh IP
+    // with the right email should be locked.
+    const blocked = await app.inject({
+      method: 'POST',
+      url: '/login',
+      headers: {
+        cookie: `csrf=${csrfCookie.value}`,
+        'content-type': 'application/x-www-form-urlencoded',
+        'x-forwarded-for': '10.0.0.99',
+      },
+      payload: `email=${encodeURIComponent(tagEmail('dist'))}&password=anything&_csrf=${encodeURIComponent(csrf)}`,
+    });
+    expect(blocked.statusCode).toBe(429);
+  });
+
   it('rate-limits /login/2fa: 5 wrong codes lock the half-auth session and clear sid', async () => {
     const created = await service.create(
       db,
