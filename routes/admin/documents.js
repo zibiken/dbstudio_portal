@@ -1,7 +1,9 @@
 import { renderAdmin } from '../../lib/render.js';
 import { requireAdminSession } from '../../lib/auth/middleware.js';
 import * as documentsService from '../../domain/documents/service.js';
+import { findDocumentById } from '../../domain/documents/repo.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
+import { signDownloadToken } from '../../lib/files.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -107,4 +109,24 @@ export function registerAdminDocumentsRoutes(app) {
       reply.redirect(`/admin/customers/${id}`, 302);
     },
   );
+
+  app.get('/admin/documents/:id/download', async (req, reply) => {
+    const session = await requireAdminSession(app, req, reply);
+    if (!session) return;
+
+    const id = req.params?.id;
+    if (typeof id !== 'string' || !UUID_RE.test(id)) {
+      reply.code(404);
+      return { error: 'not found' };
+    }
+
+    const doc = await findDocumentById(app.db, id);
+    if (!doc) {
+      reply.code(404);
+      return { error: 'not found' };
+    }
+
+    const token = signDownloadToken({ fileId: doc.id }, app.env.FILE_URL_SIGNING_SECRET);
+    reply.redirect(`/files/${token}`, 302);
+  });
 }

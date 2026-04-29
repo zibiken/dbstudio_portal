@@ -66,6 +66,11 @@ export async function findCustomerUserByEmail(db, email) {
   return r.rows[0] ?? null;
 }
 
+export async function findCustomerUserById(db, id) {
+  const r = await sql`SELECT * FROM customer_users WHERE id = ${id}::uuid`.execute(db);
+  return r.rows[0] ?? null;
+}
+
 export async function updateCustomerStatus(db, id, status) {
   await sql`
     UPDATE customers

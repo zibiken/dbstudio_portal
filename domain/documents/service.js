@@ -13,8 +13,9 @@ import {
   assertSize,
   assertCustomerQuota,
   mimeFromMagic,
+  verifyDownloadToken,
 } from '../../lib/files.js';
-import { insertDocument, customerStorageBytes } from './repo.js';
+import { insertDocument, customerStorageBytes, findDocumentById } from './repo.js';
 
 const ALLOWED_CATEGORIES = new Set([
   'nda-draft', 'nda-signed', 'nda-audit', 'invoice', 'generic',
@@ -192,4 +193,95 @@ export async function uploadForCustomer(db, {
     await unlinkSafe(tempPath);
     throw err;
   }
+}
+
+// Custom error classes so the route layer can map to HTTP status codes
+// without leaking implementation details into callers.
+export class TokenInvalidError extends Error {
+  constructor(message) { super(message); this.name = 'TokenInvalidError'; this.status = 400; }
+}
+export class TokenExpiredError extends Error {
+  constructor(message) { super(message); this.name = 'TokenExpiredError'; this.status = 410; }
+}
+export class TokenAlreadyConsumedError extends Error {
+  constructor(message) { super(message); this.name = 'TokenAlreadyConsumedError'; this.status = 410; }
+}
+export class DocumentNotFoundError extends Error {
+  constructor(message) { super(message); this.name = 'DocumentNotFoundError'; this.status = 410; }
+}
+export class IntegrityFailureError extends Error {
+  constructor(message) { super(message); this.name = 'IntegrityFailureError'; this.status = 500; }
+}
+
+function sha256Hex(buffer) {
+  return createHash('sha256').update(buffer).digest('hex');
+}
+
+// Verifies a signed download token and atomically consumes it. Replays
+// throw TokenAlreadyConsumedError; expired tokens throw TokenExpiredError;
+// tokens that reference a no-longer-existing document throw
+// DocumentNotFoundError (FK violation on INSERT). On success returns the
+// documents row.
+export async function consumeDownloadToken(db, { token, secret }) {
+  let payload;
+  try {
+    payload = verifyDownloadToken(token, secret);
+  } catch (err) {
+    if (/expired/i.test(err.message)) throw new TokenExpiredError('token expired');
+    throw new TokenInvalidError('invalid token');
+  }
+
+  const tokenHash = createHash('sha256').update(token).digest('hex');
+  const expiresAt = new Date(payload.exp * 1000);
+
+  try {
+    await sql`
+      INSERT INTO download_token_consumptions (token_hash, document_id, expires_at)
+      VALUES (${tokenHash}, ${payload.fileId}::uuid, ${expiresAt})
+    `.execute(db);
+  } catch (err) {
+    if (err.code === '23505') throw new TokenAlreadyConsumedError('token already consumed');
+    if (err.code === '23503') throw new DocumentNotFoundError('document not found');
+    throw err;
+  }
+
+  const doc = await findDocumentById(db, payload.fileId);
+  if (!doc) throw new DocumentNotFoundError('document not found');
+  return doc;
+}
+
+// Reads the document's bytes from disk, verifies the on-disk sha256 still
+// matches the row, and returns the buffer. On mismatch writes a
+// document.file_integrity_failure audit row and throws
+// IntegrityFailureError so the caller can return 500.
+//
+// Buffer-then-send (rather than stream-with-late-hash) keeps the
+// integrity verification BEFORE any byte goes to the client — at the
+// cost of holding up to MAX_FILE_BYTES (50 MiB) in RAM per download.
+// Acceptable v1 trade-off; spec §2.7 demands "if mismatch, abort with
+// 500 + audit", which is incompatible with response bytes already
+// flushed.
+export async function readVerifiedDocumentBytes(db, doc, ctx = {}) {
+  const buf = await fsp.readFile(doc.storage_path);
+  const actual = sha256Hex(buf);
+  if (actual !== doc.sha256) {
+    await writeAudit(db, {
+      actorType: ctx?.actorType ?? 'system',
+      actorId: ctx?.actorId ?? null,
+      action: 'document.file_integrity_failure',
+      targetType: 'document',
+      targetId: doc.id,
+      metadata: {
+        customerId: doc.customer_id,
+        expectedSha256: doc.sha256,
+        actualSha256: actual,
+        ...(ctx?.audit ?? {}),
+      },
+      visibleToCustomer: false,
+      ip: ctx?.ip ?? null,
+      userAgentHash: ctx?.userAgentHash ?? null,
+    });
+    throw new IntegrityFailureError('on-disk sha256 does not match the documents row');
+  }
+  return buf;
 }

@@ -31,6 +31,8 @@ import { registerAdminCustomerRoutes } from './routes/admin/customers.js';
 import { registerAdminDocumentsRoutes } from './routes/admin/documents.js';
 import { registerCustomerOnboardingRoutes } from './routes/customer/onboarding.js';
 import { registerCustomerDashboardRoutes } from './routes/customer/dashboard.js';
+import { registerCustomerDocumentsRoutes } from './routes/customer/documents.js';
+import { registerPublicFilesRoutes } from './routes/public/files.js';
 import { MAX_FILE_BYTES } from './lib/files.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -122,6 +124,8 @@ export async function build({
   registerAdminDocumentsRoutes(app);
   registerCustomerOnboardingRoutes(app);
   registerCustomerDashboardRoutes(app);
+  registerCustomerDocumentsRoutes(app);
+  registerPublicFilesRoutes(app);
 
   app.addHook('onClose', async () => { await db.destroy(); });
 
