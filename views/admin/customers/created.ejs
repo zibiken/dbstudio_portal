@@ -1,0 +1,30 @@
+<section class="admin-customer-created">
+  <header class="admin-section-header">
+    <h1>Customer created</h1>
+  </header>
+
+  <p>
+    <strong><%= customer.razon_social %></strong> is set up. The primary user
+    <strong><%= primaryUser.name %></strong> &lt;<%= primaryUser.email %>&gt;
+    will receive the welcome email shortly.
+  </p>
+
+  <div class="admin-callout">
+    <h2>Belt-and-braces invite link</h2>
+    <p class="help">
+      In case the email doesn't arrive — for example, if MailerSend rate-limits
+      or the address is mistyped — you can give the user this one-time link
+      directly. It expires on <%= euDateTime(invite.expiresAt) %>.
+    </p>
+    <p><code class="invite-url"><%= invite.url %></code></p>
+    <p class="help">
+      This link is shown <strong>once</strong> on this page. After you leave it,
+      the only way to reissue is to trigger a password reset for the user.
+    </p>
+  </div>
+
+  <p>
+    <a class="btn btn-primary" href="/admin/customers/<%= customer.id %>">Go to customer detail →</a>
+    <a class="btn btn-secondary" href="/admin/customers">Back to list</a>
+  </p>
+</section>

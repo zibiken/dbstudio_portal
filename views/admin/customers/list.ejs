@@ -1,0 +1,49 @@
+<section class="admin-customers">
+  <header class="admin-section-header">
+    <h1>Customers</h1>
+    <a class="btn btn-primary" href="/admin/customers/new">New customer</a>
+  </header>
+
+  <form method="get" action="/admin/customers" class="admin-search">
+    <label>
+      <span class="visually-hidden">Search by company name or NIF</span>
+      <input type="search" name="q" value="<%= q ?? '' %>" placeholder="Search razon social or NIF…">
+    </label>
+    <button type="submit">Search</button>
+  </form>
+
+  <% if (rows.length === 0) { %>
+    <p class="empty">No customers yet.</p>
+  <% } else { %>
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Razon social</th>
+          <th>NIF</th>
+          <th>Status</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach((c) => { %>
+          <tr>
+            <td><a href="/admin/customers/<%= c.id %>"><%= c.razon_social %></a></td>
+            <td><%= c.nif ?? '—' %></td>
+            <td><span class="status status-<%= c.status %>"><%= c.status %></span></td>
+            <td><%= euDateTime(c.created_at) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+
+    <nav class="admin-pagination">
+      <% if (page > 1) { %>
+        <a href="?<%= qs({ q, per_page: perPage, page: page - 1 }) %>">← Previous</a>
+      <% } %>
+      <span>Page <%= page %> of <%= totalPages %> · <%= total %> total</span>
+      <% if (page < totalPages) { %>
+        <a href="?<%= qs({ q, per_page: perPage, page: page + 1 }) %>">Next →</a>
+      <% } %>
+    </nav>
+  <% } %>
+</section>

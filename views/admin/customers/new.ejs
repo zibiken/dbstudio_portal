@@ -1,0 +1,45 @@
+<section class="admin-customer-new">
+  <header class="admin-section-header">
+    <h1>New customer</h1>
+    <a class="btn btn-secondary" href="/admin/customers">Cancel</a>
+  </header>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
+  <form method="post" action="/admin/customers" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <fieldset>
+      <legend>Customer (the company)</legend>
+      <label>Razon social
+        <input type="text" name="razon_social" required maxlength="200"
+               value="<%= form?.razon_social ?? '' %>">
+      </label>
+      <label>NIF
+        <input type="text" name="nif" maxlength="20"
+               value="<%= form?.nif ?? '' %>">
+      </label>
+      <label>Domicilio
+        <input type="text" name="domicilio" maxlength="300"
+               value="<%= form?.domicilio ?? '' %>">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Primary user</legend>
+      <p class="help">Receives the welcome email and becomes the customer's first admin.</p>
+      <label>Name
+        <input type="text" name="primary_user_name" required maxlength="120"
+               value="<%= form?.primary_user_name ?? '' %>">
+      </label>
+      <label>Email
+        <input type="email" name="primary_user_email" required maxlength="254"
+               value="<%= form?.primary_user_email ?? '' %>">
+      </label>
+    </fieldset>
+
+    <button type="submit">Create customer</button>
+  </form>
+</section>

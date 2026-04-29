@@ -1,0 +1,51 @@
+<section class="admin-customer-detail">
+  <header class="admin-section-header">
+    <h1><%= customer.razon_social %></h1>
+    <span class="status status-<%= customer.status %>"><%= customer.status %></span>
+  </header>
+
+  <dl class="admin-fields">
+    <dt>NIF</dt><dd><%= customer.nif ?? '—' %></dd>
+    <dt>Domicilio</dt><dd><%= customer.domicilio ?? '—' %></dd>
+    <dt>Created</dt><dd><%= euDateTime(customer.created_at) %></dd>
+    <dt>Updated</dt><dd><%= euDateTime(customer.updated_at) %></dd>
+  </dl>
+
+  <h2>Users</h2>
+  <% if (users.length === 0) { %>
+    <p class="empty">No users on this customer yet.</p>
+  <% } else { %>
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Status</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% users.forEach((u) => { %>
+          <tr>
+            <td><%= u.name %></td>
+            <td><%= u.email %></td>
+            <td>
+              <% if (u.invite_consumed_at) { %>
+                <span class="status status-active">active</span>
+              <% } else if (new Date(u.invite_expires_at).getTime() <= Date.now()) { %>
+                <span class="status status-expired">invite expired</span>
+              <% } else { %>
+                <span class="status status-pending">invite pending</span>
+              <% } %>
+            </td>
+            <td><%= euDateTime(u.created_at) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <p class="admin-back">
+    <a href="/admin/customers">← Back to customer list</a>
+  </p>
+</section>
