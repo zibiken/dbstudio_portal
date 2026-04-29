@@ -1,0 +1,31 @@
+<section class="admin-project-detail">
+  <header class="admin-section-header">
+    <h1><%= project.name %></h1>
+    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>/projects">Back to projects</a>
+  </header>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
+  <dl class="admin-meta">
+    <dt>Customer</dt><dd><%= customer.razon_social %></dd>
+    <dt>Status</dt><dd><span class="status status-<%= project.status %>"><%= project.status %></span></dd>
+    <dt>Objeto</dt><dd><%= project.objeto_proyecto %></dd>
+    <dt>Created</dt><dd><%= euDateTime(project.created_at) %></dd>
+    <dt>Updated</dt><dd><%= euDateTime(project.updated_at) %></dd>
+  </dl>
+
+  <h2>Status</h2>
+  <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/status">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>Move to
+      <select name="status">
+        <% ['active', 'paused', 'done', 'archived'].forEach((s) => { %>
+          <option value="<%= s %>" <%= project.status === s ? 'selected' : '' %>><%= s %></option>
+        <% }); %>
+      </select>
+    </label>
+    <button type="submit" class="btn btn-primary">Update status</button>
+  </form>
+</section>

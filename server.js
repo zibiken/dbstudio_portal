@@ -32,6 +32,8 @@ import { registerAdminDocumentsRoutes } from './routes/admin/documents.js';
 import { registerCustomerOnboardingRoutes } from './routes/customer/onboarding.js';
 import { registerCustomerDashboardRoutes } from './routes/customer/dashboard.js';
 import { registerCustomerDocumentsRoutes } from './routes/customer/documents.js';
+import { registerCustomerProjectsRoutes } from './routes/customer/projects.js';
+import { registerAdminProjectsRoutes } from './routes/admin/projects.js';
 import { registerPublicFilesRoutes } from './routes/public/files.js';
 import { MAX_FILE_BYTES } from './lib/files.js';
 
@@ -125,6 +127,8 @@ export async function build({
   registerCustomerOnboardingRoutes(app);
   registerCustomerDashboardRoutes(app);
   registerCustomerDocumentsRoutes(app);
+  registerCustomerProjectsRoutes(app);
+  registerAdminProjectsRoutes(app);
   registerPublicFilesRoutes(app);
 
   app.addHook('onClose', async () => { await db.destroy(); });

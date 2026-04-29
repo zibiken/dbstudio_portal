@@ -1,0 +1,23 @@
+<section class="customer-projects-list">
+  <header class="customer-section-header">
+    <h1>Projects</h1>
+    <a class="btn btn-secondary" href="/customer/dashboard">Back to dashboard</a>
+  </header>
+
+  <% if (projects.length === 0) { %>
+    <p class="muted">No projects yet.</p>
+  <% } else { %>
+    <ul class="customer-cards">
+      <% projects.forEach((p) => { %>
+        <li class="customer-card">
+          <h2><%= p.name %></h2>
+          <p class="muted"><%= p.objeto_proyecto %></p>
+          <p>
+            <span class="status status-<%= p.status %>"><%= p.status %></span>
+            <span class="muted"> · created <%= euDateTime(p.created_at) %></span>
+          </p>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</section>

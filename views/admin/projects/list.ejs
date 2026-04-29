@@ -1,0 +1,36 @@
+<section class="admin-projects-list">
+  <header class="admin-section-header">
+    <h1>Projects · <%= customer.razon_social %></h1>
+    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>">Back to customer</a>
+    <a class="btn btn-primary" href="/admin/customers/<%= customer.id %>/projects/new">New project</a>
+  </header>
+
+  <% if (projects.length === 0) { %>
+    <p class="muted">No projects yet.</p>
+  <% } else { %>
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Objeto</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% projects.forEach((p) => { %>
+          <tr>
+            <td><%= p.name %></td>
+            <td class="muted"><%= p.objeto_proyecto %></td>
+            <td><span class="status status-<%= p.status %>"><%= p.status %></span></td>
+            <td><%= euDateTime(p.created_at) %></td>
+            <td>
+              <a href="/admin/customers/<%= customer.id %>/projects/<%= p.id %>">Open</a>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</section>

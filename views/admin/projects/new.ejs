@@ -1,0 +1,28 @@
+<section class="admin-projects-new">
+  <header class="admin-section-header">
+    <h1>New project</h1>
+    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>/projects">Cancel</a>
+  </header>
+
+  <p>Customer: <strong><%= customer.razon_social %></strong></p>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
+  <form method="post" action="/admin/customers/<%= customer.id %>/projects" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <label>Name
+      <input type="text" name="name" required maxlength="200"
+             value="<%= form?.name ?? '' %>">
+    </label>
+
+    <label>Objeto del proyecto
+      <textarea name="objeto_proyecto" required maxlength="2000" rows="4"><%= form?.objeto_proyecto ?? '' %></textarea>
+      <span class="muted">Used as the legal subject of the NDA in M8.</span>
+    </label>
+
+    <button type="submit" class="btn btn-primary">Create project</button>
+  </form>
+</section>
