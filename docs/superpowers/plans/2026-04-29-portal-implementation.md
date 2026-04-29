@@ -10,8 +10,8 @@
 |---|---|---|---|
 | **M0** Bootstrap | ✅ done | 2026-04-29 | Linux users, Postgres role+DB (scram-sha-256), project-local Node 20.19.6, KEK (256-bit) + signing secrets (512-bit each), pre-commit hook (15 tests pass), RUNBOOK skeleton |
 | **M1** Skeleton | ✅ done | 2026-04-29 | Fastify+EJS, both systemd units running, /health 200, all security headers, Tailwind compiled, smoke.sh 5/5, IPC socket mode 0660. Spec deltas (sender domain, socket path, hardening) recorded in spec §7 + RUNBOOK |
-| **M2** Schema + crypto | ⏳ next | — | 0001_init.sql + migration runner; lib/crypto/{kek,envelope,hash,tokens} with 100% coverage; KEK rotation procedure |
-| **M3** Admin auth | — | — | |
+| **M2** Schema + crypto | ✅ done | 2026-04-29 | Migration runner (4 tests, isolated tempdir + schema), 0001_init.sql (15 tables + audit_log append-only trigger replacing the unenforceable REVOKE — see deltas), Kysely typings, lib/crypto/{kek,envelope,hash,tokens} at 100/100/100/100 coverage, KEK rotation procedure in RUNBOOK |
+| **M3** Admin auth | ⏳ next | — | |
 | **M4** Email pipeline (gate) | — | — | Sender: `portal@dbstudio.one` (shared domain, free-tier MailerSend) |
 | **M5** Customer create + onboarding | — | — | |
 | **M6** Documents + projects | — | — | |
@@ -20,9 +20,9 @@
 | **M9** Profile + activity + polish | — | — | |
 | **M10** Backups + go-live (gates) | — | — | |
 
-**Latest commit on main:** `c74424d` — `feat(m1): both services live; deltas vs spec §7 documented`.
+**Latest commit on main:** `58661b2` — `docs(m2): KEK rotation procedure`.
 
-**Resume here:** start of M2, Task 2.1 (migration runner).
+**Resume here:** start of M3, Task 3.1 (audit-log writer). M2 → M3 review checkpoint pending.
 
 **Goal:** Build the v1 DB Studio Customer Portal — a security-first, isolated customer portal at `portal.dbstudio.one` running as two systemd units (`portal.service` + sandboxed `portal-pdf.service`) on `127.0.0.1:3400`, behind Cloudflare → NPM → Fastify, with envelope-encrypted credential vault, NDA generation, MailerSend transactional email on a dedicated subdomain, and `age`-encrypted nightly backups to Hetzner Storage Box.
 
