@@ -71,6 +71,23 @@ export function registerLogin2faRoutes(app) {
       metadata: { method },
       ip: req.ip ?? null,
     });
+    await writeAudit(app.db, {
+      actorType: 'admin',
+      actorId: admin.id,
+      action: 'admin.login_success',
+      metadata: { method },
+      ip: req.ip ?? null,
+    });
+    await adminsService.noticeLoginDevice(
+      app.db,
+      {
+        adminId: admin.id,
+        fingerprint: session.device_fingerprint,
+        toAddress: admin.email,
+        excludeSessionId: session.id,
+      },
+      { actorType: 'admin', actorId: admin.id, ip: req.ip ?? null },
+    );
     reply.redirect('/', 302);
   });
 }

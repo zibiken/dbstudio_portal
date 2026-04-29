@@ -163,11 +163,38 @@ describe.skipIf(skip)('public auth route flow', () => {
     const cOk = await app.inject({
       method: 'POST',
       url: '/login/2fa',
-      headers: { cookie: cookieHeader(lJar), 'content-type': 'application/x-www-form-urlencoded' },
+      headers: {
+        cookie: cookieHeader(lJar),
+        'content-type': 'application/x-www-form-urlencoded',
+        'user-agent': 'flow-test/1.0',
+      },
       payload: `method=totp&totp_code=${totp2}&_csrf=${encodeURIComponent(cCsrf)}`,
     });
     expect(cOk.statusCode).toBe(302);
     expect(cOk.headers.location).toBe('/');
+
+    // First login from a fresh device fingerprint must queue a new_device_login
+    // outbox row and write an admin.new_device_login audit row.
+    const outbox = await sql`
+      SELECT template, idempotency_key FROM email_outbox
+       WHERE to_address = ${tagEmail('full')}::citext AND template = 'new_device_login'
+    `.execute(db);
+    expect(outbox.rows).toHaveLength(1);
+    expect(outbox.rows[0].idempotency_key).toContain('new_device_login:');
+
+    const ndAudit = await sql`
+      SELECT 1 FROM audit_log
+       WHERE action = 'admin.new_device_login'
+         AND target_id = (SELECT id FROM admins WHERE email = ${tagEmail('full')})
+    `.execute(db);
+    expect(ndAudit.rows).toHaveLength(1);
+
+    const successAudit = await sql`
+      SELECT 1 FROM audit_log
+       WHERE action = 'admin.login_success'
+         AND actor_id = (SELECT id FROM admins WHERE email = ${tagEmail('full')})
+    `.execute(db);
+    expect(successAudit.rows).toHaveLength(1);
 
     // GET /logout revokes the session
     const out = await app.inject({

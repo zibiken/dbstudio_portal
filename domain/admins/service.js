@@ -151,19 +151,28 @@ export async function regenBackupCodes(db, { adminId }, ctx = {}) {
 
 export const NEW_DEVICE_WINDOW_MS = 30 * 24 * 3_600_000;
 
-export async function noticeLoginDevice(db, { adminId, fingerprint, toAddress }, ctx = {}) {
+function monthBucket(date = new Date()) {
+  return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+export async function noticeLoginDevice(
+  db,
+  { adminId, fingerprint, toAddress, excludeSessionId = null },
+  ctx = {},
+) {
   const r = await sql`
     SELECT 1
       FROM sessions
      WHERE user_type = 'admin'
        AND user_id = ${adminId}::uuid
        AND device_fingerprint = ${fingerprint}
+       AND id <> COALESCE(${excludeSessionId}, '')
        AND last_seen_at > now() - (${NEW_DEVICE_WINDOW_MS}::bigint || ' milliseconds')::interval
      LIMIT 1
   `.execute(db);
   if (r.rows.length > 0) return { isNew: false };
 
-  const idempotencyKey = `new_device_login:${adminId}:${fingerprint}`;
+  const idempotencyKey = `new_device_login:${adminId}:${fingerprint}:${monthBucket()}`;
   await sql`
     INSERT INTO email_outbox (id, idempotency_key, to_address, template, locals)
     VALUES (
@@ -171,14 +180,14 @@ export async function noticeLoginDevice(db, { adminId, fingerprint, toAddress },
       ${idempotencyKey},
       ${toAddress},
       'new_device_login',
-      ${JSON.stringify({ fingerprint, ip: ctx?.ip ?? null, at: new Date().toISOString() })}::jsonb
+      ${JSON.stringify({ fingerprint, at: new Date().toISOString() })}::jsonb
     )
     ON CONFLICT (idempotency_key) DO NOTHING
   `.execute(db);
 
   await audit(db, ctx, 'admin.new_device_login', {
     adminId,
-    metadata: { fingerprint, ip: ctx?.ip ?? null },
+    metadata: { fingerprint },
   });
 
   return { isNew: true };

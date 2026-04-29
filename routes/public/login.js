@@ -70,15 +70,10 @@ export function registerLoginRoutes(app) {
     await writeAudit(app.db, {
       actorType: 'admin',
       actorId: admin.id,
-      action: 'admin.login_password_ok',
+      action: 'admin.login_password_verified',
       metadata: {},
       ip: req.ip ?? null,
     });
-    await adminsService.noticeLoginDevice(
-      app.db,
-      { adminId: admin.id, fingerprint, toAddress: admin.email },
-      { actorType: 'admin', actorId: admin.id, ip: req.ip ?? null },
-    );
 
     reply.redirect('/login/2fa', 302);
   });

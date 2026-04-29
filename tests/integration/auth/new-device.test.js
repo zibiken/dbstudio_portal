@@ -137,5 +137,57 @@ describe.skipIf(skip)('new-device detection', () => {
       }, { audit: { tag } });
       expect(r.isNew).toBe(true);
     });
+
+    it('excludes the session id of the login that just created it (so first login of a fresh device is "new")', async () => {
+      const adminId = await makeAdmin('exclude');
+      const fp = computeDeviceFingerprint('Mozilla/5.0', '203.0.113.42');
+
+      // The just-created session for this login carries the same fingerprint
+      // and last_seen_at = now(); without exclusion the lookup would falsely
+      // match and report isNew:false.
+      const justNow = 'just_' + Date.now();
+      await sql`
+        INSERT INTO sessions (id, user_type, user_id, device_fingerprint, absolute_expires_at)
+        VALUES (${justNow}, 'admin', ${adminId}::uuid, ${fp}, now() + INTERVAL '12 hours')
+      `.execute(db);
+
+      const r = await noticeLoginDevice(db, {
+        adminId, fingerprint: fp, toAddress: tagEmail('exclude'),
+        excludeSessionId: justNow,
+      }, { audit: { tag } });
+      expect(r.isNew).toBe(true);
+    });
+
+    it('a stale outbox row from a prior month does not block today\'s notification', async () => {
+      const adminId = await makeAdmin('rebuck');
+      const fp = computeDeviceFingerprint('Mozilla/5.0', '203.0.113.99');
+
+      // Seed a stale outbox row keyed by an older bucket. Today's bucket
+      // differs, so a new row should still insert.
+      const { v7: uuidv7 } = await import('uuid');
+      await sql`
+        INSERT INTO email_outbox (id, idempotency_key, to_address, template, locals)
+        VALUES (
+          ${uuidv7()}::uuid,
+          ${`new_device_login:${adminId}:${fp}:200001`},
+          ${tagEmail('rebuck')},
+          'new_device_login',
+          ${'{}'}::jsonb
+        )
+      `.execute(db);
+
+      const r = await noticeLoginDevice(db, {
+        adminId, fingerprint: fp, toAddress: tagEmail('rebuck'),
+      }, { audit: { tag } });
+      expect(r.isNew).toBe(true);
+
+      const outbox = await sql`
+        SELECT idempotency_key FROM email_outbox
+         WHERE to_address = ${tagEmail('rebuck')}::citext
+         ORDER BY created_at
+      `.execute(db);
+      expect(outbox.rows).toHaveLength(2);
+      expect(outbox.rows[1].idempotency_key).not.toBe(outbox.rows[0].idempotency_key);
+    });
   });
 });
