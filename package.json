@@ -16,7 +16,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -p jsconfig.json --noEmit",
     "migrate": "node migrations/runner.js",
-    "db:codegen": "kysely-codegen --url \"$DATABASE_URL\" --out-file lib/db/types.d.ts --camel-case"
+    "db:codegen": "kysely-codegen --url \"$DATABASE_URL\" --out-file lib/db/types.d.ts --include-pattern 'public.*' --camel-case"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.5",
