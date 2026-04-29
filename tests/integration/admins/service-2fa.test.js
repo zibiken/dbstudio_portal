@@ -131,4 +131,55 @@ describe.skipIf(skip)('admins/service — 2FA + backup codes', () => {
       expect(r3.ok).toBe(true);
     });
   });
+
+  describe('completeWelcome (atomic)', () => {
+    const kek = randomBytes(32);
+
+    it('sets password, TOTP secret, and backup codes in a single transaction', async () => {
+      const c = await service.create(db, { email: tagEmail('cw'), name: 'CW' }, ctx);
+
+      const r = await service.completeWelcome(db, {
+        token: c.inviteToken,
+        newPassword: 'a-strong-passphrase-29384',
+        totpSecret: 'JBSWY3DPEHPK3PXP',
+        kek,
+      }, { ...ctx, hibpHasBeenPwned: okHibp });
+
+      expect(r.adminId).toBe(c.id);
+      expect(r.codes).toHaveLength(8);
+
+      const admin = await findById(db, c.id);
+      expect(admin.password_hash?.startsWith('$argon2id$')).toBe(true);
+      expect(admin.invite_consumed_at).not.toBeNull();
+      expect(admin.totp_secret_enc).not.toBeNull();
+      expect(admin.backup_codes).toHaveLength(8);
+
+      const decrypted = decrypt(
+        { ciphertext: admin.totp_secret_enc, iv: admin.totp_iv, tag: admin.totp_tag },
+        kek,
+      ).toString('utf8');
+      expect(decrypted).toBe('JBSWY3DPEHPK3PXP');
+    });
+
+    it('rolls back the entire flow if the invite is invalid — no partial state', async () => {
+      const c = await service.create(db, { email: tagEmail('rb'), name: 'RB' }, ctx);
+      // Pre-consume the invite so completeWelcome's lockInviteRow throws.
+      await service.consumeInvite(db, { token: c.inviteToken, newPassword: 'first-password-29384' },
+        { ...ctx, hibpHasBeenPwned: okHibp });
+
+      await expect(
+        service.completeWelcome(db, {
+          token: c.inviteToken,
+          newPassword: 'second-attempt-29384',
+          totpSecret: 'JBSWY3DPEHPK3PXP',
+          kek,
+        }, { ...ctx, hibpHasBeenPwned: okHibp })
+      ).rejects.toThrow(/consumed/i);
+
+      const admin = await findById(db, c.id);
+      // The first password from consumeInvite remains; nothing partial-applied.
+      expect(admin.totp_secret_enc).toBeNull();
+      expect(admin.backup_codes ?? []).toHaveLength(0);
+    });
+  });
 });

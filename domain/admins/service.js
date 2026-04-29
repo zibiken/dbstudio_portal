@@ -47,6 +47,22 @@ export async function create(db, { email, name }, ctx = {}) {
   return { id, inviteToken };
 }
 
+async function lockInviteRow(tx, tokenHash) {
+  const r = await sql`
+    SELECT id, invite_consumed_at, invite_expires_at
+      FROM admins
+     WHERE invite_token_hash = ${tokenHash}
+       FOR UPDATE
+  `.execute(tx);
+  if (r.rows.length === 0) throw new Error('invalid invite token');
+  const row = r.rows[0];
+  if (row.invite_consumed_at) throw new Error('invite already consumed');
+  if (new Date(row.invite_expires_at).getTime() <= Date.now()) {
+    throw new Error('invite expired');
+  }
+  return row;
+}
+
 export async function consumeInvite(db, { token, newPassword }, ctx = {}) {
   const hibpFn = ctx.hibpHasBeenPwned ?? defaultHibp;
   if (await hibpFn(newPassword)) {
@@ -54,23 +70,57 @@ export async function consumeInvite(db, { token, newPassword }, ctx = {}) {
   }
 
   const tokenHash = hashToken(token);
-  const admin = (await db.transaction().execute(async (tx) => {
-    const found = await findByInviteHash(tx, tokenHash);
-    if (!found) throw new Error('invalid invite token');
-    if (found.invite_consumed_at) throw new Error('invite already consumed');
-    if (new Date(found.invite_expires_at).getTime() <= Date.now()) {
-      throw new Error('invite expired');
-    }
-    const passwordHash = await hashPassword(newPassword);
-    await updateAdmin(tx, found.id, {
-      passwordHash,
-      inviteConsumedAt: new Date(),
-    });
-    return found;
-  }));
+  const passwordHash = await hashPassword(newPassword);
 
-  await audit(db, ctx, 'admin.password_set_via_invite', { adminId: admin.id });
-  return { adminId: admin.id };
+  const adminId = await db.transaction().execute(async (tx) => {
+    const row = await lockInviteRow(tx, tokenHash);
+    await sql`
+      UPDATE admins
+         SET password_hash = ${passwordHash},
+             invite_consumed_at = now()
+       WHERE id = ${row.id}::uuid
+    `.execute(tx);
+    return row.id;
+  });
+
+  await audit(db, ctx, 'admin.password_set_via_invite', { adminId });
+  return { adminId };
+}
+
+export async function completeWelcome(
+  db,
+  { token, newPassword, totpSecret, kek },
+  ctx = {},
+) {
+  const hibpFn = ctx.hibpHasBeenPwned ?? defaultHibp;
+  if (await hibpFn(newPassword)) {
+    throw new Error('password compromised in a known breach');
+  }
+
+  const tokenHash = hashToken(token);
+  const passwordHash = await hashPassword(newPassword);
+  const { codes, stored } = await generateBackupCodes();
+  const env = encrypt(Buffer.from(totpSecret, 'utf8'), kek);
+
+  return await db.transaction().execute(async (tx) => {
+    const row = await lockInviteRow(tx, tokenHash);
+    await sql`
+      UPDATE admins
+         SET password_hash = ${passwordHash},
+             invite_consumed_at = now(),
+             totp_secret_enc = ${env.ciphertext},
+             totp_iv = ${env.iv},
+             totp_tag = ${env.tag},
+             backup_codes = ${JSON.stringify(stored)}::jsonb
+       WHERE id = ${row.id}::uuid
+    `.execute(tx);
+
+    await audit(tx, ctx, 'admin.password_set_via_invite', { adminId: row.id });
+    await audit(tx, ctx, 'admin.2fa_totp_enrolled', { adminId: row.id });
+    await audit(tx, ctx, 'admin.backup_codes_regenerated', { adminId: row.id });
+
+    return { adminId: row.id, codes };
+  });
 }
 
 export async function verifyLogin(db, { email, password }) {
@@ -99,11 +149,6 @@ export async function requestPasswordReset(db, { email }, ctx = {}) {
 
   await audit(db, ctx, 'admin.password_reset_requested', { adminId: admin.id });
   return { inviteToken };
-}
-
-async function findByInviteHash(db, hash) {
-  const r = await sql`SELECT * FROM admins WHERE invite_token_hash = ${hash}`.execute(db);
-  return r.rows[0] ?? null;
 }
 
 export async function enroll2faTotp(db, { adminId, secret, kek }, ctx = {}) {

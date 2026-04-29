@@ -89,8 +89,13 @@ export function registerWelcomeRoutes(app, { mountPath = '/welcome', title = 'We
       hibpHasBeenPwned: app.hibpHasBeenPwned,
     };
 
+    let codes;
     try {
-      await adminsService.consumeInvite(app.db, { token, newPassword: password }, ctx);
+      ({ codes } = await adminsService.completeWelcome(
+        app.db,
+        { token, newPassword: password, totpSecret: enrolSecret, kek: app.kek },
+        ctx,
+      ));
     } catch (err) {
       reply.code(422);
       return renderPublic(req, reply, 'public/welcome', {
@@ -105,13 +110,6 @@ export function registerWelcomeRoutes(app, { mountPath = '/welcome', title = 'We
           : 'Could not complete enrolment. Try again.',
       });
     }
-
-    await adminsService.enroll2faTotp(
-      app.db,
-      { adminId: found.admin.id, secret: enrolSecret, kek: app.kek },
-      ctx,
-    );
-    const { codes } = await adminsService.regenBackupCodes(app.db, { adminId: found.admin.id }, ctx);
 
     return renderPublic(req, reply, 'public/2fa-enrol', {
       title: 'Save your backup codes',
