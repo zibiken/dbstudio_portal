@@ -49,4 +49,28 @@ describe('logger redaction', () => {
     expect(flat).not.toContain('JBSWY3DPEHPK3PXP');
     expect(flat).not.toContain('aaaa');
   });
+
+  it('redacts kek + bearer-token URL/string fields (defence in depth)', () => {
+    // No path in the M5 code today logs these in object form, but a
+    // future contributor catching `log.error({ ctx, err })` where ctx
+    // happens to carry kek or inviteToken would leak. The redact list
+    // covers both camel- and snake-case variants.
+    const sentinel = '01234567abcdef';
+    const out = captureLog((log) =>
+      log.info({
+        kek: 'KEK-bytes-' + sentinel,
+        invite_token: 'invitetok-' + sentinel,
+        inviteToken: 'invitetokC-' + sentinel,
+        invite_url: 'https://portal.example/customer/welcome/' + sentinel,
+        inviteUrl: 'https://portal.example/customer/welcome/CC' + sentinel,
+        welcomeUrl: 'https://portal.example/welcome/' + sentinel,
+        resetUrl: 'https://portal.example/reset/' + sentinel,
+        verifyUrl: 'https://portal.example/email-change/verify/' + sentinel,
+        revertUrl: 'https://portal.example/email-change/revert/' + sentinel,
+      }, 'event')
+    );
+    const flat = JSON.stringify(out[0]);
+    expect(flat).not.toContain(sentinel);
+    expect(flat).toContain('[REDACTED]');
+  });
 });
