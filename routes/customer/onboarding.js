@@ -2,11 +2,10 @@ import { sql } from 'kysely';
 import { renderPublic, renderCustomer } from '../../lib/render.js';
 import { deriveEnrolSecret, otpauthUri } from '../../lib/auth/totp-enrol.js';
 import { verify as verifyTotp } from '../../lib/auth/totp.js';
-import { createSession, computeDeviceFingerprint, stepUp } from '../../lib/auth/session.js';
+import { computeDeviceFingerprint } from '../../lib/auth/session.js';
 import { setSessionCookie, requireCustomerSession } from '../../lib/auth/middleware.js';
 import * as customersService from '../../domain/customers/service.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
-import { writeAudit } from '../../lib/audit.js';
 
 const ISSUER = 'DB Studio Portal';
 const TITLE = 'Welcome to your DB Studio portal';
@@ -109,7 +108,14 @@ export function registerCustomerOnboardingRoutes(app, { mountPath = '/customer/w
     try {
       result = await customersService.completeCustomerWelcome(
         app.db,
-        { token, newPassword: password, totpSecret: enrolSecret, kek: app.kek },
+        {
+          token,
+          newPassword: password,
+          totpSecret: enrolSecret,
+          kek: app.kek,
+          sessionIp: req.ip ?? null,
+          sessionDeviceFingerprint: computeDeviceFingerprint(req.headers['user-agent'], req.ip),
+        },
         ctx,
       );
     } catch (err) {
@@ -127,27 +133,11 @@ export function registerCustomerOnboardingRoutes(app, { mountPath = '/customer/w
       });
     }
 
-    // First device for this customer-user → mint a stepped-up session.
-    // We mint inline (rather than going through /login) because the user
-    // just proved both factors in this single POST.
-    const fingerprint = computeDeviceFingerprint(req.headers['user-agent'], req.ip);
-    const sid = await createSession(app.db, {
-      userType: 'customer',
-      userId: result.customerUserId,
-      ip: req.ip ?? null,
-      deviceFingerprint: fingerprint,
-    });
-    await stepUp(app.db, sid);
-    setSessionCookie(reply, sid, app.env);
-    await writeAudit(app.db, {
-      actorType: 'customer',
-      actorId: result.customerUserId,
-      action: 'customer.login_success',
-      targetType: 'customer_user',
-      targetId: result.customerUserId,
-      metadata: { method: 'totp', via: 'onboarding' },
-      ip: req.ip ?? null,
-    });
+    // The session was created inside completeCustomerWelcome's
+    // transaction; we just attach the cookie. This is the user's first
+    // device — they proved both factors in this single POST, so no
+    // separate /login + /login/2fa hop.
+    setSessionCookie(reply, result.sid, app.env);
 
     return renderPublic(req, reply, 'customer/onboarding/backup-codes', {
       title: 'Save your backup codes',

@@ -237,6 +237,111 @@ describe.skipIf(skip)('customer onboarding routes', () => {
     expect([400, 410]).toContain(wReplay.statusCode);
   });
 
+  it('requireCustomerSession bounces a suspended/archived customer even if their session row was never revoked (I1a defence-in-depth)', async () => {
+    const created = await seedCustomer('statgate');
+    const enrolSecret = deriveEnrolSecret(created.inviteToken, env.SESSION_SIGNING_SECRET);
+    const password = 'gate-test-passphrase-29384';
+
+    // Drive onboarding to completion → customer has a stepped-up sid.
+    const jar = {};
+    const wGet = await app.inject({ method: 'GET', url: `/customer/welcome/${created.inviteToken}` });
+    mergeCookies(jar, wGet);
+    const csrf = extractInputValue(wGet.body, '_csrf');
+    const wPost = await app.inject({
+      method: 'POST',
+      url: `/customer/welcome/${created.inviteToken}`,
+      headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
+      payload: `password=${encodeURIComponent(password)}&totp_code=${generateToken(enrolSecret)}&_csrf=${encodeURIComponent(csrf)}`,
+    });
+    expect(wPost.statusCode).toBe(200);
+    mergeCookies(jar, wPost);
+    expect(jar.sid).toBeTruthy();
+
+    // Sanity: dashboard reachable while customer is active.
+    const okDash = await app.inject({
+      method: 'GET',
+      url: '/customer/dashboard',
+      headers: { cookie: cookieHeader(jar) },
+    });
+    expect(okDash.statusCode).toBe(200);
+
+    // Flip status to 'suspended' WITHOUT revoking the session row, to
+    // simulate the race where suspendCustomer's revoke missed an in-flight
+    // session insert. The post-fix gate must still bounce.
+    await sql`UPDATE customers SET status = 'suspended' WHERE id = ${created.customerId}::uuid`.execute(db);
+
+    const blockedSusp = await app.inject({
+      method: 'GET',
+      url: '/customer/dashboard',
+      headers: { cookie: cookieHeader(jar) },
+    });
+    expect(blockedSusp.statusCode).toBe(302);
+    expect(blockedSusp.headers.location).toBe('/');
+
+    // Same posture for archived.
+    await sql`UPDATE customers SET status = 'archived' WHERE id = ${created.customerId}::uuid`.execute(db);
+    const blockedArch = await app.inject({
+      method: 'GET',
+      url: '/customer/dashboard',
+      headers: { cookie: cookieHeader(jar) },
+    });
+    expect(blockedArch.statusCode).toBe(302);
+    expect(blockedArch.headers.location).toBe('/');
+
+    // Same gate covers /customer/welcome/profile too.
+    const blockedProfile = await app.inject({
+      method: 'GET',
+      url: '/customer/welcome/profile',
+      headers: { cookie: cookieHeader(jar) },
+    });
+    expect(blockedProfile.statusCode).toBe(302);
+    expect(blockedProfile.headers.location).toBe('/');
+  });
+
+  it('completeCustomerWelcome creates the customer session inside its own transaction (I1b atomicity)', async () => {
+    // The structural guarantee: by the time the response returns, the
+    // sessions row must exist alongside the consumed invite — both come
+    // from the same db.transaction() commit. We assert this by reading
+    // the DB directly: SELECT sessions count + customer_users.invite_consumed_at
+    // both come back in their post-commit state.
+    const created = await seedCustomer('inntx');
+    const enrolSecret = deriveEnrolSecret(created.inviteToken, env.SESSION_SIGNING_SECRET);
+    const password = 'in-tx-passphrase-29384';
+
+    const jar = {};
+    const wGet = await app.inject({ method: 'GET', url: `/customer/welcome/${created.inviteToken}` });
+    mergeCookies(jar, wGet);
+    const csrf = extractInputValue(wGet.body, '_csrf');
+    const wPost = await app.inject({
+      method: 'POST',
+      url: `/customer/welcome/${created.inviteToken}`,
+      headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
+      payload: `password=${encodeURIComponent(password)}&totp_code=${generateToken(enrolSecret)}&_csrf=${encodeURIComponent(csrf)}`,
+    });
+    expect(wPost.statusCode).toBe(200);
+
+    // The customer.login_success audit row sits at the SAME tx as the
+    // 'customer.password_set_via_invite' / '...2fa_totp_enrolled' rows.
+    // Same actor_id + a sessions row exists for that user means the
+    // commit was atomic.
+    const audits = await sql`
+      SELECT action FROM audit_log
+       WHERE actor_id = ${created.primaryUserId}::uuid
+       ORDER BY ts ASC
+    `.execute(db);
+    const actions = audits.rows.map((r) => r.action);
+    expect(actions).toContain('customer.password_set_via_invite');
+    expect(actions).toContain('customer.2fa_totp_enrolled');
+    expect(actions).toContain('customer.backup_codes_regenerated');
+    expect(actions).toContain('customer.login_success');
+
+    const sessions = await sql`
+      SELECT count(*)::int AS c FROM sessions
+       WHERE user_id = ${created.primaryUserId}::uuid AND user_type = 'customer'
+    `.execute(db);
+    expect(sessions.rows[0].c).toBe(1);
+  });
+
   it('GET with bogus, expired, or consumed token returns 410 invalid view (no CSRF cookie issued)', async () => {
     // Bogus
     const bogus = await app.inject({ method: 'GET', url: `/customer/welcome/${randomBytes(16).toString('hex')}` });

@@ -7,6 +7,7 @@ import {
 } from '../../lib/crypto/envelope.js';
 import { hashPassword, hibpHasBeenPwned as defaultHibp } from '../../lib/crypto/hash.js';
 import { generateBackupCodes } from '../../lib/auth/backup-codes.js';
+import { createSession, stepUp } from '../../lib/auth/session.js';
 import { enqueue as enqueueEmail } from '../email-outbox/repo.js';
 import { insertCustomer, insertCustomerUser } from './repo.js';
 
@@ -211,7 +212,7 @@ async function lockCustomerInviteRow(tx, tokenHash) {
 
 export async function completeCustomerWelcome(
   db,
-  { token, newPassword, totpSecret, kek },
+  { token, newPassword, totpSecret, kek, sessionIp = null, sessionDeviceFingerprint = null },
   ctx = {},
 ) {
   if (!Buffer.isBuffer(kek) || kek.length !== 32) {
@@ -281,11 +282,33 @@ export async function completeCustomerWelcome(
       userAgentHash: ctx?.userAgentHash ?? null,
     });
 
+    // Mint the customer's first session inside the same tx as the invite
+    // consumption — closes the race where suspendCustomer's revoke could
+    // interleave between consume and mint and leave a never-revoked sid.
+    const sid = await createSession(tx, {
+      userType: 'customer',
+      userId: row.user_id,
+      ip: sessionIp,
+      deviceFingerprint: sessionDeviceFingerprint,
+    });
+    await stepUp(tx, sid);
+    await writeAudit(tx, {
+      actorType: 'customer',
+      actorId: row.user_id,
+      action: 'customer.login_success',
+      targetType: 'customer_user',
+      targetId: row.user_id,
+      metadata: { method: 'totp', via: 'onboarding', ...(ctx?.audit ?? {}) },
+      ip: ctx?.ip ?? null,
+      userAgentHash: ctx?.userAgentHash ?? null,
+    });
+
     return {
       customerUserId: row.user_id,
       customerId: row.customer_id,
       razonSocial: row.razon_social,
       codes,
+      sid,
     };
   });
 }
