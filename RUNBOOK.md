@@ -152,6 +152,25 @@ Operational notes:
 
 (Filled at M4.)
 
+### Display formats — dates and times
+
+Hardcoded across the entire portal (emails *and* server-rendered pages):
+
+| Form | Format | Example |
+|---|---|---|
+| Date | `DD/MM/YYYY` | `06/05/2026` |
+| Date + time | `DD/MM/YYYY HH:mm` (24h, no seconds) | `29/04/2026 14:32` |
+| Timezone | Europe/Madrid (DST-aware) | — |
+| Locale | `es-ES` (only affects the day/month/year separators) | — |
+
+All formatting goes through `lib/dates.js` (`euDate`, `euDateTime`). They are:
+
+- Injected into every email template via `lib/email-templates.js` HELPERS.
+- Injected into every EJS view via `lib/render.js` VIEW_GLOBALS.
+- Independent of the host machine's TZ — they always render Europe/Madrid wall-clock time.
+
+If a new display surface needs dates, import from `lib/dates.js` rather than calling `Intl.DateTimeFormat` ad-hoc. The DD/MM/YYYY + 24h convention also matches `dbstudio.one`'s contact-form email (`/opt/dbstudio/src/lib/mail.ts`); keep them aligned.
+
 ---
 
 ## Recovery procedures
