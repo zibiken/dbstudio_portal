@@ -1,0 +1,31 @@
+<section class="auth">
+  <h1><%= title %></h1>
+  <p>Set your password and register an authenticator app for two-factor login. Use any TOTP app (Authy, 1Password, Google Authenticator, Bitwarden).</p>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
+  <form method="post" action="<%= action %>" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <fieldset>
+      <legend>Step 1 — set a password</legend>
+      <label>Password
+        <input type="password" name="password" required minlength="12" autocomplete="new-password">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Step 2 — register your authenticator</legend>
+      <p>Add this account to your authenticator using one of the following:</p>
+      <p><strong>Manual entry secret:</strong> <code><%= enrolSecret %></code></p>
+      <p><strong>Or copy this URI:</strong> <code><%= otpauthUri %></code></p>
+      <label>Six-digit code from your app
+        <input type="text" name="totp_code" required pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code">
+      </label>
+    </fieldset>
+
+    <button type="submit"><%= submitLabel %></button>
+  </form>
+</section>

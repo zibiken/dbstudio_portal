@@ -2,6 +2,8 @@ import Fastify from 'fastify';
 import view from '@fastify/view';
 import staticPlugin from '@fastify/static';
 import cookie from '@fastify/cookie';
+import formbody from '@fastify/formbody';
+import csrfProtection from '@fastify/csrf-protection';
 import sensible from '@fastify/sensible';
 import ejs from 'ejs';
 import path from 'node:path';
@@ -14,11 +16,22 @@ import { loadEnv } from './config/env.js';
 import { createLogger } from './config/logger.js';
 import { createDb } from './config/db.js';
 import { runSafetyCheck } from './lib/safety-check.js';
+import { loadKek } from './lib/crypto/kek.js';
+import { hibpHasBeenPwned as defaultHibp } from './lib/crypto/hash.js';
 import secureHeaders from './lib/secure-headers.js';
+import { registerWelcomeRoutes } from './routes/public/welcome.js';
+import { registerLoginRoutes } from './routes/public/login.js';
+import { registerLogin2faRoutes } from './routes/public/login-2fa.js';
+import { registerLogoutRoutes } from './routes/public/logout.js';
+import { registerResetRoutes } from './routes/public/reset.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export async function build({ skipSafetyCheck = false } = {}) {
+export async function build({
+  skipSafetyCheck = false,
+  hibpHasBeenPwned = defaultHibp,
+  kek: kekOverride = null,
+} = {}) {
   const env = loadEnv();
   const log = createLogger({ level: env.LOG_LEVEL });
   const db = createDb({ connectionString: env.DATABASE_URL });
@@ -33,12 +46,28 @@ export async function build({ skipSafetyCheck = false } = {}) {
     await runSafetyCheck({ fs, userInfo: os.userInfo, db: dbAdapter, env });
   }
 
+  const kek = kekOverride ?? loadKek(env.MASTER_KEY_PATH);
+
   const app = Fastify({ loggerInstance: log, trustProxy: '127.0.0.1', disableRequestLogging: false });
   app.decorate('db', db);
   app.decorate('env', env);
+  app.decorate('kek', kek);
+  app.decorate('hibpHasBeenPwned', hibpHasBeenPwned);
 
   await app.register(sensible);
   await app.register(cookie, { secret: env.SESSION_SIGNING_SECRET });
+  await app.register(formbody);
+  await app.register(csrfProtection, {
+    sessionPlugin: '@fastify/cookie',
+    cookieKey: 'csrf',
+    cookieOpts: {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: env.NODE_ENV === 'production',
+      signed: true,
+    },
+  });
   await app.register(secureHeaders);
   await app.register(view, {
     engine: { ejs },
@@ -68,6 +97,12 @@ export async function build({ skipSafetyCheck = false } = {}) {
     );
     reply.type('text/html').send(html);
   });
+
+  registerWelcomeRoutes(app);
+  registerLoginRoutes(app);
+  registerLogin2faRoutes(app);
+  registerLogoutRoutes(app);
+  registerResetRoutes(app);
 
   app.addHook('onClose', async () => { await db.destroy(); });
 

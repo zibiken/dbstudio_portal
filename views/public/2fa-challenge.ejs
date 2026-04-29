@@ -1,0 +1,29 @@
+<section class="auth">
+  <h1>Two-factor authentication</h1>
+  <p>Confirm your identity with the method you registered.</p>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
+  <form method="post" action="/login/2fa" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="method" value="totp">
+    <label>Six-digit code from your authenticator
+      <input type="text" name="totp_code" required pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code">
+    </label>
+    <button type="submit">Verify</button>
+  </form>
+
+  <details>
+    <summary>I lost my authenticator — use a backup code</summary>
+    <form method="post" action="/login/2fa" autocomplete="off">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="method" value="backup">
+      <label>Backup code
+        <input type="text" name="backup_code" required autocomplete="off" placeholder="ABCDE-FGHJK">
+      </label>
+      <button type="submit">Use backup code</button>
+    </form>
+  </details>
+</section>
