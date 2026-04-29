@@ -342,6 +342,90 @@ describe.skipIf(skip)('customer onboarding routes', () => {
     expect(sessions.rows[0].c).toBe(1);
   });
 
+  it('POST rerenders 422 + does not write password_hash for short password / wrong TOTP / pwned password (I3)', async () => {
+    const created = await seedCustomer('errs');
+    const enrolSecret = deriveEnrolSecret(created.inviteToken, env.SESSION_SIGNING_SECRET);
+
+    async function freshFormState() {
+      const wGet = await app.inject({ method: 'GET', url: `/customer/welcome/${created.inviteToken}` });
+      const jar = {};
+      mergeCookies(jar, wGet);
+      const csrf = extractInputValue(wGet.body, '_csrf');
+      return { jar, csrf };
+    }
+
+    async function userRow() {
+      const r = await sql`
+        SELECT password_hash, invite_consumed_at, totp_secret_enc
+          FROM customer_users WHERE email = ${tagEmail('errs')}::citext
+      `.execute(db);
+      return r.rows[0];
+    }
+
+    // 1. Password < 12 chars → 422 with the form rerendered, no DB write.
+    {
+      const { jar, csrf } = await freshFormState();
+      const r = await app.inject({
+        method: 'POST',
+        url: `/customer/welcome/${created.inviteToken}`,
+        headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
+        payload: `password=${encodeURIComponent('short11char')}&totp_code=${generateToken(enrolSecret)}&_csrf=${encodeURIComponent(csrf)}`,
+      });
+      expect(r.statusCode).toBe(422);
+      expect(r.body).toContain('name="password"');
+      expect(r.body).toContain('name="totp_code"');
+      const row = await userRow();
+      expect(row.password_hash).toBeNull();
+      expect(row.invite_consumed_at).toBeNull();
+      expect(row.totp_secret_enc).toBeNull();
+    }
+
+    // 2. Wrong TOTP (six zeros) → same 422 + no DB write.
+    {
+      const { jar, csrf } = await freshFormState();
+      const r = await app.inject({
+        method: 'POST',
+        url: `/customer/welcome/${created.inviteToken}`,
+        headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
+        payload: `password=${encodeURIComponent('a-real-strong-passphrase-29384')}&totp_code=000000&_csrf=${encodeURIComponent(csrf)}`,
+      });
+      expect(r.statusCode).toBe(422);
+      const row = await userRow();
+      expect(row.password_hash).toBeNull();
+      expect(row.invite_consumed_at).toBeNull();
+    }
+
+    // 3. HIBP-positive password → 422 with the breach-specific banner.
+    //    We stand up a fresh app with a hibp stub that returns true so
+    //    the existing app fixture (okHibp = false) doesn't have to be
+    //    juggled mid-suite.
+    {
+      const pwnedApp = await build({
+        skipSafetyCheck: true,
+        hibpHasBeenPwned: vi.fn(async () => true),
+      });
+      try {
+        const wGet = await pwnedApp.inject({ method: 'GET', url: `/customer/welcome/${created.inviteToken}` });
+        const jar = {};
+        mergeCookies(jar, wGet);
+        const csrf = extractInputValue(wGet.body, '_csrf');
+        const r = await pwnedApp.inject({
+          method: 'POST',
+          url: `/customer/welcome/${created.inviteToken}`,
+          headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
+          payload: `password=${encodeURIComponent('a-real-strong-passphrase-29384')}&totp_code=${generateToken(enrolSecret)}&_csrf=${encodeURIComponent(csrf)}`,
+        });
+        expect(r.statusCode).toBe(422);
+        expect(r.body).toMatch(/breach|known data breach|compromised/i);
+        const row = await userRow();
+        expect(row.password_hash).toBeNull();
+        expect(row.invite_consumed_at).toBeNull();
+      } finally {
+        await pwnedApp.close();
+      }
+    }
+  });
+
   it('GET with bogus, expired, or consumed token returns 410 invalid view (no CSRF cookie issued)', async () => {
     // Bogus
     const bogus = await app.inject({ method: 'GET', url: `/customer/welcome/${randomBytes(16).toString('hex')}` });
