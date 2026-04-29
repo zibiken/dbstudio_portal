@@ -59,7 +59,10 @@ describe.skipIf(skip)('email-outbox/worker', () => {
       }),
     };
 
-    const result = await tickOnce({ db, mailer, log: silentLog });
+    // batchSize=3: this case asserts multi-row claim semantics; the worker's
+    // default batchSize=1 (post review I3) is exercised by the other tests
+    // and by the live service.
+    const result = await tickOnce({ db, mailer, log: silentLog, batchSize: 3 });
 
     expect(mailer.send).toHaveBeenCalledTimes(3);
     expect(result.sent).toBe(3);

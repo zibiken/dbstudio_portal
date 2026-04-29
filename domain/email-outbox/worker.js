@@ -3,7 +3,7 @@ import { claim, markFailed, markSent } from './repo.js';
 
 const DEFAULT_TICK_MS = 5_000;
 
-export async function tickOnce({ db, mailer, log, batchSize = 10 }) {
+export async function tickOnce({ db, mailer, log, batchSize = 1 }) {
   return await db.transaction().execute(async (tx) => {
     const claimed = await claim(tx, { batchSize });
     if (claimed.length === 0) return { claimed: 0, sent: 0, failed: 0 };

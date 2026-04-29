@@ -120,6 +120,41 @@ describe('makeMailer / send', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('classifies a fetch-layer throw (DNS/TCP/TLS error) as retryable', async () => {
+    // undici raises `TypeError: fetch failed` with a `cause` for network
+    // errors. Such a throw must reach the worker as { retryable: true } so
+    // a transient network blip doesn't burn the row to status='failed' on
+    // attempt 1.
+    fetchMock.mockRejectedValueOnce(
+      Object.assign(new TypeError('fetch failed'), { cause: new Error('ECONNRESET') }),
+    );
+    const mailer = makeMailer({ ...params, fetch: fetchMock });
+    await expect(
+      mailer.send({ to: 'a@b.c', subject: 's', html: 'h', text: 't' }),
+    ).rejects.toMatchObject({ retryable: true });
+  });
+
+  it('classifies an AbortError (request timeout) as retryable', async () => {
+    fetchMock.mockRejectedValueOnce(
+      Object.assign(new Error('aborted'), { name: 'AbortError' }),
+    );
+    const mailer = makeMailer({ ...params, fetch: fetchMock });
+    await expect(
+      mailer.send({ to: 'a@b.c', subject: 's', html: 'h', text: 't' }),
+    ).rejects.toMatchObject({ retryable: true });
+  });
+
+  it('passes an AbortSignal to fetch so a hung request cannot wedge the worker', async () => {
+    fetchMock.mockResolvedValueOnce(fakeResponse(202, { 'x-message-id': 'm1' }));
+    const mailer = makeMailer({ ...params, fetch: fetchMock });
+    await mailer.send({ to: 'a@b.c', subject: 's', html: 'h', text: 't' });
+    const opts = fetchMock.mock.calls[0][1];
+    expect(opts.signal).toBeDefined();
+    // AbortSignal.timeout returns a real AbortSignal; it has an `aborted`
+    // property and is an instance of AbortSignal.
+    expect(opts.signal).toBeInstanceOf(AbortSignal);
+  });
+
   it('uses globalThis.fetch when no fetch is injected', async () => {
     const original = globalThis.fetch;
     globalThis.fetch = vi.fn().mockResolvedValueOnce(
