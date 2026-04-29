@@ -168,7 +168,53 @@ The master KEK at `/var/lib/portal/master.key` wraps every per-customer DEK. Rot
 
 ### Admin password reset / lockout
 
-(Filled at M3.)
+Use this when an admin has lost their authenticator, forgotten their password, or been locked out by the rate limiter. The procedure issues a fresh single-use invite token; consuming it sets a new password and re-enrols 2FA from scratch (the previous TOTP secret is overwritten). Backup codes are also regenerated; old codes stop working.
+
+```bash
+# 1. SSH to server.
+
+# 2. Until scripts/admin-reset.js exists in M9, mint the invite directly.
+#    Generate token + sha256, write the hash to admins, print the
+#    plaintext welcome URL for the operator to hand to the admin.
+sudo -u portal-app /opt/dbstudio_portal/.node/bin/node <<'NODE'
+import { createDb } from '/opt/dbstudio_portal/config/db.js';
+import { loadEnv } from '/opt/dbstudio_portal/config/env.js';
+import { findByEmail } from '/opt/dbstudio_portal/domain/admins/repo.js';
+import * as service from '/opt/dbstudio_portal/domain/admins/service.js';
+
+const email = 'ADMIN_EMAIL_HERE';
+const env = loadEnv();
+const db = createDb({ connectionString: env.DATABASE_URL });
+try {
+  const admin = await findByEmail(db, email);
+  if (!admin) { console.error('no such admin'); process.exit(1); }
+  const r = await service.requestPasswordReset(db, { email },
+    { actorType: 'system', audit: { reason: 'operator_reset' } });
+  if (!r.inviteToken) { console.error('reset failed (no token)'); process.exit(1); }
+  console.log(`${env.PORTAL_BASE_URL.replace(/\/+$/, '')}/reset/${r.inviteToken}`);
+} finally { await db.destroy(); }
+NODE
+```
+
+3. Hand the printed `https://portal.dbstudio.one/reset/<token>` URL to the locked-out admin out of band (Signal, in-person — never the same channel as the original credential).
+
+4. The admin opens the URL within 7 days, sets a new password, scans the new TOTP QR code, enters the six-digit code, and saves the freshly generated 8 backup codes. The session is recorded against the new device fingerprint; the next login from a different network will trigger the new-device email per Task 3.11.
+
+5. If the rate limiter has the admin in lockout (5 failed logins in 15 min → 30-min lockout), clear it explicitly only after step 4 — the reset itself does not bypass the lockout:
+
+```bash
+sudo -u postgres psql portal_db -c \
+  "DELETE FROM rate_limit_buckets WHERE key LIKE 'login:%:ADMIN_EMAIL_HERE';"
+```
+
+6. Audit-log the operator action by tailing the journal for the resulting `admin.password_reset_requested` and (after the admin completes the flow) `admin.password_set_via_invite` rows:
+
+```bash
+sudo -u postgres psql portal_db -c \
+  "SELECT ts, action, actor_type, metadata FROM audit_log
+    WHERE target_id = (SELECT id FROM admins WHERE email = 'ADMIN_EMAIL_HERE')
+    ORDER BY ts DESC LIMIT 10;"
+```
 
 ### Backup restore drill
 
