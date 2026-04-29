@@ -55,6 +55,7 @@ describe.skipIf(skip)('public auth route flow', () => {
       await sql`DELETE FROM email_otp_codes WHERE user_id IN (SELECT id FROM admins WHERE email LIKE ${tag + '%'})`.execute(db);
       await sql`DELETE FROM email_outbox WHERE to_address LIKE ${tag + '%'}`.execute(db);
       await sql`DELETE FROM rate_limit_buckets WHERE key LIKE ${'%' + tag + '%'}`.execute(db);
+      await sql`DELETE FROM rate_limit_buckets WHERE key LIKE 'login:ip:10.0.0.%'`.execute(db);
       await sql`DELETE FROM admins WHERE email LIKE ${tag + '%'}`.execute(db);
       await sql.raw(`ALTER TABLE audit_log DISABLE TRIGGER audit_log_block_modify`).execute(db);
       await sql`DELETE FROM audit_log WHERE metadata->>'tag' = ${tag}`.execute(db);
@@ -66,6 +67,12 @@ describe.skipIf(skip)('public auth route flow', () => {
   beforeEach(async () => {
     await sql`DELETE FROM sessions WHERE user_id IN (SELECT id FROM admins WHERE email LIKE ${tag + '%'})`.execute(db);
     await sql`DELETE FROM rate_limit_buckets WHERE key LIKE ${'%' + tag + '%'}`.execute(db);
+    // The distributed-brute-force test uses fixed IPs (10.0.0.1..5, 10.0.0.99).
+    // Without this scrub, lockouts left by a previous run on the same IP keys
+    // make /login short-circuit at checkLockout — so recordFail never fires
+    // on the email-keyed bucket and the assertion at line 304 silently flips
+    // to 401. The IPs are not used by any other test in this file.
+    await sql`DELETE FROM rate_limit_buckets WHERE key LIKE 'login:ip:10.0.0.%'`.execute(db);
     await sql`DELETE FROM admins WHERE email LIKE ${tag + '%'}`.execute(db);
   });
 
