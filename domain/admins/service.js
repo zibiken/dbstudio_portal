@@ -149,6 +149,41 @@ export async function regenBackupCodes(db, { adminId }, ctx = {}) {
   return { codes };
 }
 
+export const NEW_DEVICE_WINDOW_MS = 30 * 24 * 3_600_000;
+
+export async function noticeLoginDevice(db, { adminId, fingerprint, toAddress }, ctx = {}) {
+  const r = await sql`
+    SELECT 1
+      FROM sessions
+     WHERE user_type = 'admin'
+       AND user_id = ${adminId}::uuid
+       AND device_fingerprint = ${fingerprint}
+       AND last_seen_at > now() - (${NEW_DEVICE_WINDOW_MS}::bigint || ' milliseconds')::interval
+     LIMIT 1
+  `.execute(db);
+  if (r.rows.length > 0) return { isNew: false };
+
+  const idempotencyKey = `new_device_login:${adminId}:${fingerprint}`;
+  await sql`
+    INSERT INTO email_outbox (id, idempotency_key, to_address, template, locals)
+    VALUES (
+      ${uuidv7()}::uuid,
+      ${idempotencyKey},
+      ${toAddress},
+      'new_device_login',
+      ${JSON.stringify({ fingerprint, ip: ctx?.ip ?? null, at: new Date().toISOString() })}::jsonb
+    )
+    ON CONFLICT (idempotency_key) DO NOTHING
+  `.execute(db);
+
+  await audit(db, ctx, 'admin.new_device_login', {
+    adminId,
+    metadata: { fingerprint, ip: ctx?.ip ?? null },
+  });
+
+  return { isNew: true };
+}
+
 export async function consumeBackupCode(db, { adminId, code }, ctx = {}) {
   return await db.transaction().execute(async (tx) => {
     const admin = await findById(tx, adminId);

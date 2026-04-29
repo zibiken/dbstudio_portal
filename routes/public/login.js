@@ -1,6 +1,6 @@
 import { renderPublic } from '../../lib/render.js';
 import { checkLockout, recordFail, reset as resetBucket } from '../../lib/auth/rate-limit.js';
-import { createSession } from '../../lib/auth/session.js';
+import { createSession, computeDeviceFingerprint } from '../../lib/auth/session.js';
 import { setSessionCookie } from '../../lib/auth/middleware.js';
 import * as adminsService from '../../domain/admins/service.js';
 import { writeAudit } from '../../lib/audit.js';
@@ -59,10 +59,12 @@ export function registerLoginRoutes(app) {
     }
 
     await resetBucket(app.db, key);
+    const fingerprint = computeDeviceFingerprint(req.headers['user-agent'], req.ip);
     const sid = await createSession(app.db, {
       userType: 'admin',
       userId: admin.id,
       ip: req.ip ?? null,
+      deviceFingerprint: fingerprint,
     });
     setSessionCookie(reply, sid, app.env);
     await writeAudit(app.db, {
@@ -72,6 +74,11 @@ export function registerLoginRoutes(app) {
       metadata: {},
       ip: req.ip ?? null,
     });
+    await adminsService.noticeLoginDevice(
+      app.db,
+      { adminId: admin.id, fingerprint, toAddress: admin.email },
+      { actorType: 'admin', actorId: admin.id, ip: req.ip ?? null },
+    );
 
     reply.redirect('/login/2fa', 302);
   });
