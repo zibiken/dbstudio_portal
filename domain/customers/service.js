@@ -130,7 +130,7 @@ async function revokeCustomerSessions(tx, customerId) {
   `.execute(tx);
 }
 
-function customerAudit(tx, ctx, action, customerId, metadata = {}) {
+function customerAudit(tx, ctx, action, customerId, { metadata = {}, visibleToCustomer = false } = {}) {
   return writeAudit(tx, {
     actorType: ctx?.actorType ?? 'admin',
     actorId: ctx?.actorId ?? null,
@@ -138,6 +138,7 @@ function customerAudit(tx, ctx, action, customerId, metadata = {}) {
     targetType: 'customer',
     targetId: customerId,
     metadata: { ...(ctx?.audit ?? {}), ...metadata },
+    visibleToCustomer,
     ip: ctx?.ip ?? null,
     userAgentHash: ctx?.userAgentHash ?? null,
   });
@@ -151,7 +152,9 @@ export async function suspendCustomer(db, { customerId }, ctx = {}) {
     }
     await sql`UPDATE customers SET status = 'suspended', updated_at = now() WHERE id = ${customerId}::uuid`.execute(tx);
     await revokeCustomerSessions(tx, customerId);
-    await customerAudit(tx, ctx, 'customer.suspended', customerId);
+    // Customer-visible: when the M9 activity feed lands, the customer
+    // who lived through the suspend should be able to see it happened.
+    await customerAudit(tx, ctx, 'customer.suspended', customerId, { visibleToCustomer: true });
     return { customerId, status: 'suspended' };
   });
 }
@@ -165,7 +168,7 @@ export async function reactivateCustomer(db, { customerId }, ctx = {}) {
     await sql`UPDATE customers SET status = 'active', updated_at = now() WHERE id = ${customerId}::uuid`.execute(tx);
     // Old sessions stay revoked — reactivation requires the customer to
     // log in fresh.
-    await customerAudit(tx, ctx, 'customer.reactivated', customerId);
+    await customerAudit(tx, ctx, 'customer.reactivated', customerId, { visibleToCustomer: true });
     return { customerId, status: 'active' };
   });
 }
@@ -178,7 +181,7 @@ export async function archiveCustomer(db, { customerId }, ctx = {}) {
     }
     await sql`UPDATE customers SET status = 'archived', updated_at = now() WHERE id = ${customerId}::uuid`.execute(tx);
     await revokeCustomerSessions(tx, customerId);
-    await customerAudit(tx, ctx, 'customer.archived', customerId);
+    await customerAudit(tx, ctx, 'customer.archived', customerId, { visibleToCustomer: true });
     return { customerId, status: 'archived' };
   });
 }

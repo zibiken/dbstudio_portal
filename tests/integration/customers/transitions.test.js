@@ -232,6 +232,194 @@ describe.skipIf(skip)('customers/service transitions + admin route wiring', () =
       return { adminId: created.id, jar };
     }
 
+    it('POST /admin/customers/:id/reactivate happy path: suspended → active; sessions stay revoked', async () => {
+      const { customerId, primaryUserId } = await seedActiveCustomerSession('routereact');
+      // Drive into the suspended state via service so the test focuses on
+      // the reactivate route only.
+      await customersService.suspendCustomer(db, { customerId }, baseCtx());
+
+      const { jar } = await loginAdmin('routereact');
+      const detailGet = await app.inject({
+        method: 'GET',
+        url: `/admin/customers/${customerId}`,
+        headers: { cookie: cookieHeader(jar) },
+      });
+      const csrf = extractInputValue(detailGet.body, '_csrf');
+      mergeCookies(jar, detailGet);
+
+      const ok = await app.inject({
+        method: 'POST',
+        url: `/admin/customers/${customerId}/reactivate`,
+        headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
+        payload: `_csrf=${encodeURIComponent(csrf)}`,
+      });
+      expect(ok.statusCode).toBe(302);
+      expect(ok.headers.location).toBe(`/admin/customers/${customerId}`);
+
+      const c = await findCustomerById(db, customerId);
+      expect(c.status).toBe('active');
+
+      // Sessions for the customer-user must stay revoked even after
+      // reactivation — this is the reactivate-doesn't-auto-restore
+      // contract, asserted at the route layer this time.
+      const ses = await sql`
+        SELECT revoked_at FROM sessions
+         WHERE user_type = 'customer' AND user_id = ${primaryUserId}::uuid
+      `.execute(db);
+      expect(ses.rows[0].revoked_at).not.toBeNull();
+    });
+
+    it('POST /admin/customers/:id/archive happy path: 302 detail page, status=archived, sessions revoked', async () => {
+      const { customerId, primaryUserId } = await seedActiveCustomerSession('routearch');
+
+      const { jar } = await loginAdmin('routearch');
+      const detailGet = await app.inject({
+        method: 'GET',
+        url: `/admin/customers/${customerId}`,
+        headers: { cookie: cookieHeader(jar) },
+      });
+      const csrf = extractInputValue(detailGet.body, '_csrf');
+      mergeCookies(jar, detailGet);
+
+      const ok = await app.inject({
+        method: 'POST',
+        url: `/admin/customers/${customerId}/archive`,
+        headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
+        payload: `_csrf=${encodeURIComponent(csrf)}`,
+      });
+      expect(ok.statusCode).toBe(302);
+      expect(ok.headers.location).toBe(`/admin/customers/${customerId}`);
+
+      const c = await findCustomerById(db, customerId);
+      expect(c.status).toBe('archived');
+
+      const ses = await sql`
+        SELECT revoked_at FROM sessions
+         WHERE user_type = 'customer' AND user_id = ${primaryUserId}::uuid
+      `.execute(db);
+      expect(ses.rows[0].revoked_at).not.toBeNull();
+
+      // Detail GET on an archived customer must NOT render any action
+      // buttons (suspend/reactivate hidden by status, archive hidden by
+      // top-level guard). One assertion per absent button.
+      const archDetail = await app.inject({
+        method: 'GET',
+        url: `/admin/customers/${customerId}`,
+        headers: { cookie: cookieHeader(jar) },
+      });
+      expect(archDetail.statusCode).toBe(200);
+      expect(archDetail.body).not.toMatch(/action="\/admin\/customers\/[^"]+\/suspend"/);
+      expect(archDetail.body).not.toMatch(/action="\/admin\/customers\/[^"]+\/reactivate"/);
+      expect(archDetail.body).not.toMatch(/action="\/admin\/customers\/[^"]+\/archive"/);
+    });
+
+    it('POST against an already-suspended customer → 422 + detail rerender with banner (catch-block coverage)', async () => {
+      const { customerId } = await seedActiveCustomerSession('routebad');
+      await customersService.suspendCustomer(db, { customerId }, baseCtx());
+
+      const { jar } = await loginAdmin('routebad');
+      const detailGet = await app.inject({
+        method: 'GET',
+        url: `/admin/customers/${customerId}`,
+        headers: { cookie: cookieHeader(jar) },
+      });
+      const csrf = extractInputValue(detailGet.body, '_csrf');
+      mergeCookies(jar, detailGet);
+
+      const r = await app.inject({
+        method: 'POST',
+        url: `/admin/customers/${customerId}/suspend`,
+        headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
+        payload: `_csrf=${encodeURIComponent(csrf)}`,
+      });
+      expect(r.statusCode).toBe(422);
+      // Body must be the detail page rerendered with an error banner —
+      // the service throws "cannot suspend ... must be 'active'".
+      expect(r.body).toMatch(/cannot suspend/i);
+      expect(r.body).toContain(`${tag} routebad S.L.`);
+
+      // Status unchanged.
+      const c = await findCustomerById(db, customerId);
+      expect(c.status).toBe('suspended');
+    });
+
+    it('POST with a malformed UUID in the path returns 404 not-found (no transition attempted)', async () => {
+      const { jar } = await loginAdmin('route404');
+      const detailGet = await app.inject({
+        method: 'GET',
+        url: `/admin/customers/new`,
+        headers: { cookie: cookieHeader(jar) },
+      });
+      const csrf = extractInputValue(detailGet.body, '_csrf');
+      mergeCookies(jar, detailGet);
+
+      const r = await app.inject({
+        method: 'POST',
+        url: '/admin/customers/not-a-uuid/suspend',
+        headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
+        payload: `_csrf=${encodeURIComponent(csrf)}`,
+      });
+      expect(r.statusCode).toBe(404);
+      expect(r.body).toMatch(/customer not found/i);
+    });
+
+    it('detail page surfaces the right action button per status (active=Suspend+Archive, suspended=Reactivate+Archive, archived=none)', async () => {
+      // Three independent customers, one per status.
+      const { customerId: cActive } = await seedActiveCustomerSession('btnactive');
+      const { customerId: cSuspended } = await seedActiveCustomerSession('btnsusp');
+      await customersService.suspendCustomer(db, { customerId: cSuspended }, baseCtx());
+      const { customerId: cArchived } = await seedActiveCustomerSession('btnarch');
+      await customersService.archiveCustomer(db, { customerId: cArchived }, baseCtx());
+
+      const { jar } = await loginAdmin('btn');
+
+      const active = await app.inject({
+        method: 'GET',
+        url: `/admin/customers/${cActive}`,
+        headers: { cookie: cookieHeader(jar) },
+      });
+      expect(active.body).toMatch(/action="\/admin\/customers\/[^"]+\/suspend"/);
+      expect(active.body).toMatch(/action="\/admin\/customers\/[^"]+\/archive"/);
+      expect(active.body).not.toMatch(/action="\/admin\/customers\/[^"]+\/reactivate"/);
+
+      const suspended = await app.inject({
+        method: 'GET',
+        url: `/admin/customers/${cSuspended}`,
+        headers: { cookie: cookieHeader(jar) },
+      });
+      expect(suspended.body).toMatch(/action="\/admin\/customers\/[^"]+\/reactivate"/);
+      expect(suspended.body).toMatch(/action="\/admin\/customers\/[^"]+\/archive"/);
+      expect(suspended.body).not.toMatch(/action="\/admin\/customers\/[^"]+\/suspend"/);
+
+      const archived = await app.inject({
+        method: 'GET',
+        url: `/admin/customers/${cArchived}`,
+        headers: { cookie: cookieHeader(jar) },
+      });
+      expect(archived.body).not.toMatch(/action="\/admin\/customers\/[^"]+\/suspend"/);
+      expect(archived.body).not.toMatch(/action="\/admin\/customers\/[^"]+\/reactivate"/);
+      expect(archived.body).not.toMatch(/action="\/admin\/customers\/[^"]+\/archive"/);
+    });
+
+    it('M2: transition audits are flagged visible_to_customer=TRUE', async () => {
+      const { customerId } = await seedActiveCustomerSession('m2vis');
+
+      await customersService.suspendCustomer(db, { customerId }, baseCtx());
+      await customersService.reactivateCustomer(db, { customerId }, baseCtx());
+      await customersService.archiveCustomer(db, { customerId }, baseCtx());
+
+      const r = await sql`
+        SELECT action, visible_to_customer FROM audit_log
+         WHERE target_id = ${customerId}::uuid
+           AND action IN ('customer.suspended', 'customer.reactivated', 'customer.archived')
+         ORDER BY ts ASC
+      `.execute(db);
+      expect(r.rows).toHaveLength(3);
+      for (const row of r.rows) {
+        expect(row.visible_to_customer).toBe(true);
+      }
+    });
+
     it('POST /admin/customers/:id/suspend → 302 detail page; CSRF + admin gate enforced', async () => {
       const { customerId } = await seedCustomer('routesusp');
       const { jar } = await loginAdmin('routesusp');
