@@ -28,4 +28,17 @@
     </label>
     <button type="submit" class="btn btn-primary">Update status</button>
   </form>
+
+  <h2>Edit</h2>
+  <p class="muted">objeto del proyecto is the legal subject of the NDA in M8 — fix typos here before signing.</p>
+  <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>Name
+      <input type="text" name="name" maxlength="200" value="<%= project.name %>">
+    </label>
+    <label>Objeto del proyecto
+      <textarea name="objeto_proyecto" maxlength="2000" rows="4"><%= project.objeto_proyecto %></textarea>
+    </label>
+    <button type="submit" class="btn btn-primary">Save changes</button>
+  </form>
 </section>

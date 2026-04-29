@@ -14,6 +14,7 @@ import { findDocumentById, customerStorageBytes } from '../../../domain/document
 import { STORAGE_ROOT, MAX_FILE_BYTES, MAX_CUSTOMER_BYTES } from '../../../lib/files.js';
 import { deriveEnrolSecret } from '../../../lib/auth/totp-enrol.js';
 import { generateToken } from '../../../lib/auth/totp.js';
+import { pruneTaggedAuditRows } from '../../helpers/audit.js';
 
 const skip = !process.env.RUN_DB_TESTS;
 const tag = `doc_test_${Date.now()}`;
@@ -87,9 +88,7 @@ describe.skipIf(skip)('documents upload', () => {
     await sql`DELETE FROM email_outbox WHERE to_address LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM customer_users WHERE email LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM customers WHERE razon_social LIKE ${tag + '%'}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log DISABLE TRIGGER audit_log_block_modify').execute(db);
-    await sql`DELETE FROM audit_log WHERE metadata->>'tag' = ${tag}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log ENABLE TRIGGER audit_log_block_modify').execute(db);
+    await pruneTaggedAuditRows(db, sql`metadata->>'tag' = ${tag}`);
     await db.destroy();
   });
 
@@ -104,9 +103,7 @@ describe.skipIf(skip)('documents upload', () => {
     await sql`DELETE FROM email_outbox WHERE to_address LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM customer_users WHERE email LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM customers WHERE razon_social LIKE ${tag + '%'}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log DISABLE TRIGGER audit_log_block_modify').execute(db);
-    await sql`DELETE FROM audit_log WHERE metadata->>'tag' = ${tag}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log ENABLE TRIGGER audit_log_block_modify').execute(db);
+    await pruneTaggedAuditRows(db, sql`metadata->>'tag' = ${tag}`);
   });
 
   describe('service.uploadForCustomer (happy path)', () => {
@@ -586,6 +583,58 @@ describe.skipIf(skip)('documents upload', () => {
         payload: body,
       });
       expect(r.statusCode).toBe(404);
+    });
+
+    it('rejects an HTTP-layer oversize body (> 50 MiB) — no truncated row, no orphan blob (review C1)', async () => {
+      const customerId = await makeCustomer('http-oversize');
+      const jar = await loginAdminFully('http-oversize');
+      const csrf = await fetchUploadCsrf(jar, customerId);
+
+      // PDF magic header + filler that pushes the file body over MAX_FILE_BYTES.
+      // multipart's transport-layer cap (limits.fileSize) truncates the file
+      // stream at exactly MAX_FILE_BYTES — without an explicit truncation
+      // check the service would happily commit a corrupt 50 MiB document
+      // with a sha256 of its truncated content.
+      const filler = Buffer.alloc(MAX_FILE_BYTES + 4096, 0x20);
+      const buf = Buffer.concat([Buffer.from('%PDF-1.4\n'), filler, Buffer.from('%%EOF\n')]);
+      const boundary = '----vitest' + Date.now();
+      const body = buildMultipart(boundary, { _csrf: csrf, category: 'generic' }, {
+        name: 'file', filename: 'huge.pdf', mime: 'application/pdf', body: buf,
+      });
+
+      const r = await app.inject({
+        method: 'POST',
+        url: `/admin/customers/${customerId}/documents`,
+        headers: {
+          cookie: cookieHeader(jar),
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+          'content-length': body.length,
+          'x-csrf-token': csrf,
+        },
+        payload: body,
+      });
+
+      // Must NOT 200/302. Either 422 (re-rendered upload form) or 413
+      // (multipart's RequestFileTooLargeError) is acceptable; what matters
+      // is that the upload was rejected.
+      expect(r.statusCode).not.toBe(302);
+      expect(r.statusCode).toBeGreaterThanOrEqual(400);
+
+      // Zero rows for the customer.
+      const c = await sql`
+        SELECT count(*)::int AS c FROM documents WHERE customer_id = ${customerId}::uuid
+      `.execute(db);
+      expect(c.rows[0].c).toBe(0);
+
+      // Zero files in the customer dir (no orphan .tmp-* blobs, no leaked
+      // partial finalised file).
+      let entries = [];
+      try {
+        entries = await fsp.readdir(`${STORAGE_ROOT}/${customerId}`);
+      } catch (e) {
+        if (e.code !== 'ENOENT') throw e;
+      }
+      expect(entries).toHaveLength(0);
     });
   });
 

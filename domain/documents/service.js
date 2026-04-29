@@ -34,11 +34,26 @@ async function unlinkSafe(path) {
 
 // Streams `source` to `destPath` while computing sha256, counting bytes,
 // and capturing the first MIME_SNIFF_BYTES into a sample buffer.
+//
+// `truncated` is set to true when busboy's fileSizeLimit fired during the
+// pipeline. Catching this is C1 from the M6 review: without the check,
+// an oversize multipart upload silently truncates at exactly
+// MAX_FILE_BYTES, the Transform observer hashes the truncated bytes,
+// assertSize(MAX_FILE_BYTES) passes inclusively, magic bytes pass (the
+// first 4 KiB of any oversize PDF look fine), and the tx commits a
+// corrupt document with a sha256 of its truncated content. Customer
+// downloads pass integrity (the row's sha256 was computed post-truncate),
+// so M10's verification job never flags it. The detection has to happen
+// at this stream layer; nothing else has visibility into busboy's flag.
 async function streamToTemp(source, destPath) {
   const hash = createHash('sha256');
   let bytes = 0;
   let sniffChunks = [];
   let sniffBytes = 0;
+  let limitFired = false;
+  if (typeof source.on === 'function') {
+    source.on('limit', () => { limitFired = true; });
+  }
 
   const observer = new Transform({
     transform(chunk, _enc, cb) {
@@ -61,6 +76,7 @@ async function streamToTemp(source, destPath) {
     sha256: hash.digest('hex'),
     sizeBytes: bytes,
     sniff: Buffer.concat(sniffChunks),
+    truncated: limitFired || source?.truncated === true,
   };
 }
 
@@ -128,6 +144,12 @@ export async function uploadForCustomer(db, {
 
   let finalPath;
   try {
+    if (streamed.truncated) {
+      // busboy's transport-layer cap fired mid-pipeline. Reject before any
+      // row or rename — see streamToTemp's comment on why post-tx detection
+      // is too late.
+      throw new Error('upload: file exceeded 50 MiB cap (multipart truncation)');
+    }
     assertSize(streamed.sizeBytes);
 
     const sniffed = await mimeFromMagic(streamed.sniff);
@@ -279,22 +301,36 @@ export async function readVerifiedDocumentBytes(db, doc, ctx = {}) {
   const buf = await fsp.readFile(doc.storage_path);
   const actual = sha256Hex(buf);
   if (actual !== doc.sha256) {
-    await writeAudit(db, {
-      actorType: ctx?.actorType ?? 'system',
-      actorId: ctx?.actorId ?? null,
-      action: 'document.file_integrity_failure',
-      targetType: 'document',
-      targetId: doc.id,
-      metadata: {
-        customerId: doc.customer_id,
-        expectedSha256: doc.sha256,
-        actualSha256: actual,
-        ...(ctx?.audit ?? {}),
-      },
-      visibleToCustomer: false,
-      ip: ctx?.ip ?? null,
-      userAgentHash: ctx?.userAgentHash ?? null,
-    });
+    // Audit-write may itself fail (DB unreachable, statement timeout,
+    // append-only trigger reactivated mid-incident). The IntegrityFailureError
+    // MUST throw regardless — corrupt bytes must NEVER reach the client even
+    // if we can't record the forensic trail. The caller route catches
+    // IntegrityFailureError and returns 500. The audit failure is logged via
+    // ctx.log if provided so an operator can correlate; if no logger is wired
+    // we still don't leak (the throw happens unconditionally).
+    try {
+      await writeAudit(db, {
+        actorType: ctx?.actorType ?? 'system',
+        actorId: ctx?.actorId ?? null,
+        action: 'document.file_integrity_failure',
+        targetType: 'document',
+        targetId: doc.id,
+        metadata: {
+          customerId: doc.customer_id,
+          expectedSha256: doc.sha256,
+          actualSha256: actual,
+          ...(ctx?.audit ?? {}),
+        },
+        visibleToCustomer: false,
+        ip: ctx?.ip ?? null,
+        userAgentHash: ctx?.userAgentHash ?? null,
+      });
+    } catch (auditErr) {
+      if (typeof ctx?.log?.error === 'function') {
+        ctx.log.error({ err: auditErr, docId: doc.id },
+          'document.file_integrity_failure audit write failed; throwing 500 anyway');
+      }
+    }
     throw new IntegrityFailureError('on-disk sha256 does not match the documents row');
   }
   return buf;

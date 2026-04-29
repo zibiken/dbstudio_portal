@@ -114,6 +114,49 @@ export function registerAdminProjectsRoutes(app) {
     });
   });
 
+  app.post('/admin/customers/:cid/projects/:id',
+    { preHandler: app.csrfProtection },
+    async (req, reply) => {
+      const session = await requireAdminSession(app, req, reply);
+      if (!session) return;
+      const { cid, id } = req.params ?? {};
+      if (!UUID_RE.test(cid) || !UUID_RE.test(id)) return notFound(req, reply);
+      const customer = await findCustomerById(app.db, cid);
+      const project = await findProjectById(app.db, id);
+      if (!customer || !project || project.customer_id !== cid) return notFound(req, reply);
+
+      const body = req.body ?? {};
+      const name = typeof body.name === 'string' ? body.name.trim() : '';
+      const objetoProyecto = typeof body.objeto_proyecto === 'string' ? body.objeto_proyecto.trim() : '';
+      if (!name && !objetoProyecto) {
+        reply.code(422);
+        return renderAdmin(req, reply, 'admin/projects/detail', {
+          title: project.name,
+          customer,
+          project,
+          csrfToken: await reply.generateCsrf(),
+          error: 'At least one of name or objeto del proyecto must change.',
+        });
+      }
+      try {
+        await projectsService.update(app.db, {
+          projectId: id,
+          ...(name ? { name } : {}),
+          ...(objetoProyecto ? { objetoProyecto } : {}),
+        }, makeCtx(req, session));
+      } catch (err) {
+        reply.code(422);
+        return renderAdmin(req, reply, 'admin/projects/detail', {
+          title: project.name,
+          customer,
+          project,
+          csrfToken: await reply.generateCsrf(),
+          error: err.message,
+        });
+      }
+      reply.redirect(`/admin/customers/${cid}/projects/${id}`, 302);
+    });
+
   app.post('/admin/customers/:cid/projects/:id/status',
     { preHandler: app.csrfProtection },
     async (req, reply) => {

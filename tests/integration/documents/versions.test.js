@@ -13,6 +13,7 @@ import {
   listVersionChain,
 } from '../../../domain/documents/repo.js';
 import { STORAGE_ROOT } from '../../../lib/files.js';
+import { pruneTaggedAuditRows } from '../../helpers/audit.js';
 
 const skip = !process.env.RUN_DB_TESTS;
 const tag = `ver_test_${Date.now()}`;
@@ -78,9 +79,7 @@ describe.skipIf(skip)('documents versions', () => {
     await sql`DELETE FROM email_outbox WHERE to_address LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM customer_users WHERE email LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM customers WHERE razon_social LIKE ${tag + '%'}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log DISABLE TRIGGER audit_log_block_modify').execute(db);
-    await sql`DELETE FROM audit_log WHERE metadata->>'tag' = ${tag}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log ENABLE TRIGGER audit_log_block_modify').execute(db);
+    await pruneTaggedAuditRows(db, sql`metadata->>'tag' = ${tag}`);
     await db.destroy();
   });
 
@@ -100,9 +99,7 @@ describe.skipIf(skip)('documents versions', () => {
     await sql`DELETE FROM email_outbox WHERE to_address LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM customer_users WHERE email LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM customers WHERE razon_social LIKE ${tag + '%'}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log DISABLE TRIGGER audit_log_block_modify').execute(db);
-    await sql`DELETE FROM audit_log WHERE metadata->>'tag' = ${tag}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log ENABLE TRIGGER audit_log_block_modify').execute(db);
+    await pruneTaggedAuditRows(db, sql`metadata->>'tag' = ${tag}`);
   });
 
   it('a version-2 upload links via parent_id and inherits the parent category', async () => {

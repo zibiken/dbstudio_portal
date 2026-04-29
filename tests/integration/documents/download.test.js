@@ -14,6 +14,7 @@ import { STORAGE_ROOT } from '../../../lib/files.js';
 import { sign, signFileUrl } from '../../../lib/crypto/tokens.js';
 import { deriveEnrolSecret } from '../../../lib/auth/totp-enrol.js';
 import { generateToken } from '../../../lib/auth/totp.js';
+import { pruneTaggedAuditRows } from '../../helpers/audit.js';
 
 const skip = !process.env.RUN_DB_TESTS;
 const tag = `dl_test_${Date.now()}`;
@@ -175,9 +176,7 @@ describe.skipIf(skip)('documents download', () => {
     await sql`DELETE FROM customer_users WHERE email LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM customers WHERE razon_social LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM admins WHERE email LIKE ${tag + '%'}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log DISABLE TRIGGER audit_log_block_modify').execute(db);
-    await sql`DELETE FROM audit_log WHERE metadata->>'tag' = ${tag}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log ENABLE TRIGGER audit_log_block_modify').execute(db);
+    await pruneTaggedAuditRows(db, sql`metadata->>'tag' = ${tag}`);
     await db.destroy();
   });
 
@@ -199,9 +198,7 @@ describe.skipIf(skip)('documents download', () => {
     await sql`DELETE FROM customer_users WHERE email LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM customers WHERE razon_social LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM admins WHERE email LIKE ${tag + '%'}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log DISABLE TRIGGER audit_log_block_modify').execute(db);
-    await sql`DELETE FROM audit_log WHERE metadata->>'tag' = ${tag}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log ENABLE TRIGGER audit_log_block_modify').execute(db);
+    await pruneTaggedAuditRows(db, sql`metadata->>'tag' = ${tag}`);
   });
 
   describe('GET /files/:token', () => {
@@ -287,6 +284,34 @@ describe.skipIf(skip)('documents download', () => {
       expect(audit.rows[0].target_type).toBe('document');
     });
 
+    it('still throws IntegrityFailureError when the audit write itself fails (review C2)', async () => {
+      // Per spec §2.7 "if mismatch, abort with 500 + audit". The audit is
+      // forensic data; if it fails (DB blip, statement timeout, append-only
+      // trigger reactivated by a partial migration, etc.), the route MUST
+      // still 500 — corrupt bytes must NEVER reach the client even when
+      // the forensic trail is missing.
+      const cust = await makeCustomer('c2-audit-fail');
+      const doc = await uploadAdminDoc(cust.customerId);
+      // Corrupt the on-disk file.
+      const orig = await fsp.readFile(doc.storagePath);
+      const corrupt = Buffer.from(orig);
+      corrupt[corrupt.length - 1] ^= 0xff;
+      await fsp.writeFile(doc.storagePath, corrupt);
+      const docRow = await documentsService.consumeDownloadToken
+        ? null : null; // unused; we go through the lower-level service
+      const fullRow = (await sql`SELECT * FROM documents WHERE id = ${doc.documentId}::uuid`.execute(db)).rows[0];
+
+      // A db handle that will throw on every query — force the audit write
+      // to fail. We still pass the LIVE `fullRow` so readVerifiedDocumentBytes
+      // gets past the file read and into the mismatch branch.
+      const doomedDb = createDb({ connectionString: env.DATABASE_URL });
+      await doomedDb.destroy();
+
+      await expect(
+        documentsService.readVerifiedDocumentBytes(doomedDb, fullRow, { actorType: 'system' }),
+      ).rejects.toBeInstanceOf(documentsService.IntegrityFailureError);
+    });
+
     it('returns 410 when the token references a deleted document', async () => {
       const cust = await makeCustomer('files-deleted');
       const doc = await uploadAdminDoc(cust.customerId);
@@ -345,6 +370,40 @@ describe.skipIf(skip)('documents download', () => {
       });
       expect(r.statusCode).toBe(404);
     });
+
+    it('429s when the per-admin signed-URL issuance limit (60/min) is hit (review I1)', async () => {
+      const cust = await makeCustomer('admdl-ratelimit');
+      const doc = await uploadAdminDoc(cust.customerId);
+      const jar = await loginAdminFully('admdl-ratelimit');
+
+      // Read the admin id straight from the live session for keying.
+      const sessRow = await sql`
+        SELECT user_id FROM sessions WHERE step_up_at IS NOT NULL
+         ORDER BY created_at DESC LIMIT 1
+      `.execute(db);
+      const adminId = sessRow.rows[0].user_id;
+
+      // Seed the bucket at 60 + lock it so the next attempt 429s without
+      // hammering 60 real requests.
+      await sql`
+        INSERT INTO rate_limit_buckets (key, count, reset_at, locked_until)
+        VALUES (${`signed_url:admin:${adminId}`}, 60,
+                now() + interval '60 seconds',
+                now() + interval '60 seconds')
+        ON CONFLICT (key) DO UPDATE SET
+          count = 60,
+          reset_at = now() + interval '60 seconds',
+          locked_until = now() + interval '60 seconds'
+      `.execute(db);
+
+      const r = await app.inject({
+        method: 'GET',
+        url: `/admin/documents/${doc.documentId}/download`,
+        headers: { cookie: cookieHeader(jar) },
+      });
+      expect(r.statusCode).toBe(429);
+      expect(r.headers['retry-after']).toBeDefined();
+    });
   });
 
   describe('GET /customer/documents/:id/download', () => {
@@ -398,6 +457,33 @@ describe.skipIf(skip)('documents download', () => {
         headers: { cookie: cookieHeader(jar) },
       });
       expect(r.statusCode).toBe(404);
+    });
+
+    it('429s when the per-customer signed-URL issuance limit (60/min) is hit (review I1)', async () => {
+      const cust = await makeCustomer('cdl-ratelimit');
+      const doc = await uploadAdminDoc(cust.customerId);
+      const { jar, customerUserId } = await loginCustomerFully(
+        cust.customerId, `${tag}+cdl-ratelimit@example.com`, cust.inviteToken,
+      );
+
+      await sql`
+        INSERT INTO rate_limit_buckets (key, count, reset_at, locked_until)
+        VALUES (${`signed_url:customer:${customerUserId}`}, 60,
+                now() + interval '60 seconds',
+                now() + interval '60 seconds')
+        ON CONFLICT (key) DO UPDATE SET
+          count = 60,
+          reset_at = now() + interval '60 seconds',
+          locked_until = now() + interval '60 seconds'
+      `.execute(db);
+
+      const r = await app.inject({
+        method: 'GET',
+        url: `/customer/documents/${doc.documentId}/download`,
+        headers: { cookie: cookieHeader(jar) },
+      });
+      expect(r.statusCode).toBe(429);
+      expect(r.headers['retry-after']).toBeDefined();
     });
   });
 });

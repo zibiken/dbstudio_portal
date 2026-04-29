@@ -4,6 +4,16 @@ import * as documentsService from '../../domain/documents/service.js';
 import { findDocumentById } from '../../domain/documents/repo.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { signDownloadToken } from '../../lib/files.js';
+import { checkLockout, recordFail } from '../../lib/auth/rate-limit.js';
+
+// Spec §2.6: signed-URL issuance is rate-limited to 60 per minute per
+// authenticated principal. Single-use enforcement on the download token
+// itself doesn't bound issuance, so without this gate an authenticated
+// caller could spray issuance requests and balloon the consumption table
+// + audit log.
+const SIGNED_URL_LIMIT = 60;
+const SIGNED_URL_WINDOW_MS = 60_000;
+const SIGNED_URL_LOCKOUT_MS = 60_000;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -120,12 +130,25 @@ export function registerAdminDocumentsRoutes(app) {
       return { error: 'not found' };
     }
 
+    const rlKey = `signed_url:admin:${session.user_id}`;
+    const lockout = await checkLockout(app.db, rlKey);
+    if (lockout.locked) {
+      reply.code(429);
+      reply.header('retry-after', Math.max(1, Math.ceil(lockout.retryAfterMs / 1000)));
+      return { error: 'too many requests' };
+    }
+
     const doc = await findDocumentById(app.db, id);
     if (!doc) {
       reply.code(404);
       return { error: 'not found' };
     }
 
+    await recordFail(app.db, rlKey, {
+      limit: SIGNED_URL_LIMIT,
+      windowMs: SIGNED_URL_WINDOW_MS,
+      lockoutMs: SIGNED_URL_LOCKOUT_MS,
+    });
     const token = signDownloadToken({ fileId: doc.id }, app.env.FILE_URL_SIGNING_SECRET);
     reply.redirect(`/files/${token}`, 302);
   });

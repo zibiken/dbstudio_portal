@@ -14,6 +14,7 @@ import {
 } from '../../../domain/projects/repo.js';
 import { deriveEnrolSecret } from '../../../lib/auth/totp-enrol.js';
 import { generateToken } from '../../../lib/auth/totp.js';
+import { pruneTaggedAuditRows } from '../../helpers/audit.js';
 
 const skip = !process.env.RUN_DB_TESTS;
 const tag = `proj_test_${Date.now()}`;
@@ -134,9 +135,7 @@ describe.skipIf(skip)('projects CRUD', () => {
     await sql`DELETE FROM customer_users WHERE email LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM customers WHERE razon_social LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM admins WHERE email LIKE ${tag + '%'}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log DISABLE TRIGGER audit_log_block_modify').execute(db);
-    await sql`DELETE FROM audit_log WHERE metadata->>'tag' = ${tag}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log ENABLE TRIGGER audit_log_block_modify').execute(db);
+    await pruneTaggedAuditRows(db, sql`metadata->>'tag' = ${tag}`);
     await db.destroy();
   });
 
@@ -153,9 +152,7 @@ describe.skipIf(skip)('projects CRUD', () => {
     await sql`DELETE FROM customer_users WHERE email LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM customers WHERE razon_social LIKE ${tag + '%'}`.execute(db);
     await sql`DELETE FROM admins WHERE email LIKE ${tag + '%'}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log DISABLE TRIGGER audit_log_block_modify').execute(db);
-    await sql`DELETE FROM audit_log WHERE metadata->>'tag' = ${tag}`.execute(db);
-    await sql.raw('ALTER TABLE audit_log ENABLE TRIGGER audit_log_block_modify').execute(db);
+    await pruneTaggedAuditRows(db, sql`metadata->>'tag' = ${tag}`);
   });
 
   describe('service.create', () => {
@@ -370,6 +367,36 @@ describe.skipIf(skip)('projects CRUD', () => {
         payload: `name=X&objeto_proyecto=Y`,
       });
       expect(r.statusCode).toBe(403);
+    });
+
+    it('edits name + objeto_proyecto via POST /admin/customers/:cid/projects/:id (review I2)', async () => {
+      const cust = await makeCustomer('http-edit');
+      const jar = await loginAdminFully('http-edit');
+      const created = await projectsService.create(db, {
+        customerId: cust.customerId,
+        name: 'Old name',
+        objetoProyecto: 'old purpose with a typo',
+      }, baseCtx());
+
+      const detailGet = await app.inject({
+        method: 'GET',
+        url: `/admin/customers/${cust.customerId}/projects/${created.projectId}`,
+        headers: { cookie: cookieHeader(jar) },
+      });
+      mergeCookies(jar, detailGet);
+      const csrf = extractInputValue(detailGet.body, '_csrf');
+
+      const post = await app.inject({
+        method: 'POST',
+        url: `/admin/customers/${cust.customerId}/projects/${created.projectId}`,
+        headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
+        payload: `name=${encodeURIComponent('New name')}&objeto_proyecto=${encodeURIComponent('corrected purpose')}&_csrf=${encodeURIComponent(csrf)}`,
+      });
+      expect(post.statusCode).toBe(302);
+
+      const row = await findProjectById(db, created.projectId);
+      expect(row.name).toBe('New name');
+      expect(row.objeto_proyecto).toBe('corrected purpose');
     });
 
     it('422 + form-rerender when name or objeto_proyecto missing', async () => {

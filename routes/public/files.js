@@ -16,7 +16,10 @@ export function registerPublicFilesRoutes(app) {
   // no such suffix logic.
   app.get('/files/*', async (req, reply) => {
     const token = req.params?.['*'];
-    if (typeof token !== 'string' || token.length < 10) {
+    // Lower bound: anything shorter than 10 chars cannot be a valid token
+    // (header.MAC alone is well over 80 chars). Upper bound: cap at 4 KiB
+    // to defang log-line ballooning + HMAC-of-junk CPU burn (review I7).
+    if (typeof token !== 'string' || token.length < 10 || token.length > 4096) {
       reply.code(400);
       return { error: 'invalid token' };
     }
