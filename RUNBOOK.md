@@ -132,6 +132,22 @@ The spec aspired to `MemoryDenyWriteExecute=true` + `SystemCallFilter=@system-se
 
 The spec said the IPC socket lived at `/run/portal-pdf.sock`. The portal-pdf user can't write directly to `/run/`. Implementation uses `RuntimeDirectory=portal-pdf` so systemd creates `/run/portal-pdf/` owned by portal-pdf:portal-app, and the actual socket lives at `/run/portal-pdf/portal.sock`. `pdf-service.js` does an explicit `chmodSync(SOCK, 0o660)` after listen because Node creates Unix sockets with mode 0777 & ~umask which leaves 0770 even with `UMask=0007` in the unit. Safety-check (invariant 7) verifies the final 0660.
 
+### Email provider state
+
+| Field | Value |
+|---|---|
+| Provider | MailerSend |
+| Domain | `dbstudio.one` (SPF + DKIM verified, DMARC ≥ quarantine for `_dmarc.dbstudio.one`) |
+| v1 sender | `portal@dbstudio.one` (display name "DB Studio Portal") |
+| API key name | `portal-v1` (send-only scope) |
+| API key last 4 | `GEME` |
+| Gate closed | 2026-04-29, live send → HTTP 202, Message-Id `69f237c1240785931dfc7c72`, delivered to `bram@roxiplus.es` |
+
+Operational notes:
+- The dedicated `mail.portal.dbstudio.one` subdomain is deferred per spec §10. Once added, generate a new send-only key, paste, restart, repeat the live-send drill, then revoke `portal-v1` in the MailerSend dashboard.
+- The `.env` value is wrapped in literal double-quotes (`MAILERSEND_API_KEY="mlsn..."`). systemd's `EnvironmentFile` and `dotenv` both strip the surrounding quotes at load, so the running service sees the bare token. Ad-hoc shell tests (`curl ... -H "Authorization: Bearer $KEY"`) must strip the quotes manually first, otherwise MailerSend returns 401 `Unauthenticated`.
+- Rotation: see "Incident response" below — revoke in MailerSend, generate replacement, paste into `.env`, `sudo systemctl restart portal.service`, run the live-send drill, update the "API key last 4" cell here.
+
 ### Email outbox runner status
 
 (Filled at M4.)
