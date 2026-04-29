@@ -2,6 +2,28 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+---
+
+## Progress (live)
+
+| Milestone | Status | Date | Notes |
+|---|---|---|---|
+| **M0** Bootstrap | ✅ done | 2026-04-29 | Linux users, Postgres role+DB (scram-sha-256), project-local Node 20.19.6, KEK (256-bit) + signing secrets (512-bit each), pre-commit hook (15 tests pass), RUNBOOK skeleton |
+| **M1** Skeleton | ✅ done | 2026-04-29 | Fastify+EJS, both systemd units running, /health 200, all security headers, Tailwind compiled, smoke.sh 5/5, IPC socket mode 0660. Spec deltas (sender domain, socket path, hardening) recorded in spec §7 + RUNBOOK |
+| **M2** Schema + crypto | ⏳ next | — | 0001_init.sql + migration runner; lib/crypto/{kek,envelope,hash,tokens} with 100% coverage; KEK rotation procedure |
+| **M3** Admin auth | — | — | |
+| **M4** Email pipeline (gate) | — | — | Sender: `portal@dbstudio.one` (shared domain, free-tier MailerSend) |
+| **M5** Customer create + onboarding | — | — | |
+| **M6** Documents + projects | — | — | |
+| **M7** Credential vault + requests | — | — | |
+| **M8** Invoices + NDA | — | — | |
+| **M9** Profile + activity + polish | — | — | |
+| **M10** Backups + go-live (gates) | — | — | |
+
+**Latest commit on main:** `c74424d` — `feat(m1): both services live; deltas vs spec §7 documented`.
+
+**Resume here:** start of M2, Task 2.1 (migration runner).
+
 **Goal:** Build the v1 DB Studio Customer Portal — a security-first, isolated customer portal at `portal.dbstudio.one` running as two systemd units (`portal.service` + sandboxed `portal-pdf.service`) on `127.0.0.1:3400`, behind Cloudflare → NPM → Fastify, with envelope-encrypted credential vault, NDA generation, MailerSend transactional email on a dedicated subdomain, and `age`-encrypted nightly backups to Hetzner Storage Box.
 
 **Architecture:** Fastify + EJS + Tailwind on Node.js 20.19.6 (project-local). PostgreSQL 15+ via Kysely + `pg`. AES-256-GCM envelope encryption with master KEK + per-customer DEK. Argon2id for passwords. Server-side sessions. TOTP / WebAuthn / email-OTP 2FA with backup codes. Puppeteer for NDA PDFs runs in a separate hardened systemd unit (`portal-pdf.service`) as user `portal-pdf` over a Unix socket — no DB access, no secrets, no network egress. i18next scaffolded throughout, EN-only ships in v1. Nightly `age`-encrypted backups pushed to Hetzner Storage Box.
