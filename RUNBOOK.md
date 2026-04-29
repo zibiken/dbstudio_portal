@@ -141,7 +141,7 @@ The spec said the IPC socket lived at `/run/portal-pdf.sock`. The portal-pdf use
 | v1 sender | `portal@dbstudio.one` (display name "DB Studio Portal") |
 | API key name | `portal-v1` (send-only scope) |
 | API key last 4 | `GEME` |
-| Gate closed | 2026-04-29, live send → HTTP 202, Message-Id `69f237c1240785931dfc7c72`, delivered to `bram@roxiplus.es` |
+| Gate closed | 2026-04-29, direct curl → HTTP 202, Message-Id `69f237c1240785931dfc7c72`, delivered to `bram@roxiplus.es`. Full pipeline (enqueue → worker → MailerSend → inbox) re-confirmed 2026-04-29 via `tests/integration/email/live-smoke.test.js`, Message-Id `69f25d23f31e51971bf18e55`. |
 
 Operational notes:
 - The dedicated `mail.portal.dbstudio.one` subdomain is deferred per spec §10. Once added, generate a new send-only key, paste, restart, repeat the live-send drill, then revoke `portal-v1` in the MailerSend dashboard.
