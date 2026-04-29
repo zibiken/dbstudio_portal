@@ -1,0 +1,9 @@
+<%# subject: A message from DB Studio %>
+<div style="<%- S.tagline %>">Portal · Message</div>
+<h1 style="<%- S.h1 %>">A note from <%= adminName %></h1>
+<p style="<%- S.body %>">Hi <%= recipientName %>,</p>
+<div style="margin:0 0 24px;padding:20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#F6F3EE;font-size:15px;line-height:1.6;white-space:pre-wrap;"><%= message %></div>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="<%- S.ctaWrap %>">
+  <tr><td style="<%- S.ctaCell %>"><a href="<%= portalUrl %>" style="<%- S.ctaLink %>">Open portal →</a></td></tr>
+</table>
+<p style="<%- S.note %>">Reply to this email to continue the conversation — your reply lands in DB Studio's inbox.</p>

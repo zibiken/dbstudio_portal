@@ -1,0 +1,9 @@
+<%# subject: Your two-factor authentication was reset %>
+<div style="<%- S.tagline %>">Portal · Two-factor reset</div>
+<h1 style="<%- S.h1 %>">Set up two-factor authentication again</h1>
+<p style="<%- S.body %>">Hi <%= recipientName %>,</p>
+<p style="<%- S.body %>"><%= adminName %> reset the second factor on your DB Studio account. Your previous authenticator and backup codes no longer work. Use the link below to set new ones — your password is unchanged.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="<%- S.ctaWrap %>">
+  <tr><td style="<%- S.ctaCell %>"><a href="<%= resetUrl %>" style="<%- S.ctaLink %>">Re-enrol two-factor →</a></td></tr>
+</table>
+<p style="<%- S.note %>">If you didn't ask for this, contact <a href="mailto:hello@dbstudio.one" style="<%- S.link %>">hello@dbstudio.one</a> immediately.</p>

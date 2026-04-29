@@ -1,0 +1,9 @@
+<%# subject: Your portal invitation is expiring soon %>
+<div style="<%- S.tagline %>">Portal · Reminder</div>
+<h1 style="<%- S.h1 %>">Your invitation expires on <%= euDate(expiresAt) %></h1>
+<p style="<%- S.body %>">Hi <%= recipientName %>,</p>
+<p style="<%- S.body %>">A quick reminder — your DB Studio portal invitation hasn't been accepted yet, and the link expires on <%= euDate(expiresAt) %>. Once expired, the operator has to reissue it.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="<%- S.ctaWrap %>">
+  <tr><td style="<%- S.ctaCell %>"><a href="<%= inviteUrl %>" style="<%- S.ctaLink %>">Accept invitation →</a></td></tr>
+</table>
+<p style="<%- S.note %>">If you're not expecting access to a DB Studio project, you can ignore this email.</p>

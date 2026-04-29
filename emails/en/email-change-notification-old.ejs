@@ -1,0 +1,24 @@
+<%# subject: Your portal email address was changed %>
+<div style="<%- S.tagline %>">Portal · Email change</div>
+<h1 style="<%- S.h1 %>">Your email address was changed</h1>
+<p style="<%- S.body %>">Hi <%= recipientName %>,</p>
+<p style="<%- S.body %>">The email on your DB Studio portal account was changed.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="<%- S.metaTable %>">
+  <tr>
+    <td style="<%- S.metaLabel %>">From</td>
+    <td style="<%- S.metaValue %>"><%= oldEmail %></td>
+  </tr>
+  <tr>
+    <td style="<%- S.metaLabel %>">To</td>
+    <td style="<%- S.metaValue %>"><%= newEmail %></td>
+  </tr>
+  <tr>
+    <td style="<%- S.metaLabel %>">When</td>
+    <td style="<%- S.metaValue %>"><%= euDateTime(changedAt) %></td>
+  </tr>
+</table>
+<p style="<%- S.body %>">If that wasn't you, revert the change now:</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="<%- S.ctaWrap %>">
+  <tr><td style="<%- S.ctaCell %>"><a href="<%= revertUrl %>" style="<%- S.ctaLink %>">Revert change →</a></td></tr>
+</table>
+<p style="<%- S.note %>">For security, this notice is sent to the previous address. If you recognise the change, no action is needed.</p>

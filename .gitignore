@@ -24,6 +24,7 @@ build/
 coverage/
 *.tsbuildinfo
 public/styles/app.css
+emails/_compiled.js
 
 # Editor
 .vscode/

@@ -1,0 +1,9 @@
+<%# subject: Welcome to your DB Studio portal %>
+<div style="<%- S.tagline %>">Portal · Invitation</div>
+<h1 style="<%- S.h1 %>">Your client portal is ready</h1>
+<p style="<%- S.body %>">Hi <%= recipientName %>,</p>
+<p style="<%- S.body %>">DB Studio has set up a private portal where your project documents, invoices, credentials, and signed agreements live. Set a password and a second factor to get in.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="<%- S.ctaWrap %>">
+  <tr><td style="<%- S.ctaCell %>"><a href="<%= inviteUrl %>" style="<%- S.ctaLink %>">Accept invitation →</a></td></tr>
+</table>
+<p style="<%- S.note %>">This invitation expires on <%= euDate(expiresAt) %>. If you weren't expecting it, you can safely ignore this email.</p>

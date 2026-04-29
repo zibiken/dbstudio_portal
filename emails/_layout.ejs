@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="<%= typeof locale === 'undefined' || !locale ? 'en' : locale %>">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="supported-color-schemes" content="dark" />
+    <title><%= subject %></title>
+  </head>
+  <body style="margin:0;padding:0;background:#0A0A0A;font-family:'General Sans',system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#F6F3EE;-webkit-font-smoothing:antialiased;">
+    <span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden;mso-hide:all;"><%= typeof preheader === 'undefined' ? '' : preheader %></span>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0A0A0A;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
+            <tr>
+              <td align="left" style="padding:0 4px 24px;">
+                <a href="https://www.dbstudio.one" style="text-decoration:none;display:inline-block;">
+                  <img src="https://www.dbstudio.one/logo-white.png" alt="DB Studio" height="28" width="67" style="display:block;height:28px;width:auto;border:0;outline:none;" />
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#111111;border:1px solid rgba(255,255,255,0.08);border-radius:12px;">
+                <div style="padding:32px;">
+                  <%- body %>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 4px 0;color:#8A8A8A;font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.7;letter-spacing:0.04em;">
+                <div style="margin-bottom:6px;">
+                  <a href="https://portal.dbstudio.one" style="color:#C4A97A;text-decoration:none;">portal.dbstudio.one</a>
+                  &nbsp;·&nbsp;
+                  <a href="https://www.dbstudio.one" style="color:#A8B0B8;text-decoration:none;">dbstudio.one</a>
+                  &nbsp;·&nbsp;
+                  <a href="mailto:hello@dbstudio.one" style="color:#A8B0B8;text-decoration:none;">hello@dbstudio.one</a>
+                </div>
+                <div style="color:#8A8A8A;">© <%= new Date().getFullYear() %> Solbizz Canarias S.L. · CIF B76607415 · Tenerife, Canary Islands, Spain</div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

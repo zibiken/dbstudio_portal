@@ -1,0 +1,9 @@
+<%# subject: Reset your DB Studio portal password %>
+<div style="<%- S.tagline %>">Portal · Password reset</div>
+<h1 style="<%- S.h1 %>">Reset your password</h1>
+<p style="<%- S.body %>">Hi <%= recipientName %>,</p>
+<p style="<%- S.body %>">Someone — likely you — asked to reset the password on your DB Studio portal account. Click below to choose a new one.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="<%- S.ctaWrap %>">
+  <tr><td style="<%- S.ctaCell %>"><a href="<%= resetUrl %>" style="<%- S.ctaLink %>">Reset password →</a></td></tr>
+</table>
+<p style="<%- S.note %>">This link expires on <%= euDate(expiresAt) %>. If you didn't request a reset, you can ignore this email — your current password still works.</p>

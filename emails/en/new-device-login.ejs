@@ -1,0 +1,23 @@
+<%# subject: New sign-in to your DB Studio portal %>
+<div style="<%- S.tagline %>">Portal · New sign-in</div>
+<h1 style="<%- S.h1 %>">A new device signed in</h1>
+<p style="<%- S.body %>">Hi <%= recipientName %>,</p>
+<p style="<%- S.body %>">We detected a sign-in to your DB Studio portal account from a device or network we hadn't seen before.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="<%- S.metaTable %>">
+  <tr>
+    <td style="<%- S.metaLabel %>">When</td>
+    <td style="<%- S.metaValue %>"><%= euDateTime(when) %></td>
+  </tr>
+  <tr>
+    <td style="<%- S.metaLabel %>">IP</td>
+    <td style="<%- S.metaValue %>"><%= ip %></td>
+  </tr>
+  <tr>
+    <td style="<%- S.metaLabel %>">Browser</td>
+    <td style="<%- S.metaValue %>"><%= userAgent %></td>
+  </tr>
+</table>
+<p style="<%- S.body %>">If that was you, no action is needed. If it wasn't, sign out everywhere and rotate your password:</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="<%- S.ctaWrap %>">
+  <tr><td style="<%- S.ctaCell %>"><a href="<%= sessionsUrl %>" style="<%- S.ctaLink %>">Review sessions →</a></td></tr>
+</table>

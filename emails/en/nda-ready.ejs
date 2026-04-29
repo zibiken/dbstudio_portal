@@ -1,0 +1,9 @@
+<%# subject: Your NDA is ready to review %>
+<div style="<%- S.tagline %>">Portal · NDA</div>
+<h1 style="<%- S.h1 %>">Your NDA with <%= customerName %> is ready</h1>
+<p style="<%- S.body %>">Hi <%= recipientName %>,</p>
+<p style="<%- S.body %>">A non-disclosure agreement has been generated and is waiting for review in your portal. Open it, read carefully, and sign if you agree to the terms.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="<%- S.ctaWrap %>">
+  <tr><td style="<%- S.ctaCell %>"><a href="<%= ndaUrl %>" style="<%- S.ctaLink %>">Open NDA →</a></td></tr>
+</table>
+<p style="<%- S.note %>">If anything in the document needs adjusting, reply to this email and we'll regenerate it.</p>

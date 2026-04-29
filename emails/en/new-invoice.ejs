@@ -1,0 +1,23 @@
+<%# subject: New invoice from DB Studio %>
+<div style="<%- S.tagline %>">Portal · New invoice</div>
+<h1 style="<%- S.h1 %>">Invoice <%= invoiceNumber %></h1>
+<p style="<%- S.body %>">Hi <%= recipientName %>,</p>
+<p style="<%- S.body %>">A new invoice is available in your portal.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="<%- S.metaTable %>">
+  <tr>
+    <td style="<%- S.metaLabel %>">Number</td>
+    <td style="<%- S.metaValue %>"><%= invoiceNumber %></td>
+  </tr>
+  <tr>
+    <td style="<%- S.metaLabel %>">Amount</td>
+    <td style="<%- S.metaValue %>"><%= amount %></td>
+  </tr>
+  <tr>
+    <td style="<%- S.metaLabel %>">Due</td>
+    <td style="<%- S.metaValue %>"><%= euDate(dueDate) %></td>
+  </tr>
+</table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="<%- S.ctaWrap %>">
+  <tr><td style="<%- S.ctaCell %>"><a href="<%= invoiceUrl %>" style="<%- S.ctaLink %>">View invoice →</a></td></tr>
+</table>
+<p style="<%- S.note %>">Pay by bank transfer to the IBAN shown on the invoice. Reply to this email if anything looks off.</p>
