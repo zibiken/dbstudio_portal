@@ -1,0 +1,44 @@
+[Unit]
+Description=DB Studio Customer Portal (PDF sub-service, Chromium-sandboxed)
+After=network.target
+
+[Service]
+Type=simple
+User=portal-pdf
+Group=portal-app
+WorkingDirectory=/opt/dbstudio_portal
+ExecStart=/opt/dbstudio_portal/.node/bin/node pdf-service.js
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/opt/dbstudio_portal/.env
+# Service should not actually need most of .env — it ignores everything except PDF_SERVICE_SOCKET.
+# EnvironmentFile mode 0400 portal-app means portal-pdf needs group access; portal-pdf is in
+# portal-app group, so EnvironmentFile parsing succeeds. The vars themselves are unused inside the process.
+
+# Hardening — looser than portal.service because Chromium V8 JIT requires WriteExecute pages.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=/run
+ReadOnlyPaths=/opt/dbstudio_portal /var/lib/portal/fonts /var/lib/portal/templates
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# CRITICAL: only AF_UNIX. No network egress possible — a worst-case Chromium RCE finds an empty sandbox.
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+# MemoryDenyWriteExecute=true — DELIBERATELY OMITTED for V8 JIT.
+RestrictRealtime=true
+SystemCallArchitectures=native
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=portal-pdf
+
+[Install]
+WantedBy=multi-user.target

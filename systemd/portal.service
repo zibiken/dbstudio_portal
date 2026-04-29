@@ -1,0 +1,43 @@
+[Unit]
+Description=DB Studio Customer Portal (main app)
+After=network.target postgresql.service portal-pdf.service
+Requires=postgresql.service
+PartOf=portal-pdf.service
+
+[Service]
+Type=simple
+User=portal-app
+Group=portal-app
+WorkingDirectory=/opt/dbstudio_portal
+ExecStart=/opt/dbstudio_portal/.node/bin/node server.js
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/opt/dbstudio_portal/.env
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=/var/lib/portal /var/log/portal /run/portal-pdf.sock
+ReadOnlyPaths=/opt/dbstudio_portal
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=portal
+
+[Install]
+WantedBy=multi-user.target
