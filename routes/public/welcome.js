@@ -26,16 +26,9 @@ export function registerWelcomeRoutes(app, { mountPath = '/welcome', title = 'We
     const { token } = req.params;
     const found = await findInvitedAdmin(app.db, token);
     if (found.error) {
-      reply.code(410);
-      return renderPublic(req, reply, 'public/welcome', {
-        title,
-        action: `${mountPath}/${encodeURIComponent(token)}`,
-        submitLabel: 'Set password and enrol',
-        csrfToken: await reply.generateCsrf(),
-        enrolSecret: '',
-        otpauthUri: '',
-        error: 'This link is no longer valid. Ask an administrator to issue a new invitation.',
-      });
+      // Don't issue a CSRF cookie on a probe of an invalid token.
+      reply.code(410).type('text/html');
+      return renderPublic(req, reply, 'public/welcome-invalid', { title });
     }
 
     const enrolSecret = deriveEnrolSecret(token, app.env.SESSION_SIGNING_SECRET);
@@ -55,16 +48,8 @@ export function registerWelcomeRoutes(app, { mountPath = '/welcome', title = 'We
 
     const found = await findInvitedAdmin(app.db, token);
     if (found.error) {
-      reply.code(found.error === 'expired' ? 410 : 400);
-      return renderPublic(req, reply, 'public/welcome', {
-        title,
-        action: `${mountPath}/${encodeURIComponent(token)}`,
-        submitLabel: 'Set password and enrol',
-        csrfToken: await reply.generateCsrf(),
-        enrolSecret: '',
-        otpauthUri: '',
-        error: 'This link is no longer valid.',
-      });
+      reply.code(found.error === 'expired' ? 410 : 400).type('text/html');
+      return renderPublic(req, reply, 'public/welcome-invalid', { title });
     }
 
     const enrolSecret = deriveEnrolSecret(token, app.env.SESSION_SIGNING_SECRET);

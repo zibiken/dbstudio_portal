@@ -53,19 +53,13 @@ export async function countAdmins(db, { emailLike } = {}) {
 }
 
 export async function updateAdmin(db, id, fields) {
-  const entries = Object.entries(fields).filter(([_k, v]) => v !== undefined);
-  if (entries.length === 0) return;
-  const assignments = entries
-    .map(([k]) => COLUMN_MAP[k])
-    .filter(Boolean);
-  if (assignments.length === 0) return;
-
-  // Build the SET clause with parameter placeholders.
-  const setParts = entries.map(([k, v], i) => {
-    const col = COLUMN_MAP[k];
-    if (!col) return null;
-    return sql`${sql.ref(col)} = ${v}`;
-  }).filter(Boolean);
-
+  const setParts = Object.entries(fields)
+    .filter(([_k, v]) => v !== undefined)
+    .map(([k, v]) => {
+      const col = COLUMN_MAP[k];
+      if (!col) throw new Error(`updateAdmin: unknown field '${k}'`);
+      return sql`${sql.ref(col)} = ${v}`;
+    });
+  if (setParts.length === 0) return;
   await sql`UPDATE admins SET ${sql.join(setParts, sql`, `)} WHERE id = ${id}::uuid`.execute(db);
 }

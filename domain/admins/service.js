@@ -135,7 +135,8 @@ export async function verifyLogin(db, { email, password }) {
 export async function requestPasswordReset(db, { email }, ctx = {}) {
   const admin = await findByEmail(db, email);
   if (!admin) {
-    await audit(db, ctx, 'admin.password_reset_requested_unknown', { metadata: { email } });
+    const safeEmail = typeof email === 'string' ? email.slice(0, 320) : null;
+    await audit(db, ctx, 'admin.password_reset_requested_unknown', { metadata: { email: safeEmail } });
     return { inviteToken: null };
   }
 

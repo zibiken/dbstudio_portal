@@ -226,7 +226,7 @@ If a secret reaches a commit (despite SAFETY.md and the pre-commit hook):
 
 1. **Rotate the affected secret immediately.**
    - DB password: `ALTER ROLE portal_user PASSWORD '<new>';` then `sudoedit /opt/dbstudio_portal/.env` to update `DATABASE_URL`.
-   - SESSION/FILE_URL signing secrets: `sudo bash scripts/bootstrap-secrets.sh --rotate-signing` then restart `portal.service`. Existing sessions invalidated; existing signed file URLs invalidated.
+   - SESSION/FILE_URL signing secrets: `sudo bash scripts/bootstrap-secrets.sh --rotate-signing` then restart `portal.service`. Existing sessions invalidated; existing signed file URLs invalidated. **Also invalidates every in-flight admin invite and password-reset token** because the welcome-flow TOTP enrol secret is derived from the SESSION_SIGNING_SECRET (`lib/auth/totp-enrol.js`); admins who scanned the QR but did not finish enrolment will silently fail TOTP verify. After rotation, re-issue any open invites via `service.requestPasswordReset`.
    - MAILERSEND_API_KEY: revoke in MailerSend dashboard, generate new, paste into `.env`, restart.
    - Master KEK: full KEK rotation procedure above (in M2 once written).
 2. **Force-push the cleaned history.** Use `git filter-repo` or BFG. This is the **only** legitimate force-push on `main`. Coordinate with anyone who pulled.
