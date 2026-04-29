@@ -180,11 +180,11 @@ describe.skipIf(skip)('public auth route flow', () => {
     expect(cOk.statusCode).toBe(302);
     expect(cOk.headers.location).toBe('/');
 
-    // First login from a fresh device fingerprint must queue a new_device_login
+    // First login from a fresh device fingerprint must queue a new-device-login
     // outbox row and write an admin.new_device_login audit row.
     const outbox = await sql`
       SELECT template, idempotency_key FROM email_outbox
-       WHERE to_address = ${tagEmail('full')}::citext AND template = 'new_device_login'
+       WHERE to_address = ${tagEmail('full')}::citext AND template = 'new-device-login'
     `.execute(db);
     expect(outbox.rows).toHaveLength(1);
     expect(outbox.rows[0].idempotency_key).toContain('new_device_login:');

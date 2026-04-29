@@ -242,7 +242,16 @@ function monthBucket(date = new Date()) {
 
 export async function noticeLoginDevice(
   db,
-  { adminId, fingerprint, toAddress, excludeSessionId = null },
+  {
+    adminId,
+    fingerprint,
+    toAddress,
+    recipientName,
+    ip,
+    userAgent,
+    portalBaseUrl,
+    excludeSessionId = null,
+  },
   ctx = {},
 ) {
   const r = await sql`
@@ -257,15 +266,25 @@ export async function noticeLoginDevice(
   `.execute(db);
   if (r.rows.length > 0) return { isNew: false };
 
+  const baseUrl = trimTrailingSlashes(portalBaseUrl ?? ctx?.portalBaseUrl ?? process.env.PORTAL_BASE_URL ?? '');
+  if (!baseUrl) throw new Error('noticeLoginDevice requires portalBaseUrl');
+
   const idempotencyKey = `new_device_login:${adminId}:${fingerprint}:${monthBucket()}`;
+  const locals = {
+    recipientName: recipientName ?? '',
+    when: new Date().toISOString(),
+    ip: ip ?? '',
+    userAgent: userAgent ?? '',
+    sessionsUrl: `${baseUrl}/profile/sessions`,
+  };
   await sql`
     INSERT INTO email_outbox (id, idempotency_key, to_address, template, locals)
     VALUES (
       ${uuidv7()}::uuid,
       ${idempotencyKey},
       ${toAddress},
-      'new_device_login',
-      ${JSON.stringify({ fingerprint, at: new Date().toISOString() })}::jsonb
+      'new-device-login',
+      ${JSON.stringify(locals)}::jsonb
     )
     ON CONFLICT (idempotency_key) DO NOTHING
   `.execute(db);

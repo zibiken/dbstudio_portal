@@ -70,13 +70,19 @@ describe.skipIf(skip)('new-device detection', () => {
       return created.id;
     }
 
-    it('first login from a fingerprint queues a new_device_login email and writes the audit row', async () => {
+    it('first login from a fingerprint queues a new-device-login email with full render-ready locals and writes the audit row', async () => {
       const adminId = await makeAdmin('first');
       const fp = computeDeviceFingerprint('Mozilla/5.0', '203.0.113.1');
 
       const r = await noticeLoginDevice(db, {
-        adminId, fingerprint: fp, toAddress: tagEmail('first'),
-      }, { audit: { tag }, ip: '203.0.113.1' });
+        adminId,
+        fingerprint: fp,
+        toAddress: tagEmail('first'),
+        recipientName: 'first',
+        ip: '203.0.113.1',
+        userAgent: 'Mozilla/5.0',
+        portalBaseUrl: 'https://portal.example.test/',
+      }, { audit: { tag } });
       expect(r.isNew).toBe(true);
 
       const audits = await sql`
@@ -88,10 +94,17 @@ describe.skipIf(skip)('new-device detection', () => {
 
       const outbox = await sql`
         SELECT template, locals, idempotency_key FROM email_outbox
-         WHERE to_address = ${tagEmail('first')}::citext AND template = 'new_device_login'
+         WHERE to_address = ${tagEmail('first')}::citext AND template = 'new-device-login'
       `.execute(db);
       expect(outbox.rows).toHaveLength(1);
       expect(outbox.rows[0].idempotency_key).toContain(fp);
+      // The template requires recipientName, when, ip, userAgent, sessionsUrl —
+      // all of these MUST be present in locals or the render will throw.
+      expect(outbox.rows[0].locals.recipientName).toBe('first');
+      expect(outbox.rows[0].locals.ip).toBe('203.0.113.1');
+      expect(outbox.rows[0].locals.userAgent).toBe('Mozilla/5.0');
+      expect(outbox.rows[0].locals.sessionsUrl).toBe('https://portal.example.test/profile/sessions');
+      expect(typeof outbox.rows[0].locals.when).toBe('string');
     });
 
     it('second login from the same fingerprint within 30 days does not re-notify', async () => {
@@ -117,7 +130,7 @@ describe.skipIf(skip)('new-device detection', () => {
 
       const outbox = await sql`
         SELECT 1 FROM email_outbox
-         WHERE to_address = ${tagEmail('repeat')}::citext AND template = 'new_device_login'
+         WHERE to_address = ${tagEmail('repeat')}::citext AND template = 'new-device-login'
       `.execute(db);
       expect(outbox.rows).toHaveLength(0);
     });
@@ -171,7 +184,7 @@ describe.skipIf(skip)('new-device detection', () => {
           ${uuidv7()}::uuid,
           ${`new_device_login:${adminId}:${fp}:200001`},
           ${tagEmail('rebuck')},
-          'new_device_login',
+          'new-device-login',
           ${'{}'}::jsonb
         )
       `.execute(db);
@@ -183,7 +196,7 @@ describe.skipIf(skip)('new-device detection', () => {
 
       const outbox = await sql`
         SELECT idempotency_key FROM email_outbox
-         WHERE to_address = ${tagEmail('rebuck')}::citext AND template = 'new_device_login'
+         WHERE to_address = ${tagEmail('rebuck')}::citext AND template = 'new-device-login'
          ORDER BY created_at
       `.execute(db);
       expect(outbox.rows).toHaveLength(2);
