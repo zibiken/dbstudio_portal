@@ -11,7 +11,9 @@
 <style>
   @page {
     size: A4;
-    margin: 0;
+    /* M8.7: Spanish-legal margins; binding-edge convention on the left,
+       Yousign-friendly bottom band, narrower right for line readability. */
+    margin: 20mm 18mm 20mm 25mm;
   }
 
   * {
@@ -21,23 +23,22 @@
   }
 
   html, body {
-    width: 210mm;
     background: #FAFAF8;
     color: #0A0A0A;
     font-family: -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", Arial, sans-serif;
     font-weight: 400;
-    font-size: 8.5pt;
-    line-height: 1.35;
+    /* M8.7: bumped from 8.5pt to 9.5pt for screen + print readability. */
+    font-size: 9.5pt;
+    line-height: 1.4;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   .page {
     position: relative;
-    width: 210mm;
-    min-height: 297mm;
     background: #FAFAF8;
-    overflow: hidden;
+    /* M8.7: dropped min-height: 297mm + width: 210mm + overflow: hidden so
+       content flows naturally across multiple A4 pages via @page rules. */
   }
 
   /* ─────────── HEADER BAR ─────────── */
@@ -169,8 +170,9 @@
   }
 
   .clause {
-    margin-bottom: 7px;
+    margin-bottom: 5mm;
     page-break-inside: avoid;
+    break-inside: avoid;
   }
 
   .clause:last-child {
@@ -178,11 +180,15 @@
   }
 
   .clause-title {
-    font-size: 10pt;
+    /* M8.7: bumped from 10pt to 10.5pt to match new body type proportions. */
+    font-size: 10.5pt;
     font-weight: 700;
     color: #0A0A0A;
     margin-bottom: 2px;
     line-height: 1.25;
+    /* Heading never orphans at page bottom — pulls its first paragraph along. */
+    page-break-after: avoid;
+    break-after: avoid;
   }
 
   .clause p {
@@ -239,17 +245,8 @@
 
   /* ─────────── PRINT ─────────── */
   @media print {
-    html, body {
-      width: 210mm;
-      height: 297mm;
-    }
-
-    .page {
-      width: 210mm;
-      height: 297mm;
-      page-break-after: avoid;
-    }
-
+    /* M8.7: dropped html/body width:210mm height:297mm + .page page-break-after.
+       Those forced single-page rendering; multi-page flow uses @page rules. */
     .header-bar,
     .header-bar *,
     .watermark,
@@ -263,6 +260,13 @@
     .firmas,
     .firma-box {
       page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    /* The parties block (02 · PARTES) reads as a unit — never split. */
+    .parties {
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
   }
 </style>
