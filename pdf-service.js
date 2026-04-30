@@ -7,7 +7,6 @@ import { createHash } from 'node:crypto';
 import puppeteer from 'puppeteer';
 
 const SOCK = process.env.PDF_SERVICE_SOCKET || '/run/portal-pdf.sock';
-const A4_HEIGHT_PX = 1123; // 297mm @ 96dpi
 
 let browser;
 
@@ -43,27 +42,41 @@ async function getBrowser() {
 }
 
 async function render({ html, options }) {
+  // M8.7: continuation header on every page (slim grey rule + customer
+  // name) + Página X de Y footer. Page 1's brand bar in the body sits
+  // visually above the continuation header for additional page-1
+  // distinction. Margins live in the template's @page rule.
+  const continuationTitle = String((options && options.continuationTitle) || '')
+    .replace(/[<>&"]/g, ' ');
+
   const b = await getBrowser();
   const page = await b.newPage();
   try {
     await page.setContent(html, { waitUntil: 'networkidle0' });
 
-    const scrollHeight = await page.evaluate(() => document.body.scrollHeight);
-    if (scrollHeight > A4_HEIGHT_PX) {
-      const offending = await page.evaluate(() => {
-        const fields = ['domicilio', 'razon_social', 'nif', 'objeto_proyecto'];
-        let worst = null; let worstLen = 0;
-        for (const f of fields) {
-          const el = document.querySelector(`[data-field="${f}"]`);
-          const len = el ? (el.textContent || '').length : 0;
-          if (len > worstLen) { worst = f; worstLen = len; }
-        }
-        return { field: worst, length: worstLen };
-      });
-      return { ok: false, error: 'overflow', field: offending.field, length: offending.length };
-    }
-
-    const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: 0, ...(options || {}) });
+    const pdf = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: 0,
+      displayHeaderFooter: true,
+      headerTemplate: `
+        <div style="width: 100%; padding: 0 25mm 0 25mm; box-sizing: border-box;
+                    font-size: 8pt; color: #888;
+                    font-family: 'Inter', system-ui, sans-serif;">
+          <div style="border-top: 0.5pt solid #ccc; padding-top: 2mm;">
+            Acuerdo de Confidencialidad — ${continuationTitle}
+          </div>
+        </div>
+      `,
+      footerTemplate: `
+        <div style="width: 100%; padding: 0 25mm 0 25mm; box-sizing: border-box;
+                    text-align: center;
+                    font-size: 8pt; color: #888;
+                    font-family: 'Inter', system-ui, sans-serif;">
+          Página <span class="pageNumber"></span> de <span class="totalPages"></span>
+        </div>
+      `,
+    });
     const sha256 = createHash('sha256').update(pdf).digest('hex');
     return { ok: true, pdfBase64: pdf.toString('base64'), sha256 };
   } finally {

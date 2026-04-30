@@ -178,7 +178,13 @@ export async function generateDraft(db, { adminId, projectId }, ctx = {}) {
     pdfResult = await renderPdf({
       socketPath,
       html,
-      options: { format: 'A4', margin: 0 },
+      options: {
+        format: 'A4',
+        margin: 0,
+        // M8.7: pdf-service uses this for the continuation header on every
+        // page ("Acuerdo de Confidencialidad — <razón social>").
+        continuationTitle: customer.razon_social,
+      },
     });
   } catch (cause) {
     // IPC failure — socket missing, timeout, malformed JSON. Forensic
