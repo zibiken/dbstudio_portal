@@ -27,9 +27,6 @@ const MIN_PDF_SHA = createHash('sha256').update(MIN_PDF_BYTES).digest('hex');
 function fakeOkClient() {
   return async () => ({ ok: true, pdf: MIN_PDF_BYTES, sha256: MIN_PDF_SHA });
 }
-function fakeOverflowClient() {
-  return async () => ({ ok: false, error: 'overflow', field: 'domicilio', length: 1024 });
-}
 function fakeCrashClient() {
   return async () => { throw new Error('ECONNREFUSED'); };
 }
@@ -233,33 +230,11 @@ describe.skipIf(skip)('ndas/service generateDraft', () => {
     expect(c.rows[0].c).toBe(0);
   });
 
-  it('overflow → no rows, structured error, audit nda.draft_overflow visible_to_customer=false', async () => {
-    const { customerId } = await makeCustomer('over');
-    const projectId = await makeProject(customerId, 'over');
-    // adminId hoisted to suite scope (real admin row from beforeAll)
-
-    await expect(ndasService.generateDraft(db,
-      { adminId, projectId },
-      { ...baseCtx(), renderPdf: fakeOverflowClient() },
-    )).rejects.toMatchObject({
-      code: 'NDA_OVERFLOW',
-      field: 'domicilio',
-      length: 1024,
-    });
-
-    const dc = await sql`SELECT count(*)::int AS c FROM documents WHERE customer_id = ${customerId}::uuid`.execute(db);
-    expect(dc.rows[0].c).toBe(0);
-    const nc = await sql`SELECT count(*)::int AS c FROM ndas WHERE customer_id = ${customerId}::uuid`.execute(db);
-    expect(nc.rows[0].c).toBe(0);
-
-    const audit = await sql`
-      SELECT visible_to_customer, metadata FROM audit_log
-       WHERE action='nda.draft_overflow' AND metadata->>'tag' = ${tag}
-    `.execute(db);
-    expect(audit.rows.length).toBe(1);
-    expect(audit.rows[0].visible_to_customer).toBe(false);
-    expect(audit.rows[0].metadata.field).toBe('domicilio');
-  });
+  // M8.7: removed the overflow test — NdaOverflowError + the
+  // nda.draft_overflow audit + the strict single-page guard in
+  // pdf-service.js are gone. The verbatim legal template now spans
+  // multiple A4 pages naturally; any pdf-service !ok response is a
+  // genuine crash / IPC failure handled by the next test.
 
   it('IPC failure → audits nda.draft_failed (forensic), throws NdaPdfServiceError, no rows', async () => {
     const { customerId } = await makeCustomer('crash');
@@ -359,7 +334,7 @@ describe.skipIf(skip || !process.env.RUN_PDF_E2E)('ndas/service generateDraft (r
     await db.destroy();
   });
 
-  it('exchanges a real Mustache→IPC→Puppeteer round-trip and returns either a valid PDF or a structured overflow', async () => {
+  it('produces a real multi-page PDF that opens, has a non-zero byte count, and matches its sha on disk', async () => {
     // Test data reflects realistic Spanish company / address lengths.
     // The verbatim legal template at 8.5pt currently overflows A4 with
     // realistic data — see RUNBOOK "M8.7 — multi-page NDA print design"
@@ -389,33 +364,21 @@ describe.skipIf(skip || !process.env.RUN_PDF_E2E)('ndas/service generateDraft (r
       objetoProyecto: 'Diseño y desarrollo de un portal cliente con funcionalidades de gestión documental, firma electrónica y cumplimiento normativo',
     });
 
-    // The verbatim legal template combined with the test data may
-    // overflow the single-page guard depending on Chromium's metric
-    // calculations + font subset coverage. EITHER outcome is a valid
-    // proof that the full pipeline (Mustache → IPC → Puppeteer →
-    // single-page measurement → audit) is wired correctly:
-    //   - Happy path: a real PDF is produced and persisted.
-    //   - Overflow:   NdaOverflowError carries a non-null offending
-    //     field name (the I3 fix verified working) and the
-    //     nda.draft_overflow audit row was written before the throw.
-    let happy;
-    try {
-      happy = await ndasService.generateDraft(db,
-        { adminId: e2eAdminId, projectId: id },
-        baseCtx(),
-      );
-    } catch (err) {
-      expect(err.code).toBe('NDA_OVERFLOW');
-      expect(typeof err.field).toBe('string');
-      expect(err.field).not.toBe('unknown');
-      expect(err.length).toBeGreaterThan(0);
-      return;
-    }
-    expect(happy.sizeBytes).toBeGreaterThan(1024);
-    const doc = await findDocumentById(db, happy.draftDocumentId);
+    // M8.7: realistic Spanish company data MUST produce a valid multi-
+    // page PDF — overflow is no longer an acceptable outcome.
+    const r = await ndasService.generateDraft(db,
+      { adminId: e2eAdminId, projectId: id },
+      baseCtx(),
+    );
+    expect(r.sizeBytes).toBeGreaterThan(2048);
+    const doc = await findDocumentById(db, r.draftDocumentId);
     const onDisk = await fsp.readFile(doc.storage_path);
     const sha = createHash('sha256').update(onDisk).digest('hex');
     expect(sha).toBe(doc.sha256);
     expect(onDisk.slice(0, 4).toString()).toBe('%PDF');
-  }, 30_000);
+    // Multi-page assertion: the PDF must contain at least 2 page objects.
+    // The /Type /Page entries appear once per logical page in the PDF.
+    const pageObjs = (onDisk.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length;
+    expect(pageObjs).toBeGreaterThanOrEqual(2);
+  }, 90_000);
 });

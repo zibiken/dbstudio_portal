@@ -62,6 +62,13 @@ describe('scripts/bootstrap-templates.sh', () => {
     expect(out).toContain('U+0100-02BA');
   });
 
+  it('preserves the two data-yousign-anchor attributes', () => {
+    runBootstrap({ TEMPLATES_DIR: templatesDir, FONTS_DIR: fontsDir });
+    const out = fs.readFileSync(dst, 'utf8');
+    expect(out).toContain('data-yousign-anchor="provider"');
+    expect(out).toContain('data-yousign-anchor="client"');
+  });
+
   it('preserves every Mustache placeholder verbatim', () => {
     runBootstrap({ TEMPLATES_DIR: templatesDir, FONTS_DIR: fontsDir });
     const out = fs.readFileSync(dst, 'utf8');

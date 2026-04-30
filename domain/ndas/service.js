@@ -59,16 +59,10 @@ export class NdaCustomerMissingFieldError extends Error {
   }
 }
 
-export class NdaOverflowError extends Error {
-  constructor({ field, length }) {
-    super(`NDA exceeds one A4 page; offending field '${field ?? 'unknown'}' length ${length ?? 0}`);
-    this.name = 'NdaOverflowError';
-    this.code = 'NDA_OVERFLOW';
-    this.status = 422;
-    this.field = field ?? null;
-    this.length = length ?? 0;
-  }
-}
+// M8.7: NdaOverflowError removed — the strict single-page guard was
+// dropped from pdf-service.js. The verbatim legal template now spans
+// multiple A4 pages naturally; the customer-bearing fields can be any
+// realistic length without producing a structured-overflow rejection.
 
 export class NdaPdfServiceError extends Error {
   constructor(cause) {
@@ -212,27 +206,9 @@ export async function generateDraft(db, { adminId, projectId }, ctx = {}) {
   }
 
   if (!pdfResult.ok) {
-    if (pdfResult.error === 'overflow') {
-      const a = baseAudit(ctx);
-      await writeAudit(db, {
-        actorType: 'admin',
-        actorId: adminId,
-        action: 'nda.draft_overflow',
-        targetType: 'project',
-        targetId: projectId,
-        metadata: {
-          ...a.metadata,
-          customerId: customer.id,
-          field: pdfResult.field ?? null,
-          length: pdfResult.length ?? 0,
-        },
-        visibleToCustomer: false,
-        ip: a.ip,
-        userAgentHash: a.userAgentHash,
-      });
-      throw new NdaOverflowError({ field: pdfResult.field, length: pdfResult.length });
-    }
-    // crash / unknown error
+    // M8.7: overflow is no longer a possible outcome — the strict
+    // single-page guard was removed from pdf-service.js. Any !ok is a
+    // genuine pdf-service crash / IPC failure path.
     throw new NdaPdfServiceError(pdfResult.message ?? pdfResult.error ?? 'unknown pdf-service error');
   }
 

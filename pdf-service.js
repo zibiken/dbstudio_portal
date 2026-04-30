@@ -77,8 +77,12 @@ async function render({ html, options }) {
         </div>
       `,
     });
-    const sha256 = createHash('sha256').update(pdf).digest('hex');
-    return { ok: true, pdfBase64: pdf.toString('base64'), sha256 };
+    // Puppeteer 24+ returns a Uint8Array from page.pdf(); Uint8Array's
+    // toString('base64') isn't base64-aware (returns the comma-joined
+    // byte list), so wrap as Buffer before encoding/hashing.
+    const buf = Buffer.from(pdf.buffer, pdf.byteOffset, pdf.byteLength);
+    const sha256 = createHash('sha256').update(buf).digest('hex');
+    return { ok: true, pdfBase64: buf.toString('base64'), sha256 };
   } finally {
     await page.close();
   }
