@@ -152,6 +152,14 @@ export function registerAdminNdasRoutes(app) {
                   originalFilename: part.filename,
                   declaredMime: part.mimetype || null,
                   stream: part.file,
+                  // M8 review I2: keep the raw upload audit admin-only;
+                  // the customer-facing milestone is the subsequent
+                  // nda.signed_uploaded / nda.audit_trail_uploaded audit
+                  // (written by attachUploadedDocument with
+                  // visible_to_customer=true). If that follow-up tx
+                  // fails, no orphan customer-visible event leaks
+                  // through to the M9 activity feed.
+                  visibleToCustomer: false,
                 },
                 ctx,
               );

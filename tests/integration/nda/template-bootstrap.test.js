@@ -26,7 +26,8 @@ describe('scripts/bootstrap-templates.sh', () => {
   let templatesDir;
   let fontsDir;
   let dst;
-  let font;
+  let fontLatin;
+  let fontLatinExt;
 
   beforeEach(async () => {
     work = await fsp.mkdtemp(path.join(os.tmpdir(), 'nda-bootstrap-'));
@@ -35,7 +36,8 @@ describe('scripts/bootstrap-templates.sh', () => {
     await fsp.mkdir(templatesDir);
     await fsp.mkdir(fontsDir);
     dst = path.join(templatesDir, 'nda.html');
-    font = path.join(fontsDir, 'cormorant-garamond-500.woff2');
+    fontLatin = path.join(fontsDir, 'cormorant-garamond-500.woff2');
+    fontLatinExt = path.join(fontsDir, 'cormorant-garamond-500-latin-ext.woff2');
   });
 
   it('writes /var/lib/portal/templates/nda.html with @font-face and no remote @import', () => {
@@ -46,9 +48,18 @@ describe('scripts/bootstrap-templates.sh', () => {
     expect(out).not.toMatch(/@import\s+url\([^)]*https?:\/\//);
     expect(out).not.toContain('fonts.googleapis.com');
     expect(out).not.toContain('fonts.gstatic.com');
-    expect(out).toContain(`file://${font}`);
+    // Both unicode-range subsets should be inlined, mirroring the way
+    // Google Fonts splits Cormorant Garamond.
+    expect(out).toContain(`file://${fontLatin}`);
+    expect(out).toContain(`file://${fontLatinExt}`);
+    // Two @font-face blocks total (one per subset).
+    expect((out.match(/@font-face/g) || []).length).toBe(2);
     expect(out).toContain("font-family: 'Cormorant Garamond'");
     expect(out).toMatch(/font-weight:\s*500/);
+    // unicode-range markers from Google's split: U+0000-00FF (latin) and
+    // U+0100-02BA (latin-ext) anchor the two blocks.
+    expect(out).toContain('U+0000-00FF');
+    expect(out).toContain('U+0100-02BA');
   });
 
   it('preserves every Mustache placeholder verbatim', () => {
@@ -75,7 +86,7 @@ describe('scripts/bootstrap-templates.sh', () => {
         ...process.env, REPO_DIR,
         TEMPLATES_DIR: templatesDir,
         FONTS_DIR: fontsDir,
-        APP_USER: 'root', APP_GROUP: 'root',
+        APP_USER: os.userInfo().username, APP_GROUP: os.userInfo().username,
         // SKIP_FONT_CHECK NOT set → must fail
       },
       encoding: 'utf8',
@@ -84,8 +95,25 @@ describe('scripts/bootstrap-templates.sh', () => {
     expect(fs.existsSync(dst)).toBe(false);
   });
 
-  it('passes the font check when the file exists', () => {
-    fs.writeFileSync(font, 'fake-woff2'); // content not validated
+  it('refuses to install if only one of the two fonts is present', () => {
+    fs.writeFileSync(fontLatin, 'fake');
+    // fontLatinExt deliberately absent
+    expect(() => execFileSync('bash', [SCRIPT], {
+      env: {
+        ...process.env, REPO_DIR,
+        TEMPLATES_DIR: templatesDir,
+        FONTS_DIR: fontsDir,
+        APP_USER: os.userInfo().username, APP_GROUP: os.userInfo().username,
+      },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })).toThrowError();
+    expect(fs.existsSync(dst)).toBe(false);
+  });
+
+  it('passes the font check when both files exist', () => {
+    fs.writeFileSync(fontLatin, 'fake-woff2');
+    fs.writeFileSync(fontLatinExt, 'fake-woff2');
     runBootstrap({
       TEMPLATES_DIR: templatesDir,
       FONTS_DIR: fontsDir,

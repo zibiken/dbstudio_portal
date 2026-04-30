@@ -107,6 +107,16 @@ export async function uploadForCustomer(db, {
   originalFilename,
   declaredMime = null,
   stream,
+  // Per-call audit visibility override (M8 review I2). The default is
+  // TRUE — most uploads (invoices, generic, signed-via-customer-flow)
+  // are customer-visible events. The NDA route passes FALSE for
+  // 'nda-signed' / 'nda-audit' because the upload is not the milestone
+  // the customer cares about; the dedicated nda.signed_uploaded /
+  // nda.audit_trail_uploaded audits (visible_to_customer=true) cover
+  // the customer-facing milestone, and surfacing the raw upload audit
+  // in the M9 activity feed before attachUploadedDocument runs would
+  // leak an orphan event if the attach fails.
+  visibleToCustomer = true,
 }, ctx = {}) {
   // If a parent_id is provided, the new doc INHERITS the parent's
   // category — versioning is one document evolving over time, switching
@@ -206,7 +216,7 @@ export async function uploadForCustomer(db, {
             mimeType: sniffed.mime,
             ...(ctx?.audit ?? {}),
           },
-          visibleToCustomer: true,
+          visibleToCustomer,
           ip: ctx?.ip ?? null,
           userAgentHash: ctx?.userAgentHash ?? null,
         });

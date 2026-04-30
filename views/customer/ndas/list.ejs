@@ -24,7 +24,7 @@
           <tr>
             <td><%= r.project_name %></td>
             <td><%= euDate(r.generated_at) %></td>
-            <td><code><%= r.template_version_sha.slice(0, 8) %></code></td>
+            <td><code><%= (r.template_version_sha || '').slice(0, 8) %></code></td>
             <td>
               <a href="/customer/documents/<%= r.signed_document_id %>/download">Download</a>
             </td>

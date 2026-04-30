@@ -13,9 +13,30 @@ let browser;
 
 async function getBrowser() {
   if (!browser) {
+    // Sandbox-friendly Chromium flags. The systemd unit grants write
+    // access to /var/lib/portal-pdf (the portal-pdf user's $HOME) so
+    // Chromium's crashpad helper can write its database under HOME/.config
+    // without HOME / userDataDir overrides. ProtectHome=true still hides
+    // /home + /root, so a Chromium RCE cannot reach the operator's home
+    // dir or other system users.
+    //
+    // headless 'new' is the modern Puppeteer path (legacy `true` is
+    // deprecated and prints no DevTools WS URL on stdout, which makes
+    // Puppeteer's launch hang).
     browser = await puppeteer.launch({
       headless: 'new',
-      args: ['--no-sandbox', '--disable-dev-shm-usage', '--font-render-hinting=none']
+      // pipe=true uses fd-based IPC for the DevTools protocol instead of
+      // discovering a WebSocket port from Chromium's stdout. Avoids the
+      // "Timed out after 30000 ms while waiting for the WS endpoint URL
+      // to appear in stdout!" handshake issue we hit when Puppeteer
+      // reads Chromium's stdout from inside the systemd sandbox profile.
+      pipe: true,
+      args: [
+        '--no-sandbox',
+        '--disable-dev-shm-usage',
+        '--font-render-hinting=none',
+        '--disable-gpu',
+      ],
     });
   }
   return browser;
@@ -58,15 +79,25 @@ if (existsSync(SOCK)) unlinkSync(SOCK);
 // completes — the reply then silently drops and the client sees an empty
 // socket close, surfacing as "Unexpected end of JSON input" on parse.
 const server = createServer({ allowHalfOpen: true }, (conn) => {
+  // The client may disappear mid-render (timeout in pdf-client.js
+  // calling conn.destroy()). Without an error handler, the next time
+  // the server tries to write its reply the EPIPE/ECONNRESET propagates
+  // as an unhandled socket error and Node 20 kills the entire process —
+  // which means a single slow render takes down portal-pdf.service.
+  // Swallow the error: the connection is already gone, the response we
+  // were about to write would land nowhere anyway.
+  conn.on('error', () => { /* client gone; nothing useful to do here */ });
   let buf = '';
   conn.on('data', (d) => { buf += d.toString('utf8'); });
   conn.on('end', async () => {
     try {
       const req = JSON.parse(buf);
       const resp = await render(req);
-      conn.end(JSON.stringify(resp) + '\n');
+      try { conn.end(JSON.stringify(resp) + '\n'); } catch { /* client gone */ }
     } catch (e) {
-      conn.end(JSON.stringify({ ok: false, error: 'crash', message: String(e.message) }) + '\n');
+      try {
+        conn.end(JSON.stringify({ ok: false, error: 'crash', message: String(e.message) }) + '\n');
+      } catch { /* client gone */ }
     }
   });
 });

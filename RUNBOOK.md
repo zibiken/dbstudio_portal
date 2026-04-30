@@ -77,22 +77,100 @@ itself stays alive; only the render fails.
 NDA template + Cormorant Garamond 500 woff2:
 
 ```bash
-# Template (re-run after any legal-counsel update to templates/nda.html):
+# Template (re-run after any legal-counsel update to templates/nda.html).
+# IMPORTANT: before re-running, archive the existing rendered template
+# under its sha so historical NDAs remain reproducible — every prior
+# NDA's `ndas.template_version_sha` references the OLD rendered HTML;
+# overwriting it without an archive copy means you can no longer hash
+# the rendered HTML to verify the audit trail.
+PREV_SHA="$(sudo sha256sum /var/lib/portal/templates/nda.html | awk '{print $1}')"
+sudo cp /var/lib/portal/templates/nda.html \
+        "/var/lib/portal/templates/nda-$PREV_SHA.html"
 sudo bash /opt/dbstudio_portal/scripts/bootstrap-templates.sh
 
-# Font (one-time): copy a Cormorant Garamond 500 woff2 onto the box.
-# Cormorant Garamond is OFL-licensed; download from Google Fonts on a
-# workstation, then:
-scp ~/Downloads/CormorantGaramond-Medium.woff2 \
-    portal:/var/lib/portal/fonts/cormorant-garamond-500.woff2
-ssh portal "sudo chown portal-app:portal-app \
-  /var/lib/portal/fonts/cormorant-garamond-500.woff2 && \
-  sudo chmod 0640 /var/lib/portal/fonts/cormorant-garamond-500.woff2"
+# Fonts (one-time): two woff2 files for the Cormorant Garamond 500
+# weight, one each for the Latin and Latin-Extended unicode-range
+# subsets. Cormorant Garamond is OFL-licensed; fetch from Google Fonts:
+curl -sS -A "Mozilla/5.0 (X11; Linux x86_64) Chrome/120.0.0.0" \
+  "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500&display=swap"
+# → grep the woff2 URLs for the /* latin */ and /* latin-ext */ blocks,
+# then:
+sudo curl -o /var/lib/portal/fonts/cormorant-garamond-500.woff2          <latin URL>
+sudo curl -o /var/lib/portal/fonts/cormorant-garamond-500-latin-ext.woff2 <latin-ext URL>
+sudo chown portal-app:portal-app /var/lib/portal/fonts/cormorant-garamond-500*.woff2
+sudo chmod 0640 /var/lib/portal/fonts/cormorant-garamond-500*.woff2
 ```
 
 The NDA template references `file:///var/lib/portal/fonts/...` after
-bootstrap; the font file MUST be present before any NDA is generated in
-production, or the rendered PDF will fall back to the system serif.
+bootstrap; both font files MUST be present before any NDA is generated
+in production, or the rendered PDF will fall back to the system serif
+for any character outside the present subset.
+
+### M8.7 — Multi-page NDA print design (deferred)
+
+The verbatim legal template at 8.5pt body type currently overflows one
+A4 page when populated with realistic Spanish company data (razón social
+~50 chars, full address ~70 chars, representative title ~40 chars).
+The strict single-page guard in `pdf-service.js` correctly catches this
+(after the M8 review I3 fix it now identifies the offending field by
+name + length instead of reporting `field: null, length: 0`).
+
+Real-world NDAs commonly span 2–3 pages. To enable production multi-page
+rendering safely, a deliberate design + legal-counsel pass is required,
+not a removed guard. Acceptance criteria for the M8.7 follow-up:
+
+1. **Multi-page allowed**: drop the strict `scrollHeight > A4_HEIGHT_PX`
+   check from `pdf-service.js`; let Puppeteer render as many A4 pages
+   as the content needs.
+2. **No mid-clause splits**: every `.clausula`/`.section` block in
+   `templates/nda.html` carries `page-break-inside: avoid` + every
+   heading carries `page-break-after: avoid`.
+3. **Per-page signature affordance**: operator + legal counsel decide
+   between (a) initials line on every page footer + full signature on
+   the last page, or (b) running header listing the parties on every
+   page. Whichever — must be visible on every printed page so an
+   ink-and-paper sign-and-scan workflow has a place to mark each page.
+4. **Page numbering**: footer `Página X de Y` rendered via
+   `pdf({displayHeaderFooter: true, footerTemplate: '...'})` — Chromium
+   passes `pageNumber` and `totalPages` placeholders.
+5. **Proper A4 margins** restored: currently `@page { margin: 0 }`
+   which is fine for one tightly-laid page but unreadable across
+   multi-page when text runs to physical-paper edges. Legal counsel's
+   typical expectation is 25mm side / 20mm top / 20mm bottom.
+6. **Re-validation with legal counsel** before any production NDAs
+   are issued from the new template — the rendered HTML's sha256 will
+   change once any of the above lands, so every prior NDA's
+   `template_version_sha` will reference the OLD rendered HTML
+   (archive it under `templates/nda-<old-sha>.html` per the procedure
+   above before re-running `bootstrap-templates.sh`).
+7. The integration test at
+   `tests/integration/ndas/generate.test.js`'s "exchanges a real round-
+   trip" assertion should narrow back to "produces a real PDF" once
+   the redesign lands — the realistic fixture at the top of that test
+   IS the prod-shape data the new template must accommodate.
+
+### M0-B-pdf-prereqs — Chromium under the systemd sandbox
+
+The portal-pdf unit grants two hardening relaxations vs the original
+M1 baseline so Puppeteer-launched Chromium can boot under the sandbox:
+
+1. **`ReadWritePaths=/run/portal-pdf /var/lib/portal-pdf`** — Chromium's
+   crashpad helper writes its database under `$HOME/.config/...`; with
+   `ProtectSystem=strict` the only writable paths are the ones in
+   `ReadWritePaths`. The portal-pdf user's HOME is `/var/lib/portal-pdf`
+   so granting write access there lets crashpad initialise without
+   userDataDir / HOME / XDG_* overrides. `ProtectHome=true` is still
+   on, so /home + /root remain hidden.
+2. **`pipe: true` in `puppeteer.launch()`** (set in `pdf-service.js`) —
+   uses fd-based IPC for the DevTools protocol instead of discovering a
+   WebSocket port from Chromium's stdout. Required to avoid "Timed out
+   after 30000 ms while waiting for the WS endpoint URL to appear in
+   stdout!" which fires consistently under the sandbox profile when
+   stdio gets routed via the systemd journal.
+
+Verified end-to-end with a live render: portal-pdf produces a valid
+PDF in ~2s on a trivial HTML probe. The integration test gated behind
+`RUN_PDF_E2E=1` exercises the same pipeline with the real NDA template.
 
 ### M0-B — bootstrap-secrets.sh
 

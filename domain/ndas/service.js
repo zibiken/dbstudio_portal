@@ -155,6 +155,14 @@ export async function generateDraft(db, { adminId, projectId }, ctx = {}) {
 
   const project = await loadProject(db, projectId);
   if (!project) throw new NdaProjectMissingError(projectId);
+  if (project.status === 'archived') {
+    // M8 review I4: archived projects are over; an NDA wasn't signed
+    // during their lifecycle, so generating one retroactively is
+    // semantically wrong. Active / paused / done projects can all
+    // legitimately need an NDA (paused ones may resume; done ones may
+    // need a backdated record).
+    throw new Error(`cannot generate NDA for archived project ${project.id}`);
+  }
   const customer = await loadCustomer(db, project.customer_id);
   if (!customer) throw new Error(`customer ${project.customer_id} not found (project FK orphan)`);
   if (customer.status !== 'active') {

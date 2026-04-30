@@ -97,8 +97,14 @@ function requireDateString(value, name) {
 
 function requireAmountCents(value) {
   const n = typeof value === 'bigint' ? Number(value) : Number(value);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
-    throw new Error('amountCents must be a non-negative integer');
+  // M8 review M1: the upper bound matters because Postgres bigint
+  // accepts up to ~9.22e18 but JS Number loses precision past 2^53.
+  // A user typing "9999999999999999999" (19 nines) coerces via Number()
+  // to 1e19, which Number.isInteger() reports as true but stores a
+  // ROUNDED value silently. Cap at MAX_SAFE_INTEGER so the input
+  // invariant matches the storage invariant.
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0 || n > Number.MAX_SAFE_INTEGER) {
+    throw new Error('amountCents must be a non-negative integer up to 2^53-1');
   }
   return n;
 }

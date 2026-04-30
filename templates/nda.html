@@ -304,9 +304,9 @@
         </div>
         <div class="party">
           <div class="party-label">De otra parte</div>
-          <p class="party-name">{{CLIENTE_RAZON_SOCIAL}}</p>
-          <p>CIF: {{CLIENTE_CIF}}</p>
-          <p>{{CLIENTE_DOMICILIO}}</p>
+          <p class="party-name" data-field="razon_social">{{CLIENTE_RAZON_SOCIAL}}</p>
+          <p data-field="nif">CIF: {{CLIENTE_CIF}}</p>
+          <p data-field="domicilio">{{CLIENTE_DOMICILIO}}</p>
           <p>Representada por {{CLIENTE_REPRESENTANTE_NOMBRE}}, DNI/NIE {{CLIENTE_REPRESENTANTE_DNI}}, en calidad de {{CLIENTE_REPRESENTANTE_CARGO}}.</p>
           <p>(en adelante, «el Cliente»).</p>
         </div>
@@ -325,7 +325,7 @@
 
         <div class="clause">
           <div class="clause-title">Primera — Objeto.</div>
-          <p>El presente Acuerdo regula la confidencialidad de la información intercambiada entre las Partes con motivo de {{OBJETO_PROYECTO}}.</p>
+          <p>El presente Acuerdo regula la confidencialidad de la información intercambiada entre las Partes con motivo de <span data-field="objeto_proyecto">{{OBJETO_PROYECTO}}</span>.</p>
         </div>
 
         <div class="clause">

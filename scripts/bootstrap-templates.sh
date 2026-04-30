@@ -37,23 +37,31 @@ SKIP_FONT_CHECK="${SKIP_FONT_CHECK:-0}"
 
 SRC="$REPO_DIR/templates/nda.html"
 DST="$TEMPLATES_DIR/nda.html"
-FONT="$FONTS_DIR/cormorant-garamond-500.woff2"
+FONT_LATIN="$FONTS_DIR/cormorant-garamond-500.woff2"
+FONT_LATIN_EXT="$FONTS_DIR/cormorant-garamond-500-latin-ext.woff2"
 
 [[ -f "$SRC" ]] || { echo "missing source template: $SRC" >&2; exit 1; }
 [[ -d "$TEMPLATES_DIR" ]] || { echo "missing templates dir: $TEMPLATES_DIR" >&2; exit 1; }
 
 if [[ "$SKIP_FONT_CHECK" != "1" ]]; then
-  if [[ ! -f "$FONT" ]]; then
+  missing=()
+  [[ -f "$FONT_LATIN" ]] || missing+=("$FONT_LATIN")
+  [[ -f "$FONT_LATIN_EXT" ]] || missing+=("$FONT_LATIN_EXT")
+  if (( ${#missing[@]} > 0 )); then
     cat >&2 <<EOF
-missing font file: $FONT
+missing font file(s):
+$(printf '  - %s\n' "${missing[@]}")
 
-Place a Cormorant Garamond 500-weight woff2 at that path before running
-this script. The font is OFL-licensed; download once from Google Fonts on
-your workstation and copy it across, e.g.:
+Cormorant Garamond is OFL-licensed and split into Latin + Latin-Extended
+unicode-range subsets by Google Fonts. Fetch both on the server with:
 
-  scp ~/Downloads/CormorantGaramond-Medium.woff2 \\
-      portal:$FONT
-  ssh portal "sudo chown $APP_USER:$APP_GROUP $FONT && sudo chmod 0640 $FONT"
+  curl -sS -A "Mozilla/5.0 (X11; Linux x86_64) Chrome/120.0.0.0" \\
+    "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500&display=swap"
+  # → grep the woff2 URLs for /* latin */ and /* latin-ext */
+  curl -o $FONT_LATIN     <latin woff2 URL>
+  curl -o $FONT_LATIN_EXT <latin-ext woff2 URL>
+  chown $APP_USER:$APP_GROUP "$FONT_LATIN" "$FONT_LATIN_EXT"
+  chmod 0640 "$FONT_LATIN" "$FONT_LATIN_EXT"
 EOF
     exit 1
   fi
@@ -64,24 +72,39 @@ TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
 
 # `perl -0777` reads via $ENV{...}, which only sees exported variables.
-export FONT
+export FONT_LATIN FONT_LATIN_EXT
 
 # Build a Perl one-liner: it streams the file once, drops the two
 # preconnect <link> tags exactly (matched anywhere on a line so we don't
 # care about line-ending nuances), and swaps the @import url() block for
-# a local @font-face. The original placeholders {{...}} are preserved
-# verbatim — Mustache renders them at request time.
+# two local @font-face blocks (latin + latin-ext, mirroring how Google
+# Fonts itself splits Cormorant Garamond by unicode-range — the Spanish
+# legal text mostly lives in the basic-Latin range, but legal counsel
+# might use any character in latin-ext too, so we cover both). The
+# original {{PLACEHOLDERS}} are preserved verbatim; Mustache renders
+# them at request time.
 perl -0777 -pe '
   s{<link rel="preconnect" href="https://fonts\.googleapis\.com"[^>]*>\s*}{}g;
   s{<link rel="preconnect" href="https://fonts\.gstatic\.com"[^>]*>\s*}{}g;
   s{\@import\s+url\([^)]*Cormorant\+Garamond[^)]*\);}{
-    "\@font-face {\n" .
-    "  font-family: '\''Cormorant Garamond'\'';\n" .
-    "  font-style: normal;\n" .
-    "  font-weight: 500;\n" .
-    "  font-display: swap;\n" .
-    "  src: url('\''file://" . $ENV{FONT} . "'\'') format('\''woff2'\'');\n" .
-    "}"
+    join("\n",
+      "\@font-face {",
+      "  font-family: '\''Cormorant Garamond'\'';",
+      "  font-style: normal;",
+      "  font-weight: 500;",
+      "  font-display: swap;",
+      "  src: url('\''file://" . $ENV{FONT_LATIN_EXT} . "'\'') format('\''woff2'\'');",
+      "  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;",
+      "}",
+      "\@font-face {",
+      "  font-family: '\''Cormorant Garamond'\'';",
+      "  font-style: normal;",
+      "  font-weight: 500;",
+      "  font-display: swap;",
+      "  src: url('\''file://" . $ENV{FONT_LATIN} . "'\'') format('\''woff2'\'');",
+      "  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;",
+      "}",
+    )
   }gxe;
 ' "$SRC" > "$TMP"
 

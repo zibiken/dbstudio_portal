@@ -12,7 +12,7 @@
     <tr><th>Customer</th><td><a href="/admin/customers/<%= customer.id %>"><%= customer.razon_social %></a></td></tr>
     <tr><th>Project</th><td><%= nda.project_id %></td></tr>
     <tr><th>Generated</th><td><%= euDateTime(nda.generated_at) %></td></tr>
-    <tr><th>Template version sha</th><td><code><%= nda.template_version_sha %></code></td></tr>
+    <tr><th>Template version sha</th><td><code><%= nda.template_version_sha || '' %></code></td></tr>
   </table>
 
   <h2>Documents</h2>
