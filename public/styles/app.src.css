@@ -417,6 +417,30 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 .fieldset-stack legend { padding: 0; }
 .fieldset-stack p { color: var(--fg-on-light-muted); margin: 0 0 var(--s-3); }
 
+/* Backup codes grid */
+.backup-codes {
+  list-style: none; padding: 0; margin: var(--s-4) 0;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2) var(--s-4);
+}
+.backup-codes li code {
+  font-family: var(--f-mono);
+  font-size: var(--f-md);
+  background: var(--bg-light-alt);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-btn);
+  padding: var(--s-2) var(--s-3);
+  display: block; text-align: center;
+}
+@media (max-width: 480px) {
+  .backup-codes { grid-template-columns: 1fr; }
+}
+
+/* kv list (used on profile review, project detail) */
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: var(--s-2) var(--s-6); margin: var(--s-4) 0; }
+.kv dt { color: var(--fg-on-light-muted); font-size: var(--f-sm); }
+.kv dd { margin: 0; }
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

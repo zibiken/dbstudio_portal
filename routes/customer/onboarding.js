@@ -6,6 +6,7 @@ import { computeDeviceFingerprint } from '../../lib/auth/session.js';
 import { setSessionCookie, requireCustomerSession } from '../../lib/auth/middleware.js';
 import * as customersService from '../../domain/customers/service.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
+import { renderTotpQrSvg } from '../../lib/qr.js';
 
 const ISSUER = 'DB Studio Portal';
 const TITLE = 'Welcome to your DB Studio portal';
@@ -44,6 +45,9 @@ export function registerCustomerOnboardingRoutes(app, { mountPath = '/customer/w
       csrfToken: await reply.generateCsrf(),
       user,
       customer,
+      activeNav: 'profile',
+      mainWidth: 'content',
+      sectionLabel: customer ? customer.razon_social.toUpperCase() : 'PORTAL',
     });
   });
 
@@ -58,17 +62,23 @@ export function registerCustomerOnboardingRoutes(app, { mountPath = '/customer/w
     const found = await findInvitedCustomerUser(app.db, token);
     if (found.error) {
       reply.code(410).type('text/html');
-      return renderPublic(req, reply, 'customer/onboarding/welcome-invalid', { title: TITLE });
+      return renderPublic(req, reply, 'customer/onboarding/welcome-invalid', {
+        title: TITLE,
+        hero: { eyebrow: 'DB STUDIO PORTAL', title: 'This link has expired', lead: null },
+      });
     }
 
     const enrolSecret = deriveEnrolSecret(token, app.env.SESSION_SIGNING_SECRET);
+    const uri = otpauthUri(found.user.email, ISSUER, enrolSecret);
+    const qrSvg = await renderTotpQrSvg(uri, { label: `TOTP enrolment for ${found.user.email}` });
     return renderPublic(req, reply, 'customer/onboarding/set-password', {
       title: TITLE,
       action: `${mountPath}/${encodeURIComponent(token)}`,
       csrfToken: await reply.generateCsrf(),
       enrolSecret,
-      otpauthUri: otpauthUri(found.user.email, ISSUER, enrolSecret),
+      qrSvg,
       razonSocial: found.user.razon_social,
+      hero: { eyebrow: 'DB STUDIO PORTAL', title: `Welcome, ${found.user.name}`, lead: `${found.user.razon_social}. Set a password and register an authenticator app to finish setup.` },
     });
   });
 
@@ -79,19 +89,25 @@ export function registerCustomerOnboardingRoutes(app, { mountPath = '/customer/w
     const found = await findInvitedCustomerUser(app.db, token);
     if (found.error) {
       reply.code(found.error === 'expired' ? 410 : 400).type('text/html');
-      return renderPublic(req, reply, 'customer/onboarding/welcome-invalid', { title: TITLE });
+      return renderPublic(req, reply, 'customer/onboarding/welcome-invalid', {
+        title: TITLE,
+        hero: { eyebrow: 'DB STUDIO PORTAL', title: 'This link has expired', lead: null },
+      });
     }
 
     const enrolSecret = deriveEnrolSecret(token, app.env.SESSION_SIGNING_SECRET);
     if (typeof password !== 'string' || password.length < 12 || !verifyTotp(enrolSecret, String(totpCode ?? ''))) {
       reply.code(422);
+      const uri = otpauthUri(found.user.email, ISSUER, enrolSecret);
+      const qrSvg = await renderTotpQrSvg(uri, { label: `TOTP enrolment for ${found.user.email}` });
       return renderPublic(req, reply, 'customer/onboarding/set-password', {
         title: TITLE,
         action: `${mountPath}/${encodeURIComponent(token)}`,
         csrfToken: await reply.generateCsrf(),
         enrolSecret,
-        otpauthUri: otpauthUri(found.user.email, ISSUER, enrolSecret),
+        qrSvg,
         razonSocial: found.user.razon_social,
+        hero: { eyebrow: 'DB STUDIO PORTAL', title: `Welcome, ${found.user.name}`, lead: `${found.user.razon_social}. Set a password and register an authenticator app to finish setup.` },
         error: 'Check your password (≥12 chars) and the six-digit code from your authenticator.',
       });
     }
@@ -120,13 +136,16 @@ export function registerCustomerOnboardingRoutes(app, { mountPath = '/customer/w
       );
     } catch (err) {
       reply.code(422);
+      const uri = otpauthUri(found.user.email, ISSUER, enrolSecret);
+      const qrSvg = await renderTotpQrSvg(uri, { label: `TOTP enrolment for ${found.user.email}` });
       return renderPublic(req, reply, 'customer/onboarding/set-password', {
         title: TITLE,
         action: `${mountPath}/${encodeURIComponent(token)}`,
         csrfToken: await reply.generateCsrf(),
         enrolSecret,
-        otpauthUri: otpauthUri(found.user.email, ISSUER, enrolSecret),
+        qrSvg,
         razonSocial: found.user.razon_social,
+        hero: { eyebrow: 'DB STUDIO PORTAL', title: `Welcome, ${found.user.name}`, lead: `${found.user.razon_social}. Set a password and register an authenticator app to finish setup.` },
         error: /breach|compromised|pwned/i.test(err.message)
           ? 'That password appears in a known data breach. Choose a different one.'
           : 'Could not complete enrolment. Try again.',
@@ -142,6 +161,7 @@ export function registerCustomerOnboardingRoutes(app, { mountPath = '/customer/w
     return renderPublic(req, reply, 'customer/onboarding/backup-codes', {
       title: 'Save your backup codes',
       codes: result.codes,
+      hero: { eyebrow: 'DB STUDIO PORTAL', title: 'Save your backup codes', lead: 'Each code works once. Store them in your password manager.' },
     });
   });
 }

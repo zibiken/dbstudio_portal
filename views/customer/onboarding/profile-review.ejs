@@ -1,17 +1,22 @@
-<section class="customer-profile-review">
-  <h1>Confirm your profile</h1>
-  <p>Make sure everything looks right. You can update these details later from your profile page.</p>
+<%- include('../../components/_page-header', {
+  eyebrow: customer.razon_social.toUpperCase(),
+  title: 'Confirm your profile',
+  subtitle: 'Make sure everything looks right. You can update these details later from your profile page.'
+}) %>
 
-  <dl class="customer-fields">
-    <dt>Your name</dt><dd><%= user.name %></dd>
-    <dt>Your email</dt><dd><%= user.email %></dd>
-    <dt>Company</dt><dd><%= customer.razon_social %></dd>
-    <% if (customer.nif) { %><dt>NIF</dt><dd><%= customer.nif %></dd><% } %>
-    <% if (customer.domicilio) { %><dt>Domicilio</dt><dd><%= customer.domicilio %></dd><% } %>
+<div class="card">
+  <dl class="kv">
+    <dt>Your name</dt>  <dd><%= user.name %></dd>
+    <dt>Your email</dt> <dd><%= user.email %></dd>
+    <dt>Company</dt>    <dd><%= customer.razon_social %></dd>
+    <% if (customer.nif) { %><dt>NIF</dt> <dd><%= customer.nif %></dd><% } %>
+    <% if (customer.domicilio) { %><dt>Domicilio</dt> <dd><%= customer.domicilio %></dd><% } %>
   </dl>
+</div>
 
-  <form method="post" action="/customer/welcome/profile">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <button type="submit">Continue to my dashboard →</button>
-  </form>
-</section>
+<form method="post" action="/customer/welcome/profile" class="form-stack">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Continue to my dashboard →' }) %>
+  </div>
+</form>
