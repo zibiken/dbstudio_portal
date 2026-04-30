@@ -303,12 +303,15 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
   .site-footer__version { margin-left: 0; }
 }
 
-/* _hero-public */
-.hero--public { padding-block: var(--s-12) var(--s-16); }
-@media (min-width: 768px) { .hero--public { padding-block: var(--s-16) var(--s-24); } }
+/* public brand strip — thin top region above the hero, logo only */
+.public-brand { padding: var(--s-4) 0; border-bottom: 1px solid var(--border-dark); }
+.public-brand__logo { display: inline-flex; }
+.public-brand__logo img { height: 24px; width: auto; }
+
+/* _hero-public — pure type, no logo (handled by .public-brand above) */
+.hero--public { padding-block: var(--s-8) var(--s-12); }
+@media (min-width: 768px) { .hero--public { padding-block: var(--s-12) var(--s-16); } }
 .hero__inner { max-width: var(--content); }
-.hero__logo  { display: inline-block; margin-bottom: var(--s-6); }
-.hero__logo img { height: 40px; width: auto; }
 .hero__title { font-size: var(--f-5xl); margin: 0 0 var(--s-4); }
 .hero__lead  { font-size: var(--f-lg); color: var(--fg-on-dark); max-width: 55ch; }
 .hero__sub   { color: var(--fg-on-dark-muted); max-width: 55ch; font-size: var(--f-md); }
