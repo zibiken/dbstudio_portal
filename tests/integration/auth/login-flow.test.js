@@ -114,6 +114,22 @@ describe.skipIf(skip)('public auth route flow', () => {
     expect(codeMatches.length).toBeGreaterThanOrEqual(8);
     const backupCode = codeMatches[0];
 
+    // The welcome POST mints the admin's first session inline (mirrors
+    // completeCustomerWelcome) so the operator can click "continue" on the
+    // backup-codes page and land on /admin/customers without hopping back
+    // through /login + /login/2fa.
+    const wSetCookies = parseSetCookies(wPost);
+    const wSid = wSetCookies.find((c) => c.name === 'sid');
+    expect(wSid).toBeTruthy();
+    expect(wSid.value).toBeTruthy();
+    const wOnboardingAudit = await sql`
+      SELECT 1 FROM audit_log
+       WHERE action = 'admin.login_success'
+         AND actor_id = (SELECT id FROM admins WHERE email = ${tagEmail('full')})
+         AND metadata->>'via' = 'onboarding'
+    `.execute(db);
+    expect(wOnboardingAudit.rows).toHaveLength(1);
+
     // Reusing the invite token must fail (single-use)
     const wReplay = await app.inject({
       method: 'POST',
@@ -143,11 +159,21 @@ describe.skipIf(skip)('public auth route flow', () => {
     expect([200, 401]).toContain(lFail.statusCode);
     expect(lFail.body).not.toContain('no such user');
 
-    // POST /login with right password → 302 to /login/2fa, sid cookie set
+    // POST /login with right password → 302 to /login/2fa, sid cookie set.
+    // Use a distinct user-agent here: the welcome flow already minted a
+    // session under the empty-UA fingerprint, so without a different UA
+    // /login would inherit the same fingerprint and the new-device-login
+    // alert below would correctly suppress (welcome is the device baseline).
+    // This /login simulates the operator coming back from a different
+    // browser, which is the scenario the new-device-login email guards.
     const lOk = await app.inject({
       method: 'POST',
       url: '/login',
-      headers: { cookie: cookieHeader(lJar), 'content-type': 'application/x-www-form-urlencoded' },
+      headers: {
+        cookie: cookieHeader(lJar),
+        'content-type': 'application/x-www-form-urlencoded',
+        'user-agent': 'flow-test-second-device/1.0',
+      },
       payload: `email=${encodeURIComponent(tagEmail('full'))}&password=${encodeURIComponent(password)}&_csrf=${encodeURIComponent(lCsrf)}`,
     });
     expect(lOk.statusCode).toBe(302);
@@ -197,10 +223,14 @@ describe.skipIf(skip)('public auth route flow', () => {
     `.execute(db);
     expect(ndAudit.rows).toHaveLength(1);
 
+    // Two admin.login_success rows by now: one from welcome auto-login
+    // (via='onboarding') and one from this /login/2fa hop. Filter to the
+    // /login/2fa-side row to keep this assertion focused.
     const successAudit = await sql`
       SELECT 1 FROM audit_log
        WHERE action = 'admin.login_success'
          AND actor_id = (SELECT id FROM admins WHERE email = ${tagEmail('full')})
+         AND (metadata->>'via') IS DISTINCT FROM 'onboarding'
     `.execute(db);
     expect(successAudit.rows).toHaveLength(1);
 

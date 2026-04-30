@@ -2,6 +2,8 @@ import { sql } from 'kysely';
 import { renderPublic } from '../../lib/render.js';
 import { deriveEnrolSecret, otpauthUri } from '../../lib/auth/totp-enrol.js';
 import { verify as verifyTotp } from '../../lib/auth/totp.js';
+import { computeDeviceFingerprint } from '../../lib/auth/session.js';
+import { setSessionCookie } from '../../lib/auth/middleware.js';
 import * as adminsService from '../../domain/admins/service.js';
 import { renderTotpQrSvg } from '../../lib/qr.js';
 
@@ -87,11 +89,18 @@ export function registerWelcomeRoutes(app, { mountPath = '/welcome', title = 'We
       hibpHasBeenPwned: app.hibpHasBeenPwned,
     };
 
-    let codes;
+    let codes, sid;
     try {
-      ({ codes } = await adminsService.completeWelcome(
+      ({ codes, sid } = await adminsService.completeWelcome(
         app.db,
-        { token, newPassword: password, totpSecret: enrolSecret, kek: app.kek },
+        {
+          token,
+          newPassword: password,
+          totpSecret: enrolSecret,
+          kek: app.kek,
+          sessionIp: req.ip ?? null,
+          sessionDeviceFingerprint: computeDeviceFingerprint(req.headers['user-agent'], req.ip),
+        },
         ctx,
       ));
     } catch (err) {
@@ -111,6 +120,11 @@ export function registerWelcomeRoutes(app, { mountPath = '/welcome', title = 'We
           : 'Could not complete enrolment. Try again.',
       });
     }
+
+    // The admin proved both factors in this single POST — mint the cookie
+    // here so the post-backup-codes click lands them inside the admin
+    // surface instead of bouncing through /login again.
+    setSessionCookie(reply, sid, app.env);
 
     return renderPublic(req, reply, 'public/2fa-enrol', {
       title: 'Save your backup codes',

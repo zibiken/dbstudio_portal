@@ -9,6 +9,7 @@ import { encrypt, decrypt } from '../../lib/crypto/envelope.js';
 import { saveRegisteredCredential } from '../../lib/auth/webauthn.js';
 import { generateBackupCodes, verifyAndConsume } from '../../lib/auth/backup-codes.js';
 import { verify as verifyTotp } from '../../lib/auth/totp.js';
+import { createSession, stepUp } from '../../lib/auth/session.js';
 import { enqueue as enqueueEmail } from '../email-outbox/repo.js';
 import {
   insertAdmin, findById, findByEmail, updateAdmin,
@@ -123,7 +124,7 @@ export async function consumeInvite(db, { token, newPassword }, ctx = {}) {
 
 export async function completeWelcome(
   db,
-  { token, newPassword, totpSecret, kek },
+  { token, newPassword, totpSecret, kek, sessionIp = null, sessionDeviceFingerprint = null },
   ctx = {},
 ) {
   const hibpFn = ctx.hibpHasBeenPwned ?? defaultHibp;
@@ -153,7 +154,24 @@ export async function completeWelcome(
     await audit(tx, ctx, 'admin.2fa_totp_enrolled', { adminId: row.id });
     await audit(tx, ctx, 'admin.backup_codes_regenerated', { adminId: row.id });
 
-    return { adminId: row.id, codes };
+    // Mint the admin's first session inside the same tx as the invite
+    // consumption — mirrors completeCustomerWelcome. Without this the
+    // operator would have to do a separate /login + /login/2fa hop after
+    // already proving both factors (password + TOTP) in this POST, which
+    // surfaces as a confusing bounce back to /login.
+    const sid = await createSession(tx, {
+      userType: 'admin',
+      userId: row.id,
+      ip: sessionIp,
+      deviceFingerprint: sessionDeviceFingerprint,
+    });
+    await stepUp(tx, sid);
+    await audit(tx, ctx, 'admin.login_success', {
+      adminId: row.id,
+      metadata: { method: 'totp', via: 'onboarding' },
+    });
+
+    return { adminId: row.id, codes, sid };
   });
 }
 

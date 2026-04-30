@@ -22,6 +22,9 @@ describe.skipIf(skip)('admins/service — 2FA + backup codes', () => {
   afterAll(async () => {
     if (db) {
       await sql`DELETE FROM email_outbox WHERE to_address LIKE ${tag + '%'}`.execute(db);
+      // completeWelcome now mints an inline session — clean it before the
+      // admin row so the user_id JOIN still resolves.
+      await sql`DELETE FROM sessions WHERE user_id IN (SELECT id FROM admins WHERE email LIKE ${tag + '%'})`.execute(db);
       await sql`DELETE FROM admins WHERE email LIKE ${tag + '%'}`.execute(db);
       await sql.raw(`ALTER TABLE audit_log DISABLE TRIGGER audit_log_block_modify`).execute(db);
       await sql`DELETE FROM audit_log WHERE metadata->>'tag' = ${tag}`.execute(db);
@@ -32,6 +35,7 @@ describe.skipIf(skip)('admins/service — 2FA + backup codes', () => {
 
   beforeEach(async () => {
     await sql`DELETE FROM email_outbox WHERE to_address LIKE ${tag + '%'}`.execute(db);
+    await sql`DELETE FROM sessions WHERE user_id IN (SELECT id FROM admins WHERE email LIKE ${tag + '%'})`.execute(db);
     await sql`DELETE FROM admins WHERE email LIKE ${tag + '%'}`.execute(db);
   });
 
@@ -145,10 +149,13 @@ describe.skipIf(skip)('admins/service — 2FA + backup codes', () => {
         newPassword: 'a-strong-passphrase-29384',
         totpSecret: 'JBSWY3DPEHPK3PXP',
         kek,
+        sessionIp: '198.51.100.7',
+        sessionDeviceFingerprint: 'fp-cw',
       }, { ...ctx, hibpHasBeenPwned: okHibp });
 
       expect(r.adminId).toBe(c.id);
       expect(r.codes).toHaveLength(8);
+      expect(r.sid).toBeTruthy();
 
       const admin = await findById(db, c.id);
       expect(admin.password_hash?.startsWith('$argon2id$')).toBe(true);
@@ -161,6 +168,24 @@ describe.skipIf(skip)('admins/service — 2FA + backup codes', () => {
         kek,
       ).toString('utf8');
       expect(decrypted).toBe('JBSWY3DPEHPK3PXP');
+
+      // Session is minted inline + stepped-up, so the admin lands on
+      // /admin/customers from the backup-codes page without a /login hop.
+      const sessRow = await sql`
+        SELECT user_type, user_id, step_up_at FROM sessions WHERE id = ${r.sid}
+      `.execute(db);
+      expect(sessRow.rows).toHaveLength(1);
+      expect(sessRow.rows[0].user_type).toBe('admin');
+      expect(sessRow.rows[0].user_id).toBe(c.id);
+      expect(sessRow.rows[0].step_up_at).not.toBeNull();
+
+      const loginAudit = await sql`
+        SELECT 1 FROM audit_log
+         WHERE action = 'admin.login_success'
+           AND target_id = ${c.id}::uuid
+           AND metadata->>'via' = 'onboarding'
+      `.execute(db);
+      expect(loginAudit.rows).toHaveLength(1);
     });
 
     it('rolls back the entire flow if the invite is invalid — no partial state', async () => {
