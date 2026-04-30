@@ -1,0 +1,22 @@
+<%# Admin customer sub-tab strip. Locals: customerId, active. %>
+<%
+  var tabs = [
+    { key: 'detail',              label: 'Overview',            href: '/admin/customers/' + customerId },
+    { key: 'edit',                label: 'Edit',                href: '/admin/customers/' + customerId + '/edit' },
+    { key: 'ndas',                label: 'NDAs',                href: '/admin/customers/' + customerId + '/ndas' },
+    { key: 'documents',           label: 'Documents',           href: '/admin/customers/' + customerId + '/documents' },
+    { key: 'credentials',         label: 'Credentials',         href: '/admin/customers/' + customerId + '/credentials' },
+    { key: 'credential-requests', label: 'Credential requests', href: '/admin/customers/' + customerId + '/credential-requests' },
+    { key: 'invoices',            label: 'Invoices',            href: '/admin/customers/' + customerId + '/invoices' },
+    { key: 'projects',            label: 'Projects',            href: '/admin/customers/' + customerId + '/projects' }
+  ];
+%>
+<nav class="subtabs" aria-label="Customer sections">
+  <ul>
+    <% tabs.forEach(function(t) { %>
+      <li class="subtabs__item<%= active === t.key ? ' subtabs__item--active' : '' %>">
+        <a href="<%= t.href %>"<% if (active === t.key) { %> aria-current="page"<% } %>><%= t.label %></a>
+      </li>
+    <% }) %>
+  </ul>
+</nav>

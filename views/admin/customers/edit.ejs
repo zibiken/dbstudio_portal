@@ -1,57 +1,36 @@
-<section class="admin-customer-edit">
-  <header class="admin-section-header">
-    <h1>Edit customer</h1>
-    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>">Cancel</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'Edit · ' + customer.razon_social
+}) %>
 
-  <% if (error) { %>
-    <p class="error" role="alert"><%= error %></p>
-  <% } %>
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: typeof activeTab !== 'undefined' ? activeTab : 'edit' }) %>
 
-  <% const v = (k, fallback) => (form && Object.prototype.hasOwnProperty.call(form, k) ? form[k] : fallback) ?? ''; %>
+<% if (error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
 
-  <form method="post" action="/admin/customers/<%= customer.id %>/edit" autocomplete="off">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+<% var v = function(k, fallback) { return (form && Object.prototype.hasOwnProperty.call(form, k) ? form[k] : fallback) || ''; }; %>
 
-    <fieldset>
-      <legend>Identity</legend>
+<form method="post" action="/admin/customers/<%= customer.id %>/edit" autocomplete="off" class="form-stack">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-      <label>Razón social
-        <input type="text" name="razon_social" required maxlength="200"
-               value="<%= v('razon_social', customer.razon_social) %>">
-      </label>
+  <fieldset class="fieldset-stack">
+    <legend class="eyebrow">Identity</legend>
+    <%- include('../../components/_input', { name: 'razon_social', type: 'text', label: 'Razón social', required: true, maxlength: 200, value: v('razon_social', customer.razon_social) }) %>
+    <%- include('../../components/_input', { name: 'nif',          type: 'text', label: 'NIF / CIF', maxlength: 40, value: v('nif', customer.nif) }) %>
+    <%- include('../../components/_input', { name: 'domicilio',    type: 'text', label: 'Domicilio', maxlength: 300, value: v('domicilio', customer.domicilio) }) %>
+  </fieldset>
 
-      <label>NIF / CIF
-        <input type="text" name="nif" maxlength="40"
-               value="<%= v('nif', customer.nif) %>">
-      </label>
+  <fieldset class="fieldset-stack">
+    <legend class="eyebrow">Representante legal (NDA)</legend>
+    <p>Required to generate an NDA draft for this customer.</p>
+    <%- include('../../components/_input', { name: 'representante_nombre', type: 'text', label: 'Nombre completo', maxlength: 200, value: v('representante_nombre', customer.representante_nombre) }) %>
+    <%- include('../../components/_input', { name: 'representante_dni',    type: 'text', label: 'DNI', maxlength: 40, value: v('representante_dni', customer.representante_dni) }) %>
+    <%- include('../../components/_input', { name: 'representante_cargo',  type: 'text', label: 'Cargo', maxlength: 120, value: v('representante_cargo', customer.representante_cargo) }) %>
+  </fieldset>
 
-      <label>Domicilio
-        <input type="text" name="domicilio" maxlength="300"
-               value="<%= v('domicilio', customer.domicilio) %>">
-      </label>
-    </fieldset>
-
-    <fieldset>
-      <legend>Representante legal (NDA)</legend>
-      <p class="muted">Required to generate an NDA draft for this customer.</p>
-
-      <label>Nombre completo
-        <input type="text" name="representante_nombre" maxlength="200"
-               value="<%= v('representante_nombre', customer.representante_nombre) %>">
-      </label>
-
-      <label>DNI
-        <input type="text" name="representante_dni" maxlength="40"
-               value="<%= v('representante_dni', customer.representante_dni) %>">
-      </label>
-
-      <label>Cargo
-        <input type="text" name="representante_cargo" maxlength="120"
-               value="<%= v('representante_cargo', customer.representante_cargo) %>">
-      </label>
-    </fieldset>
-
-    <button type="submit" class="btn btn-primary">Save changes</button>
-  </form>
-</section>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Save changes' }) %>
+    <%- include('../../components/_button', { variant: 'ghost',   size: 'md', href: '/admin/customers/' + customer.id, label: 'Cancel' }) %>
+  </div>
+</form>

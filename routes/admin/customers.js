@@ -50,6 +50,9 @@ export function registerAdminCustomerRoutes(app) {
       totalPages,
       q,
       qs: buildQs,
+      activeNav: 'customers',
+      mainWidth: 'wide',
+      sectionLabel: 'ADMIN · CUSTOMERS',
     });
   });
 
@@ -61,6 +64,9 @@ export function registerAdminCustomerRoutes(app) {
       title: 'New customer',
       csrfToken: await reply.generateCsrf(),
       form: null,
+      activeNav: 'customers',
+      mainWidth: 'content',
+      sectionLabel: 'ADMIN · CUSTOMERS',
     });
   });
 
@@ -93,6 +99,9 @@ export function registerAdminCustomerRoutes(app) {
         csrfToken: await reply.generateCsrf(),
         form: { razon_social: razonSocial, nif, domicilio, primary_user_name: primaryName, primary_user_email: primaryEmail },
         error: errors.join(' '),
+        activeNav: 'customers',
+        mainWidth: 'content',
+        sectionLabel: 'ADMIN · CUSTOMERS',
       });
     }
 
@@ -125,6 +134,9 @@ export function registerAdminCustomerRoutes(app) {
         error: /unique|duplicate/i.test(err.message)
           ? 'A customer or user with these details already exists.'
           : 'Could not create customer. Try again.',
+        activeNav: 'customers',
+        mainWidth: 'content',
+        sectionLabel: 'ADMIN · CUSTOMERS',
       });
     }
 
@@ -138,6 +150,9 @@ export function registerAdminCustomerRoutes(app) {
         url: `${baseUrl}/customer/welcome/${result.inviteToken}`,
         expiresAt: new Date(Date.now() + customersService.INVITE_TTL_MS).toISOString(),
       },
+      activeNav: 'customers',
+      mainWidth: 'content',
+      sectionLabel: 'ADMIN · CUSTOMERS',
     });
   });
 
@@ -148,13 +163,13 @@ export function registerAdminCustomerRoutes(app) {
     const id = req.params?.id;
     if (typeof id !== 'string' || !UUID_RE.test(id)) {
       reply.code(404);
-      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
     }
 
     const customer = await findCustomerById(app.db, id);
     if (!customer) {
       reply.code(404);
-      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
     }
 
     const users = await listCustomerUsersByCustomer(app.db, customer.id);
@@ -163,6 +178,10 @@ export function registerAdminCustomerRoutes(app) {
       customer,
       users,
       csrfToken: await reply.generateCsrf(),
+      activeNav: 'customers',
+      mainWidth: 'content',
+      sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
+      activeTab: 'detail',
     });
   });
 
@@ -173,12 +192,12 @@ export function registerAdminCustomerRoutes(app) {
     const id = req.params?.id;
     if (typeof id !== 'string' || !UUID_RE.test(id)) {
       reply.code(404);
-      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
     }
     const customer = await findCustomerById(app.db, id);
     if (!customer) {
       reply.code(404);
-      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
     }
 
     return renderAdmin(req, reply, 'admin/customers/edit', {
@@ -187,6 +206,10 @@ export function registerAdminCustomerRoutes(app) {
       csrfToken: await reply.generateCsrf(),
       form: null,
       error: null,
+      activeNav: 'customers',
+      mainWidth: 'content',
+      sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
+      activeTab: 'edit',
     });
   });
 
@@ -197,12 +220,12 @@ export function registerAdminCustomerRoutes(app) {
     const id = req.params?.id;
     if (typeof id !== 'string' || !UUID_RE.test(id)) {
       reply.code(404);
-      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
     }
     const customer = await findCustomerById(app.db, id);
     if (!customer) {
       reply.code(404);
-      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
     }
 
     const body = req.body ?? {};
@@ -228,6 +251,10 @@ export function registerAdminCustomerRoutes(app) {
         csrfToken: await reply.generateCsrf(),
         form: body,
         error: err.message,
+        activeNav: 'customers',
+        mainWidth: 'content',
+        sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
+        activeTab: 'edit',
       });
     }
     reply.redirect(`/admin/customers/${id}`, 302);
@@ -241,7 +268,7 @@ export function registerAdminCustomerRoutes(app) {
       const id = req.params?.id;
       if (typeof id !== 'string' || !UUID_RE.test(id)) {
         reply.code(404);
-        return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+        return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
       }
 
       const ctx = {
@@ -266,7 +293,7 @@ export function registerAdminCustomerRoutes(app) {
         const customer = await findCustomerById(app.db, id);
         if (!customer) {
           reply.code(404);
-          return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+          return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
         }
         const users = await listCustomerUsersByCustomer(app.db, customer.id);
         reply.code(422);
@@ -276,6 +303,10 @@ export function registerAdminCustomerRoutes(app) {
           users,
           csrfToken: await reply.generateCsrf(),
           error: err.message,
+          activeNav: 'customers',
+          mainWidth: 'content',
+          sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
+          activeTab: 'detail',
         });
       }
 

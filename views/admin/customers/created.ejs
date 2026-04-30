@@ -1,30 +1,18 @@
-<section class="admin-customer-created">
-  <header class="admin-section-header">
-    <h1>Customer created</h1>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'Customer created'
+}) %>
 
-  <p>
-    <strong><%= customer.razon_social %></strong> is set up. The primary user
-    <strong><%= primaryUser.name %></strong> &lt;<%= primaryUser.email %>&gt;
-    will receive the welcome email shortly.
-  </p>
+<%- include('../../components/_alert', { variant: 'success', body: '<strong>' + customer.razon_social + '</strong> is set up. <strong>' + primaryUser.name + '</strong> &lt;' + primaryUser.email + '&gt; will receive the welcome email shortly.' }) %>
 
-  <div class="admin-callout">
-    <h2>Belt-and-braces invite link</h2>
-    <p class="help">
-      In case the email doesn't arrive — for example, if MailerSend rate-limits
-      or the address is mistyped — you can give the user this one-time link
-      directly. It expires on <%= euDateTime(invite.expiresAt) %>.
-    </p>
-    <p><code class="invite-url"><%= invite.url %></code></p>
-    <p class="help">
-      This link is shown <strong>once</strong> on this page. After you leave it,
-      the only way to reissue is to trigger a password reset for the user.
-    </p>
-  </div>
+<div class="card">
+  <p class="eyebrow">Belt-and-braces invite link</p>
+  <h2 class="card__title">Share this link if the email never lands</h2>
+  <p>It expires on <strong><%= euDateTime(invite.expiresAt) %></strong>. Shown <strong>once</strong> on this page — after you leave it, the only way to reissue is to trigger a password reset for the user.</p>
+  <p><code class="qr-block__secret"><%= invite.url %></code></p>
+</div>
 
-  <p>
-    <a class="btn btn-primary" href="/admin/customers/<%= customer.id %>">Go to customer detail →</a>
-    <a class="btn btn-secondary" href="/admin/customers">Back to list</a>
-  </p>
-</section>
+<div class="form-actions">
+  <%- include('../../components/_button', { variant: 'primary', size: 'md', href: '/admin/customers/' + customer.id, label: 'Open customer →' }) %>
+  <%- include('../../components/_button', { variant: 'ghost',   size: 'md', href: '/admin/customers', label: 'Back to list' }) %>
+</div>

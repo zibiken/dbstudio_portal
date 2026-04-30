@@ -1,49 +1,50 @@
-<section class="admin-customers">
-  <header class="admin-section-header">
-    <h1>Customers</h1>
-    <a class="btn btn-primary" href="/admin/customers/new">New customer</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN',
+  title: 'Customers',
+  subtitle: total + (total === 1 ? ' customer' : ' customers'),
+  actions: '<a class="btn btn--primary btn--md" href="/admin/customers/new">+ New customer</a>'
+}) %>
 
-  <form method="get" action="/admin/customers" class="admin-search">
-    <label>
-      <span class="visually-hidden">Search by company name or NIF</span>
-      <input type="search" name="q" value="<%= q ?? '' %>" placeholder="Search razon social or NIF…">
-    </label>
-    <button type="submit">Search</button>
-  </form>
+<form method="get" action="/admin/customers" class="form-inline" role="search">
+  <%- include('../../components/_input', {
+    name: 'q', type: 'text', label: 'Search by razón social or NIF',
+    value: q || '', autocomplete: 'off'
+  }) %>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'secondary', size: 'md', type: 'submit', label: 'Search' }) %>
+  </div>
+</form>
 
-  <% if (rows.length === 0) { %>
-    <p class="empty">No customers yet.</p>
-  <% } else { %>
-    <table class="admin-table">
-      <thead>
-        <tr>
-          <th>Razon social</th>
-          <th>NIF</th>
-          <th>Status</th>
-          <th>Created</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% rows.forEach((c) => { %>
-          <tr>
-            <td><a href="/admin/customers/<%= c.id %>"><%= c.razon_social %></a></td>
-            <td><%= c.nif ?? '—' %></td>
-            <td><span class="status status-<%= c.status %>"><%= c.status %></span></td>
-            <td><%= euDateTime(c.created_at) %></td>
-          </tr>
-        <% }) %>
-      </tbody>
-    </table>
+<%
+  var tableRows = (rows || []).map(function(c) {
+    return { cells: [
+      '<a href="/admin/customers/' + c.id + '">' + c.razon_social + '</a>',
+      c.nif || '—',
+      '<span class="status-pill status-pill--' + c.status + '">' + c.status + '</span>',
+      euDateTime(c.created_at)
+    ]};
+  });
+%>
+<%- include('../../components/_table', {
+  density: 'medium',
+  columns: [
+    { label: 'Razón social', align: 'left' },
+    { label: 'NIF',          align: 'left' },
+    { label: 'Status',       align: 'left' },
+    { label: 'Created',      align: 'left' }
+  ],
+  rows: tableRows,
+  emptyState: 'No customers yet.'
+}) %>
 
-    <nav class="admin-pagination">
-      <% if (page > 1) { %>
-        <a href="?<%= qs({ q, per_page: perPage, page: page - 1 }) %>">← Previous</a>
-      <% } %>
-      <span>Page <%= page %> of <%= totalPages %> · <%= total %> total</span>
-      <% if (page < totalPages) { %>
-        <a href="?<%= qs({ q, per_page: perPage, page: page + 1 }) %>">Next →</a>
-      <% } %>
-    </nav>
-  <% } %>
-</section>
+<% if (rows && rows.length && totalPages > 1) { %>
+  <nav class="pagination" aria-label="Pagination">
+    <% if (page > 1) { %>
+      <a class="btn btn--ghost btn--sm" href="?<%= qs({ q: q, per_page: perPage, page: page - 1 }) %>">← Previous</a>
+    <% } %>
+    <span class="eyebrow">Page <%= page %> of <%= totalPages %></span>
+    <% if (page < totalPages) { %>
+      <a class="btn btn--ghost btn--sm" href="?<%= qs({ q: q, per_page: perPage, page: page + 1 }) %>">Next →</a>
+    <% } %>
+  </nav>
+<% } %>

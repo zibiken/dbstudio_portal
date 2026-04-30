@@ -453,6 +453,59 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 .kv dt { color: var(--fg-on-light-muted); font-size: var(--f-sm); }
 .kv dd { margin: 0; }
 
+/* sub-tabs (used on admin customer detail and per-customer subroutes, plus profile tabs) */
+.subtabs { margin-bottom: var(--s-6); border-bottom: 1px solid var(--border-light); overflow-x: auto; }
+.subtabs ul { display: flex; flex-wrap: nowrap; gap: var(--s-3); list-style: none; padding: 0; margin: 0; }
+.subtabs__item a {
+  display: inline-block;
+  font-family: var(--f-mono);
+  text-transform: uppercase;
+  font-size: var(--f-xs);
+  letter-spacing: var(--ls-upper);
+  color: var(--fg-on-light-muted);
+  padding: var(--s-3) var(--s-1);
+  border-bottom: 2px solid transparent;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.subtabs__item a:hover { color: var(--c-obsidian); }
+.subtabs__item--active a { color: var(--c-obsidian); border-bottom-color: var(--c-moss); font-weight: 600; }
+
+/* admin search-form helper */
+.form-inline { display: flex; gap: var(--s-3); align-items: end; flex-wrap: wrap; margin-bottom: var(--s-6); }
+.form-inline .input-field { flex: 1 1 240px; margin: 0; }
+.pagination { display: flex; gap: var(--s-3); align-items: center; justify-content: center; padding-block: var(--s-6); }
+.pagination .eyebrow { margin: 0; }
+
+/* status-pill */
+.status-pill {
+  display: inline-block;
+  padding: 2px var(--s-2);
+  border-radius: 999px;
+  font-size: var(--f-xs);
+  font-family: var(--f-mono);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-upper);
+  background: var(--bg-light-alt);
+  color: var(--fg-on-light-muted);
+}
+.status-pill--paid     { background: rgba(47, 93, 80, 0.12); color: var(--c-moss); }
+.status-pill--open     { background: rgba(196, 169, 122, 0.18); color: #826928; }
+.status-pill--overdue  { background: rgba(163, 32, 32, 0.12); color: var(--c-error); }
+.status-pill--void     { background: var(--c-pearl); color: var(--fg-on-light-muted); }
+.status-pill--active   { background: rgba(47, 93, 80, 0.12); color: var(--c-moss); }
+.status-pill--suspended{ background: rgba(196, 169, 122, 0.18); color: #826928; }
+.status-pill--archived { background: var(--c-pearl); color: var(--fg-on-light-muted); }
+.status-pill--pending  { background: rgba(196, 169, 122, 0.18); color: #826928; }
+.status-pill--approved { background: rgba(47, 93, 80, 0.12); color: var(--c-moss); }
+.status-pill--fulfilled{ background: rgba(47, 93, 80, 0.20); color: var(--c-moss); }
+.status-pill--rejected { background: rgba(163, 32, 32, 0.12); color: var(--c-error); }
+.status-pill--expired  { background: var(--c-pearl); color: var(--fg-on-light-muted); }
+
+/* status-actions block on customer detail */
+.status-actions { margin-top: var(--s-12); padding-top: var(--s-6); border-top: 1px solid var(--border-light); }
+.form-inline-action { display: inline-flex; }
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

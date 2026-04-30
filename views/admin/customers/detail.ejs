@@ -1,81 +1,80 @@
-<section class="admin-customer-detail">
-  <header class="admin-section-header">
-    <h1><%= customer.razon_social %></h1>
-    <span class="status status-<%= customer.status %>"><%= customer.status %></span>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: customer.razon_social,
+  subtitle: customer.nif ? ('NIF ' + customer.nif) : null,
+  actions: '<span class="status-pill status-pill--' + customer.status + '">' + customer.status + '</span>'
+}) %>
 
-  <% if (typeof error !== 'undefined' && error) { %>
-    <p class="error" role="alert"><%= error %></p>
-  <% } %>
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: typeof activeTab !== 'undefined' ? activeTab : 'detail' }) %>
 
-  <% if (customer.status !== 'archived') { %>
-    <div class="admin-actions">
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
+
+<div class="card">
+  <h2 class="card__title">Customer details</h2>
+  <dl class="kv">
+    <dt>NIF</dt>                  <dd><%= customer.nif || '—' %></dd>
+    <dt>Domicilio</dt>            <dd><%= customer.domicilio || '—' %></dd>
+    <dt>Representante (nombre)</dt><dd><%= customer.representante_nombre || '—' %></dd>
+    <dt>Representante (DNI)</dt>  <dd><%= customer.representante_dni || '—' %></dd>
+    <dt>Representante (cargo)</dt><dd><%= customer.representante_cargo || '—' %></dd>
+    <dt>Created</dt>              <dd><%= euDateTime(customer.created_at) %></dd>
+    <dt>Updated</dt>              <dd><%= euDateTime(customer.updated_at) %></dd>
+  </dl>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'secondary', size: 'sm', href: '/admin/customers/' + customer.id + '/edit', label: 'Edit details' }) %>
+  </div>
+</div>
+
+<h2>Users</h2>
+<%
+  var userRows = (users || []).map(function(u) {
+    var status, pill;
+    if (u.invite_consumed_at) { status = 'active'; pill = 'active'; }
+    else if (new Date(u.invite_expires_at).getTime() <= Date.now()) { status = 'invite expired'; pill = 'expired'; }
+    else { status = 'invite pending'; pill = 'pending'; }
+    return { cells: [
+      u.name,
+      u.email,
+      '<span class="status-pill status-pill--' + pill + '">' + status + '</span>',
+      euDateTime(u.created_at)
+    ]};
+  });
+%>
+<%- include('../../components/_table', {
+  density: 'medium',
+  columns: [
+    { label: 'Name',    align: 'left' },
+    { label: 'Email',   align: 'left' },
+    { label: 'Status',  align: 'left' },
+    { label: 'Created', align: 'left' }
+  ],
+  rows: userRows,
+  emptyState: 'No users on this customer yet.'
+}) %>
+
+<% if (customer.status !== 'archived') { %>
+  <section class="status-actions">
+    <h2>Customer status</h2>
+    <p>Current: <strong><%= customer.status %></strong></p>
+    <div class="form-actions">
       <% if (customer.status === 'active') { %>
-        <form method="post" action="/admin/customers/<%= customer.id %>/suspend">
+        <form method="post" action="/admin/customers/<%= customer.id %>/suspend" class="form-inline-action">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <button type="submit" class="btn btn-warning">Suspend</button>
+          <%- include('../../components/_button', { variant: 'secondary', size: 'sm', type: 'submit', label: 'Suspend' }) %>
         </form>
       <% } else if (customer.status === 'suspended') { %>
-        <form method="post" action="/admin/customers/<%= customer.id %>/reactivate">
+        <form method="post" action="/admin/customers/<%= customer.id %>/reactivate" class="form-inline-action">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <button type="submit" class="btn btn-primary">Reactivate</button>
+          <%- include('../../components/_button', { variant: 'primary', size: 'sm', type: 'submit', label: 'Reactivate' }) %>
         </form>
       <% } %>
-      <form method="post" action="/admin/customers/<%= customer.id %>/archive"
+      <form method="post" action="/admin/customers/<%= customer.id %>/archive" class="form-inline-action"
             onsubmit="return confirm('Archive this customer? This cannot be undone from the UI.');">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <button type="submit" class="btn btn-danger">Archive</button>
+        <%- include('../../components/_button', { variant: 'danger', size: 'sm', type: 'submit', label: 'Archive' }) %>
       </form>
     </div>
-  <% } %>
-
-  <p><a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>/edit">Edit profile</a></p>
-
-  <dl class="admin-fields">
-    <dt>NIF</dt><dd><%= customer.nif ?? '—' %></dd>
-    <dt>Domicilio</dt><dd><%= customer.domicilio ?? '—' %></dd>
-    <dt>Representante (nombre)</dt><dd><%= customer.representante_nombre ?? '—' %></dd>
-    <dt>Representante (DNI)</dt><dd><%= customer.representante_dni ?? '—' %></dd>
-    <dt>Representante (cargo)</dt><dd><%= customer.representante_cargo ?? '—' %></dd>
-    <dt>Created</dt><dd><%= euDateTime(customer.created_at) %></dd>
-    <dt>Updated</dt><dd><%= euDateTime(customer.updated_at) %></dd>
-  </dl>
-
-  <h2>Users</h2>
-  <% if (users.length === 0) { %>
-    <p class="empty">No users on this customer yet.</p>
-  <% } else { %>
-    <table class="admin-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Email</th>
-          <th>Status</th>
-          <th>Created</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% users.forEach((u) => { %>
-          <tr>
-            <td><%= u.name %></td>
-            <td><%= u.email %></td>
-            <td>
-              <% if (u.invite_consumed_at) { %>
-                <span class="status status-active">active</span>
-              <% } else if (new Date(u.invite_expires_at).getTime() <= Date.now()) { %>
-                <span class="status status-expired">invite expired</span>
-              <% } else { %>
-                <span class="status status-pending">invite pending</span>
-              <% } %>
-            </td>
-            <td><%= euDateTime(u.created_at) %></td>
-          </tr>
-        <% }) %>
-      </tbody>
-    </table>
-  <% } %>
-
-  <p class="admin-back">
-    <a href="/admin/customers">← Back to customer list</a>
-  </p>
-</section>
+  </section>
+<% } %>

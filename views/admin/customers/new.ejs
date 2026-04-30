@@ -1,45 +1,31 @@
-<section class="admin-customer-new">
-  <header class="admin-section-header">
-    <h1>New customer</h1>
-    <a class="btn btn-secondary" href="/admin/customers">Cancel</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'New customer'
+}) %>
 
-  <% if (typeof error !== 'undefined' && error) { %>
-    <p class="error" role="alert"><%= error %></p>
-  <% } %>
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
 
-  <form method="post" action="/admin/customers" autocomplete="off">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+<form method="post" action="/admin/customers" autocomplete="off" class="form-stack">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-    <fieldset>
-      <legend>Customer (the company)</legend>
-      <label>Razon social
-        <input type="text" name="razon_social" required maxlength="200"
-               value="<%= form?.razon_social ?? '' %>">
-      </label>
-      <label>NIF
-        <input type="text" name="nif" maxlength="20"
-               value="<%= form?.nif ?? '' %>">
-      </label>
-      <label>Domicilio
-        <input type="text" name="domicilio" maxlength="300"
-               value="<%= form?.domicilio ?? '' %>">
-      </label>
-    </fieldset>
+  <fieldset class="fieldset-stack">
+    <legend class="eyebrow">Customer (the company)</legend>
+    <%- include('../../components/_input', { name: 'razon_social', type: 'text', label: 'Razón social', required: true, maxlength: 200, value: form ? (form.razon_social || '') : '' }) %>
+    <%- include('../../components/_input', { name: 'nif',          type: 'text', label: 'NIF', maxlength: 20, value: form ? (form.nif || '') : '' }) %>
+    <%- include('../../components/_input', { name: 'domicilio',    type: 'text', label: 'Domicilio', maxlength: 300, value: form ? (form.domicilio || '') : '' }) %>
+  </fieldset>
 
-    <fieldset>
-      <legend>Primary user</legend>
-      <p class="help">Receives the welcome email and becomes the customer's first admin.</p>
-      <label>Name
-        <input type="text" name="primary_user_name" required maxlength="120"
-               value="<%= form?.primary_user_name ?? '' %>">
-      </label>
-      <label>Email
-        <input type="email" name="primary_user_email" required maxlength="254"
-               value="<%= form?.primary_user_email ?? '' %>">
-      </label>
-    </fieldset>
+  <fieldset class="fieldset-stack">
+    <legend class="eyebrow">Primary user</legend>
+    <p>Receives the welcome email and becomes the customer's first user.</p>
+    <%- include('../../components/_input', { name: 'primary_user_name',  type: 'text',  label: 'Name',  required: true, maxlength: 120, value: form ? (form.primary_user_name || '') : '' }) %>
+    <%- include('../../components/_input', { name: 'primary_user_email', type: 'email', label: 'Email', required: true, maxlength: 254, autocomplete: 'email', value: form ? (form.primary_user_email || '') : '' }) %>
+  </fieldset>
 
-    <button type="submit">Create customer</button>
-  </form>
-</section>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Create customer' }) %>
+    <%- include('../../components/_button', { variant: 'ghost',   size: 'md', href: '/admin/customers', label: 'Cancel' }) %>
+  </div>
+</form>

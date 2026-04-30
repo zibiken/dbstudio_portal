@@ -1,5 +1,10 @@
-<section class="admin-not-found">
-  <h1>Customer not found</h1>
-  <p>That customer either doesn't exist or has been deleted.</p>
-  <p><a href="/admin/customers">← Back to customer list</a></p>
-</section>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'Customer not found'
+}) %>
+
+<%- include('../../components/_alert', { variant: 'warn', body: 'No customer matches that identifier. It may have been archived or never existed.' }) %>
+
+<div class="form-actions">
+  <%- include('../../components/_button', { variant: 'secondary', size: 'md', href: '/admin/customers', label: 'Back to customers' }) %>
+</div>
