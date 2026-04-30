@@ -1,20 +1,24 @@
-<section class="auth">
-  <h1>Sign in</h1>
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
 
-  <% if (typeof error !== 'undefined' && error) { %>
-    <p class="error" role="alert"><%= error %></p>
-  <% } %>
+<form method="post" action="/login" autocomplete="on" class="form-stack">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-  <form method="post" action="/login" autocomplete="on">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <%- include('../components/_input', {
+    name: 'email', type: 'email', label: 'Email',
+    autocomplete: 'username', required: true, autofocus: true
+  }) %>
 
-    <label>Email
-      <input type="email" name="email" required autocomplete="username">
-    </label>
-    <label>Password
-      <input type="password" name="password" required autocomplete="current-password">
-    </label>
+  <%- include('../components/_input', {
+    name: 'password', type: 'password', label: 'Password',
+    autocomplete: 'current-password', required: true,
+    showHideToggle: true
+  }) %>
 
-    <button type="submit">Sign in</button>
-  </form>
-</section>
+  <div class="form-actions">
+    <%- include('../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Sign in' }) %>
+  </div>
+
+  <p class="form-footer-link"><a href="/reset">Forgot your password?</a></p>
+</form>

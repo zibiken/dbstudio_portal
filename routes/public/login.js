@@ -24,6 +24,7 @@ export function registerLoginRoutes(app) {
     return renderPublic(req, reply, 'public/login', {
       title: 'Sign in',
       csrfToken: await reply.generateCsrf(),
+      hero: { eyebrow: 'DB STUDIO PORTAL', title: 'Sign in', lead: 'Use your work email and password.' },
     });
   });
 
@@ -45,6 +46,7 @@ export function registerLoginRoutes(app) {
         title: 'Sign in',
         csrfToken: await reply.generateCsrf(),
         error: 'Too many attempts. Try again later.',
+        hero: { eyebrow: 'DB STUDIO PORTAL', title: 'Sign in', lead: 'Use your work email and password.' },
       });
     }
 
@@ -68,6 +70,7 @@ export function registerLoginRoutes(app) {
         title: 'Sign in',
         csrfToken: await reply.generateCsrf(),
         error: GENERIC_ERROR,
+        hero: { eyebrow: 'DB STUDIO PORTAL', title: 'Sign in', lead: 'Use your work email and password.' },
       });
     }
 

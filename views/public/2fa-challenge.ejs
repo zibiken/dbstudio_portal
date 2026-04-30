@@ -1,29 +1,35 @@
-<section class="auth">
-  <h1>Two-factor authentication</h1>
-  <p>Confirm your identity with the method you registered.</p>
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
 
-  <% if (typeof error !== 'undefined' && error) { %>
-    <p class="error" role="alert"><%= error %></p>
-  <% } %>
+<form method="post" action="/login/2fa" autocomplete="off" class="form-stack">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="method" value="totp">
 
-  <form method="post" action="/login/2fa" autocomplete="off">
+  <%- include('../components/_input', {
+    name: 'totp_code', type: 'text', label: 'Six-digit code from your authenticator',
+    inputmode: 'numeric', pattern: '[0-9]{6}', autocomplete: 'one-time-code',
+    required: true, autofocus: true, maxlength: 6
+  }) %>
+
+  <div class="form-actions">
+    <%- include('../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Verify' }) %>
+  </div>
+</form>
+
+<details class="backup-fallback">
+  <summary>I lost my authenticator — use a backup code</summary>
+  <form method="post" action="/login/2fa" autocomplete="off" class="form-stack">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <input type="hidden" name="method" value="totp">
-    <label>Six-digit code from your authenticator
-      <input type="text" name="totp_code" required pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code">
-    </label>
-    <button type="submit">Verify</button>
-  </form>
+    <input type="hidden" name="method" value="backup">
 
-  <details>
-    <summary>I lost my authenticator — use a backup code</summary>
-    <form method="post" action="/login/2fa" autocomplete="off">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="hidden" name="method" value="backup">
-      <label>Backup code
-        <input type="text" name="backup_code" required autocomplete="off" placeholder="ABCDE-FGHJK">
-      </label>
-      <button type="submit">Use backup code</button>
-    </form>
-  </details>
-</section>
+    <%- include('../components/_input', {
+      name: 'backup_code', type: 'text', label: 'Backup code',
+      autocomplete: 'off', required: true, placeholder: 'ABCDE-FGHJK'
+    }) %>
+
+    <div class="form-actions">
+      <%- include('../components/_button', { variant: 'secondary', size: 'md', type: 'submit', label: 'Use backup code' }) %>
+    </div>
+  </form>
+</details>

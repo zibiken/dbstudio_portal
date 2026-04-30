@@ -29,6 +29,7 @@ export function registerLogin2faRoutes(app) {
     return renderPublic(req, reply, 'public/2fa-challenge', {
       title: 'Two-factor authentication',
       csrfToken: await reply.generateCsrf(),
+      hero: { eyebrow: 'DB STUDIO PORTAL', title: 'Verify it\'s you', lead: 'Enter the 6-digit code from your authenticator.' },
     });
   });
 
@@ -48,6 +49,7 @@ export function registerLogin2faRoutes(app) {
         title: 'Two-factor authentication',
         csrfToken: await reply.generateCsrf(),
         error: 'Too many attempts. Sign in again later.',
+        hero: { eyebrow: 'DB STUDIO PORTAL', title: 'Verify it\'s you', lead: 'Enter the 6-digit code from your authenticator.' },
       });
     }
 
@@ -86,6 +88,7 @@ export function registerLogin2faRoutes(app) {
         title: 'Two-factor authentication',
         csrfToken: await reply.generateCsrf(),
         error: 'Code did not match. Try again or use a backup code.',
+        hero: { eyebrow: 'DB STUDIO PORTAL', title: 'Verify it\'s you', lead: 'Enter the 6-digit code from your authenticator.' },
       });
     }
 

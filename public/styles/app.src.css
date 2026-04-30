@@ -406,6 +406,17 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
   word-break: break-all; overflow-wrap: anywhere;
 }
 
+/* form layout helpers used by public + admin + customer surfaces */
+.form-stack { display: flex; flex-direction: column; gap: var(--s-3); }
+.form-actions { display: flex; gap: var(--s-3); margin-top: var(--s-4); flex-wrap: wrap; }
+.form-footer-link { font-size: var(--f-sm); margin-top: var(--s-3); }
+.backup-fallback { margin-top: var(--s-6); font-size: var(--f-sm); }
+.backup-fallback summary { cursor: pointer; color: var(--c-moss); }
+.backup-fallback[open] summary { margin-bottom: var(--s-3); }
+.fieldset-stack { border: 0; padding: 0; margin: 0 0 var(--s-6); display: flex; flex-direction: column; gap: var(--s-3); }
+.fieldset-stack legend { padding: 0; }
+.fieldset-stack p { color: var(--fg-on-light-muted); margin: 0 0 var(--s-3); }
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
