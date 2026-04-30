@@ -2,10 +2,22 @@ import { sql } from 'kysely';
 import { renderCustomer, renderPublic } from '../../lib/render.js';
 import { requireCustomerSession, clearSessionCookie } from '../../lib/auth/middleware.js';
 import { deriveEnrolSecret, otpauthUri } from '../../lib/auth/totp-enrol.js';
+import { checkLockout, recordFail, reset as resetBucket } from '../../lib/auth/rate-limit.js';
 import * as customerUsersService from '../../domain/customer-users/service.js';
 
 const TOTP_ISSUER = 'DB Studio Portal';
 const TOTP_REGEN_SALT = ':2fa-totp-regen';
+
+// Rate-limit posture for self-service profile mutations (M9 review I2).
+// Limits mirror the spec §2.6 spirit for the auth-adjacent verbs.
+const RL_PASSWORD = { limit: 5, windowMs: 15 * 60_000, lockoutMs: 30 * 60_000 };
+const RL_EMAIL_REQUEST = { limit: 3, windowMs: 60 * 60_000, lockoutMs: 60 * 60_000 };
+const RL_EMAIL_VERIFY = { limit: 5, windowMs: 5 * 60_000, lockoutMs: 30 * 60_000 };
+const RL_TOTP_REGEN = { limit: 5, windowMs: 5 * 60_000, lockoutMs: 30 * 60_000 };
+const RL_BACKUP_REGEN = { limit: 5, windowMs: 15 * 60_000, lockoutMs: 30 * 60_000 };
+// Email-revert is session-less (the link arrives at the previous address);
+// we key by IP since we have no user binding pre-token-verify.
+const RL_EMAIL_REVERT = { limit: 5, windowMs: 60 * 60_000, lockoutMs: 60 * 60_000 };
 
 async function loadProfile(app, session) {
   const r = await sql`
@@ -115,6 +127,19 @@ export function registerCustomerProfileRoutes(app) {
     if (!session) return;
     const profile = await loadProfile(app, session);
     if (!profile) return reply.redirect('/', 302);
+    const bucket = `totp_regen:customer:${session.user_id}`;
+    const lock = await checkLockout(app.db, bucket);
+    if (lock.locked) {
+      reply.code(429);
+      return renderCustomer(req, reply, 'customer/profile/totp-regen', {
+        title: 'Regenerate two-factor (TOTP)',
+        profile,
+        newSecret: deriveEnrolSecret(session.id + TOTP_REGEN_SALT, app.env.SESSION_SIGNING_SECRET),
+        otpauthUri: otpauthUri(profile.email, TOTP_ISSUER, deriveEnrolSecret(session.id + TOTP_REGEN_SALT, app.env.SESSION_SIGNING_SECRET)),
+        csrfToken: await reply.generateCsrf(),
+        error: 'Too many attempts. Try again later.',
+      });
+    }
     const newSecret = deriveEnrolSecret(session.id + TOTP_REGEN_SALT, app.env.SESSION_SIGNING_SECRET);
     const currentCode = typeof req.body?.current_code === 'string' ? req.body.current_code.trim() : '';
     const newCode = typeof req.body?.new_code === 'string' ? req.body.new_code.trim() : '';
@@ -126,6 +151,7 @@ export function registerCustomerProfileRoutes(app) {
         { ...makeCtx(req, session, app), kek: app.kek },
       );
     } catch (err) {
+      await recordFail(app.db, bucket, RL_TOTP_REGEN);
       reply.code(422);
       return renderCustomer(req, reply, 'customer/profile/totp-regen', {
         title: 'Regenerate two-factor (TOTP)',
@@ -136,6 +162,7 @@ export function registerCustomerProfileRoutes(app) {
         error: err.message,
       });
     }
+    await resetBucket(app.db, bucket);
     reply.redirect('/customer/profile?totp_regenerated=1', 302);
   });
 
@@ -224,6 +251,17 @@ export function registerCustomerProfileRoutes(app) {
     if (!session) return;
     const profile = await loadProfile(app, session);
     if (!profile) return reply.redirect('/', 302);
+    const bucket = `backup_regen:customer:${session.user_id}`;
+    const lock = await checkLockout(app.db, bucket);
+    if (lock.locked) {
+      reply.code(429);
+      return renderCustomer(req, reply, 'customer/profile/backup-codes-regen', {
+        title: 'Regenerate backup codes',
+        profile,
+        csrfToken: await reply.generateCsrf(),
+        error: 'Too many attempts. Try again later.',
+      });
+    }
     const totpCode = typeof req.body?.totp_code === 'string' ? req.body.totp_code.trim() : '';
     const backupCode = typeof req.body?.backup_code === 'string' ? req.body.backup_code.trim() : '';
 
@@ -239,6 +277,7 @@ export function registerCustomerProfileRoutes(app) {
         { ...makeCtx(req, session, app), kek: app.kek },
       );
     } catch (err) {
+      await recordFail(app.db, bucket, RL_BACKUP_REGEN);
       reply.code(422);
       return renderCustomer(req, reply, 'customer/profile/backup-codes-regen', {
         title: 'Regenerate backup codes',
@@ -247,6 +286,7 @@ export function registerCustomerProfileRoutes(app) {
         error: err.message,
       });
     }
+    await resetBucket(app.db, bucket);
     return renderCustomer(req, reply, 'customer/profile/backup-codes-show', {
       title: 'Save your new backup codes',
       profile,
@@ -257,6 +297,14 @@ export function registerCustomerProfileRoutes(app) {
   app.post('/customer/profile/password', { preHandler: app.csrfProtection }, async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    const bucket = `pw_change:customer:${session.user_id}`;
+    const lock = await checkLockout(app.db, bucket);
+    if (lock.locked) {
+      reply.code(429);
+      return renderIndex(req, reply, app, session, {
+        passwordError: 'Too many attempts. Try again later.',
+      });
+    }
     const currentPassword = typeof req.body?.current_password === 'string' ? req.body.current_password : '';
     const newPassword = typeof req.body?.new_password === 'string' ? req.body.new_password : '';
 
@@ -272,6 +320,7 @@ export function registerCustomerProfileRoutes(app) {
         { ...makeCtx(req, session, app), hibpHasBeenPwned: app.hibpHasBeenPwned },
       );
     } catch (err) {
+      await recordFail(app.db, bucket, RL_PASSWORD);
       reply.code(422);
       return renderIndex(req, reply, app, session, {
         passwordError: /breach|compromised|pwned/i.test(err.message)
@@ -279,12 +328,21 @@ export function registerCustomerProfileRoutes(app) {
           : err.message,
       });
     }
+    await resetBucket(app.db, bucket);
     reply.redirect('/customer/profile?password_changed=1', 302);
   });
 
   app.post('/customer/profile/email', { preHandler: app.csrfProtection }, async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    const bucket = `email_change_req:customer:${session.user_id}`;
+    const lock = await checkLockout(app.db, bucket);
+    if (lock.locked) {
+      reply.code(429);
+      return renderIndex(req, reply, app, session, {
+        emailError: 'Too many email-change attempts. Try again later.',
+      });
+    }
     const newEmail = typeof req.body?.new_email === 'string' ? req.body.new_email : '';
 
     try {
@@ -294,12 +352,16 @@ export function registerCustomerProfileRoutes(app) {
         makeCtx(req, session, app),
       );
     } catch (err) {
+      await recordFail(app.db, bucket, RL_EMAIL_REQUEST);
       reply.code(422);
       return renderIndex(req, reply, app, session, {
         emailError: err.message,
         emailDraft: newEmail,
       });
     }
+    // Successful enqueue still counts toward the per-hour ceiling so a
+    // session-cookie-holder can't spam ten new addresses an hour.
+    await recordFail(app.db, bucket, RL_EMAIL_REQUEST);
     reply.redirect('/customer/profile?email_change=requested', 302);
   });
 
@@ -316,6 +378,17 @@ export function registerCustomerProfileRoutes(app) {
   app.post('/customer/profile/email/verify/:token', { preHandler: app.csrfProtection }, async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    const bucket = `email_change_verify:customer:${session.user_id}`;
+    const lock = await checkLockout(app.db, bucket);
+    if (lock.locked) {
+      reply.code(429);
+      return renderCustomer(req, reply, 'customer/profile/email-verify', {
+        title: 'Confirm new email address',
+        token: req.params.token,
+        csrfToken: await reply.generateCsrf(),
+        error: 'Too many attempts. Try again later.',
+      });
+    }
     try {
       await customerUsersService.verifyEmailChange(
         app.db,
@@ -323,6 +396,7 @@ export function registerCustomerProfileRoutes(app) {
         makeCtx(req, session, app),
       );
     } catch (err) {
+      await recordFail(app.db, bucket, RL_EMAIL_VERIFY);
       reply.code(422);
       return renderCustomer(req, reply, 'customer/profile/email-verify', {
         title: 'Confirm new email address',
@@ -331,6 +405,7 @@ export function registerCustomerProfileRoutes(app) {
         error: err.message,
       });
     }
+    await resetBucket(app.db, bucket);
     reply.redirect('/customer/profile?email_change=verified', 302);
   });
 
@@ -347,6 +422,19 @@ export function registerCustomerProfileRoutes(app) {
   });
 
   app.post('/customer/profile/email/revert/:token', { preHandler: app.csrfProtection }, async (req, reply) => {
+    // Session-less route; key the bucket by IP since we have no user
+    // binding before the token verifies.
+    const bucket = `email_change_revert:ip:${req.ip ?? 'unknown'}`;
+    const lock = await checkLockout(app.db, bucket);
+    if (lock.locked) {
+      reply.code(429);
+      return renderPublic(req, reply, 'customer/profile/email-revert', {
+        title: 'Revert email change',
+        token: req.params.token,
+        csrfToken: await reply.generateCsrf(),
+        error: 'Too many attempts. Try again later.',
+      });
+    }
     try {
       await customerUsersService.revertEmailChange(
         app.db,
@@ -360,6 +448,7 @@ export function registerCustomerProfileRoutes(app) {
         },
       );
     } catch (err) {
+      await recordFail(app.db, bucket, RL_EMAIL_REVERT);
       reply.code(422);
       return renderPublic(req, reply, 'customer/profile/email-revert', {
         title: 'Revert email change',
@@ -368,6 +457,7 @@ export function registerCustomerProfileRoutes(app) {
         error: err.message,
       });
     }
+    await resetBucket(app.db, bucket);
     // Sessions for that user have all been revoked inside the tx — wipe
     // the cookie too so the in-flight browser is sent back to the login
     // surface cleanly.

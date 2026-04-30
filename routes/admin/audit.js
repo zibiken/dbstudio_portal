@@ -1,6 +1,7 @@
 import { renderAdmin } from '../../lib/render.js';
 import { requireAdminSession } from '../../lib/auth/middleware.js';
 import { listAuditPage, streamAuditCsv } from '../../lib/audit-query.js';
+import { applySecureHeadersRaw } from '../../lib/secure-headers.js';
 
 const PER_PAGE_DEFAULT = 100;
 const PER_PAGE_MAX = 500;
@@ -106,6 +107,11 @@ export function registerAdminAuditRoutes(app) {
     reply.hijack();
     const raw = reply.raw;
     raw.statusCode = 200;
+    // hijack() bypasses the onSend hook in lib/secure-headers — re-apply the
+    // base security set on the raw socket BEFORE the first chunk so HSTS /
+    // nosniff / X-Frame-Options / Referrer-Policy / Permissions-Policy are
+    // present on this response too (M9 review I1).
+    applySecureHeadersRaw(raw);
     raw.setHeader('content-type', 'text/csv; charset=utf-8');
     raw.setHeader('content-disposition', `attachment; filename="${filename}"`);
     raw.setHeader('cache-control', 'no-store');

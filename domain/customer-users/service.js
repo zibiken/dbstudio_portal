@@ -9,7 +9,6 @@ import { encrypt, decrypt, unwrapDek } from '../../lib/crypto/envelope.js';
 import { verify as verifyTotp } from '../../lib/auth/totp.js';
 import { generateBackupCodes, verifyAndConsume } from '../../lib/auth/backup-codes.js';
 import { enqueue as enqueueEmail } from '../email-outbox/repo.js';
-import { findCustomerUserById } from './repo.js';
 
 export const PASSWORD_MIN_LENGTH = 12;
 

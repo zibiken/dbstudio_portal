@@ -120,5 +120,91 @@ side using `isStepped` / `stepUp`.
 
 ---
 
+## M9 → M10 review-deferred items
+
+These came out of the M9 → M10 code review. The Important findings I1
+(security headers on hijack) and I2 (rate-limits on profile mutations)
+landed in the review-fix bundle; the items below stay in v1.1 unless
+the operator escalates one.
+
+### I3 — email-verify route session-bounce UX (Important, not security)
+
+`/customer/profile/email/verify/:token` and `/admin/profile/email/
+verify/:token` require an authenticated session. A user who opens the
+verify link in a fresh browser (the common case — different device than
+they requested from) gets bounced to `/login` with their **old** email,
+which is confusing.
+
+**Fix paths** (decide in v1.1):
+- (a) Make the verify route session-less. The token IS the proof; this
+  matches the rationale on the revert side. Slight downside: anyone with
+  the token can verify, including a network observer who intercepted the
+  email — but they'd already be in the user's mailbox.
+- (b) Keep the gate but render a clear inline message on the bounce
+  ("sign in with your current email address — we'll complete the
+  switch after").
+
+(b) is the lower-blast-radius choice.
+
+### M3 — LIKE pattern underscore wildcards in routes/admin/audit.js + routes/customer/activity.js
+
+`'admin.session_'` becomes `'admin.session_%'` — PG `_` is "any single
+character". Today no action name violates the convention (every action
+uses literal `_` between segments), but a future
+`admin.sessionsRevoked`-style action would be matched unexpectedly.
+
+**Fix:** escape underscores in the prefix list or document the
+convention as a comment + lint check. v1.1.
+
+### M5 — audit_log `metadata->>'customerId'` index
+
+The customer activity feed OR-joins `metadata->>'customerId' = X`
+against `target_type='customer' AND target_id=X`. There's no expression
+index supporting the metadata path; once `audit_log` grows, every
+customer-activity page-load scans the table.
+
+**Fix (v1.1, a few months in):**
+```sql
+CREATE INDEX idx_audit_metadata_customer
+  ON audit_log ((metadata->>'customerId'))
+  WHERE visible_to_customer;
+```
+
+### M6 — raw `err.message` in routes/customer/credentials.js delete error path
+
+Same anti-pattern as the M8-review-deferred M6 (admin credential-
+requests). Today the only reachable messages are
+`CredentialNotFoundError` and `CrossCustomerError`, both of which the
+route already 404's pre-service. Defensive-only. v1.1: add a controlled
+error vocabulary mapping `err.code` → customer-safe label.
+
+### M7 (M9 review) — TOTP regen view shows the otpauth URI as text
+
+The QR is intentional design (server-side derive + render). In v1 the
+URI appears as a copy/paste line; v1.1 enhancement is to render an SVG
+QR server-side (no client JS, CSP-clean).
+
+### M8 — i18n localisation already tracked above (the §11 line-item).
+
+### M9 (M9 review) — `scripts/i18n-audit.js` regex backreference bug
+
+`JS_LITERAL_RE` includes a bare backtick in the prefix alternation, so
+every `` `${...}` `` template literal matches as if it were a user-facing
+string. The script's stated tolerance is "false positives accepted",
+but the offender count (~620–640) is inflated. v1.1: drop the bare
+backtick OR backreference the quote to ensure open == close.
+
+### M10 (M9 review) — TOCTOU note on routes/customer/credentials.js delete
+
+The pre-check `findCredentialById(app.db, id)` reads outside the tx that
+`deleteByCustomer` opens. Theoretical TOCTOU: nothing today reassigns
+`customer_id`, and the service's `assertCustomerUserBelongsTo` is the
+authoritative check. Documenting that the outer read is intentional
+defence-in-depth, not the gate. v1.1 if a future feature ever moves
+credentials between customers (currently impossible — fkey is RESTRICT
+on customer_id and there's no service method).
+
+---
+
 Tracking convention: when an item ships, move its bullet into the
 build-log + delete the line here.
