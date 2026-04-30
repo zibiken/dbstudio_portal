@@ -1,7 +1,11 @@
 import { sql } from 'kysely';
 import { renderCustomer, renderPublic } from '../../lib/render.js';
 import { requireCustomerSession, clearSessionCookie } from '../../lib/auth/middleware.js';
+import { deriveEnrolSecret, otpauthUri } from '../../lib/auth/totp-enrol.js';
 import * as customerUsersService from '../../domain/customer-users/service.js';
+
+const TOTP_ISSUER = 'DB Studio Portal';
+const TOTP_REGEN_SALT = ':2fa-totp-regen';
 
 async function loadProfile(app, session) {
   const r = await sql`
@@ -82,6 +86,57 @@ export function registerCustomerProfileRoutes(app) {
       });
     }
     reply.redirect('/customer/profile', 302);
+  });
+
+  // 2FA TOTP regen — two-step flow.
+  // Step 1: GET /customer/profile/2fa shows the new QR (derived from sid +
+  // signing-secret so it survives a tab refresh) plus a single form
+  // requiring (current-TOTP-code, new-TOTP-code). Step 2: POST verifies
+  // both and swaps the secret. The pending secret never persists; if the
+  // user logs out before confirming, the next regen attempt simply derives
+  // a fresh one.
+  app.get('/customer/profile/2fa', async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    const profile = await loadProfile(app, session);
+    if (!profile) return reply.redirect('/', 302);
+    const newSecret = deriveEnrolSecret(session.id + TOTP_REGEN_SALT, app.env.SESSION_SIGNING_SECRET);
+    return renderCustomer(req, reply, 'customer/profile/totp-regen', {
+      title: 'Regenerate two-factor (TOTP)',
+      profile,
+      newSecret,
+      otpauthUri: otpauthUri(profile.email, TOTP_ISSUER, newSecret),
+      csrfToken: await reply.generateCsrf(),
+    });
+  });
+
+  app.post('/customer/profile/2fa', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    const profile = await loadProfile(app, session);
+    if (!profile) return reply.redirect('/', 302);
+    const newSecret = deriveEnrolSecret(session.id + TOTP_REGEN_SALT, app.env.SESSION_SIGNING_SECRET);
+    const currentCode = typeof req.body?.current_code === 'string' ? req.body.current_code.trim() : '';
+    const newCode = typeof req.body?.new_code === 'string' ? req.body.new_code.trim() : '';
+
+    try {
+      await customerUsersService.regenTotp(
+        app.db,
+        { customerUserId: session.user_id, currentCode, newSecret, newCode },
+        { ...makeCtx(req, session, app), kek: app.kek },
+      );
+    } catch (err) {
+      reply.code(422);
+      return renderCustomer(req, reply, 'customer/profile/totp-regen', {
+        title: 'Regenerate two-factor (TOTP)',
+        profile,
+        newSecret,
+        otpauthUri: otpauthUri(profile.email, TOTP_ISSUER, newSecret),
+        csrfToken: await reply.generateCsrf(),
+        error: err.message,
+      });
+    }
+    reply.redirect('/customer/profile?totp_regenerated=1', 302);
   });
 
   app.post('/customer/profile/password', { preHandler: app.csrfProtection }, async (req, reply) => {

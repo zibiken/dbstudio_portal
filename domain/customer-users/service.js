@@ -5,6 +5,8 @@ import { writeAudit } from '../../lib/audit.js';
 import {
   hashPassword, verifyPassword, hibpHasBeenPwned as defaultHibp, SENTINEL_HASH,
 } from '../../lib/crypto/hash.js';
+import { encrypt, decrypt, unwrapDek } from '../../lib/crypto/envelope.js';
+import { verify as verifyTotp } from '../../lib/auth/totp.js';
 import { enqueue as enqueueEmail } from '../email-outbox/repo.js';
 import { findCustomerUserById } from './repo.js';
 
@@ -287,6 +289,79 @@ export async function verifyEmailChange(db, { token }, ctx = {}) {
       revertToken,
       revertExpiresAt,
     };
+  });
+}
+
+function requireKek(ctx, callerName) {
+  const kek = ctx?.kek;
+  if (!Buffer.isBuffer(kek) || kek.length !== 32) {
+    throw new Error(`${callerName} requires ctx.kek (32-byte Buffer from app.kek)`);
+  }
+  return kek;
+}
+
+async function loadCustomerUserForTotp(tx, customerUserId) {
+  const r = await sql`
+    SELECT cu.id::text AS id,
+           cu.customer_id::text AS customer_id,
+           cu.totp_secret_enc, cu.totp_iv, cu.totp_tag,
+           c.dek_ciphertext, c.dek_iv, c.dek_tag
+      FROM customer_users cu
+      JOIN customers c ON c.id = cu.customer_id
+     WHERE cu.id = ${customerUserId}::uuid
+       FOR UPDATE OF cu
+  `.execute(tx);
+  return r.rows[0] ?? null;
+}
+
+export async function regenTotp(
+  db,
+  { customerUserId, currentCode, newSecret, newCode },
+  ctx = {},
+) {
+  const kek = requireKek(ctx, 'regenTotp');
+  if (typeof newSecret !== 'string' || newSecret.length < 16) {
+    throw new Error('regenTotp: newSecret must be a base32 TOTP secret');
+  }
+  if (typeof currentCode !== 'string' || typeof newCode !== 'string') {
+    throw new Error('regenTotp: codes must be strings');
+  }
+
+  return await db.transaction().execute(async (tx) => {
+    const row = await loadCustomerUserForTotp(tx, customerUserId);
+    if (!row) throw new Error(`customer_user ${customerUserId} not found`);
+    if (!row.totp_secret_enc) throw new Error('regenTotp: user has no current TOTP secret to verify against');
+
+    const dek = unwrapDek(
+      { ciphertext: row.dek_ciphertext, iv: row.dek_iv, tag: row.dek_tag },
+      kek,
+    );
+    const currentSecret = decrypt(
+      { ciphertext: row.totp_secret_enc, iv: row.totp_iv, tag: row.totp_tag },
+      dek,
+    ).toString('utf8');
+    if (!verifyTotp(currentSecret, currentCode)) {
+      throw new Error('regenTotp: current code did not verify');
+    }
+    if (!verifyTotp(newSecret, newCode)) {
+      throw new Error('regenTotp: new code did not verify the new secret');
+    }
+
+    const env = encrypt(Buffer.from(newSecret, 'utf8'), dek);
+    await sql`
+      UPDATE customer_users
+         SET totp_secret_enc = ${env.ciphertext},
+             totp_iv = ${env.iv},
+             totp_tag = ${env.tag}
+       WHERE id = ${customerUserId}::uuid
+    `.execute(tx);
+    await audit(tx, ctx, 'customer_user.2fa_totp_regenerated', {
+      customerUserId,
+      customerId: row.customer_id,
+      visibleToCustomer: true,
+    });
+
+    return { customerUserId, customerId: row.customer_id };
   });
 }
 
