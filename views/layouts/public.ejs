@@ -48,6 +48,12 @@
           input.setAttribute('type', show ? 'text' : 'password');
           btn.setAttribute('aria-pressed', show ? 'true' : 'false');
           btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+          var iconShow = btn.querySelector('.input-field__toggle-icon--show');
+          var iconHide = btn.querySelector('.input-field__toggle-icon--hide');
+          if (iconShow && iconHide) {
+            if (show) { iconShow.hidden = true;  iconHide.hidden = false; }
+            else      { iconShow.hidden = false; iconHide.hidden = true; }
+          }
         });
       });
       var reveal = document.querySelector('[data-reveal]');

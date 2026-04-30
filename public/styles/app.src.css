@@ -179,12 +179,19 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 .input-field--error .input-field__control input { border-color: var(--c-error); }
 .input-field__toggle {
   position: absolute; right: var(--s-2); top: 50%; transform: translateY(-50%);
-  width: 28px; height: 28px;
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
   border-radius: var(--radius-btn);
   border: 1px solid var(--c-stone);
   background: var(--c-ivory);
-  color: var(--fg-on-light);
+  color: var(--fg-on-light-muted);
+  padding: 0;
+  cursor: pointer;
+  transition: background var(--dur-micro) var(--ease-expo), color var(--dur-micro) var(--ease-expo);
 }
+.input-field__toggle:hover { background: var(--c-pearl); color: var(--c-obsidian); }
+.input-field__toggle-icon { display: block; }
+.input-field__toggle-icon[hidden] { display: none; }
 .input-field__helper { font-size: var(--f-xs); color: var(--fg-on-light-muted); margin: 0; }
 .input-field__error  { font-size: var(--f-xs); color: var(--c-error); margin: 0; }
 @media (prefers-reduced-motion: reduce) {

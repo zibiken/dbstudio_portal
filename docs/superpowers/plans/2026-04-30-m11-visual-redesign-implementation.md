@@ -78,21 +78,28 @@ No domain/, routes/, migrations/ work. M11 is presentation-layer.
 
 | Task | Status | Commit | Notes |
 |---|---|---|---|
-| T1 Vendor tokens.css + woff2 fonts | ⬜ | — | |
-| T2 Rewrite tailwind.config.js + restructure app.src.css | ⬜ | — | |
-| T3 Update layouts (chrome shells only) | ⬜ | — | |
-| T4 Leaf component partials (eyebrow, alert, button, input) | ⬜ | — | |
-| T5 Container partials (card, page-header, table, breadcrumb, footer) | ⬜ | — | |
-| T6 Hero + chrome partials (hero-public, top-bar, sidebar-admin, sidebar-customer) | ⬜ | — | |
-| T7 lib/qr.js + unit tests | ⬜ | — | |
-| T8 _qr partial | ⬜ | — | |
-| T9 /login + /login/2fa restyled | ⬜ | — | |
-| T10 /welcome/:token (admin) restyled with QR | ⬜ | — | |
-| T11 /customer/welcome/:token restyled with QR | ⬜ | — | |
-| T12 /reset/:token + /logout + 4xx + backup-codes restyled | ⬜ | — | |
-| T13 /admin/customers list + new + detail + sub-tabs | ⬜ | — | |
-| T14 Admin per-customer subroutes restyled | ⬜ | — | |
-| T15 /admin/profile (QR) + /admin/audit + export | ⬜ | — | |
+| T1 Vendor tokens.css + woff2 fonts | ✅ | `47cdc35` | Fonts at `/static/fonts/` (NOT `/static/static/fonts/` — see T1 verification) |
+| T2 Rewrite tailwind.config.js + restructure app.src.css | ✅ | `c590c69` | |
+| T3 Update layouts (chrome shells only) | ✅ | `8fc90e6` | |
+| T4 Leaf component partials (eyebrow, alert, button, input) | ✅ | `0984cf5` | EJS-comment bug found and fixed in T5 — never embed `%>` inside `<%# %>` |
+| T5 Container partials (card, page-header, table, breadcrumb, footer) | ✅ | `b67ff28` | |
+| T6 Hero + chrome partials (hero-public, top-bar, sidebar-admin, sidebar-customer) | ✅ | `fcb0d67` | `lib/render.js` updated to flow ALL locals to layout (was only flowing title/body/nonce) |
+| T7 lib/qr.js + unit tests | ✅ | `311fdfe` | 7 TDD unit tests; `qrcode` npm dep added |
+| T8 _qr partial | ✅ | `d3d938d` | |
+| T9 /login + /login/2fa restyled | ✅ | `15877fe` | |
+| T10 /welcome/:token (admin) restyled with QR | ✅ | `dff8f17` | |
+| T11 /customer/welcome/:token restyled with QR | ✅ | `0262e2a` | |
+| T12 /reset/:token + /logout + 4xx + backup-codes restyled | ✅ | `4a76653` | `/reset` shares the welcome flow via registerWelcomeRoutes — inherited automatically |
+| **VISUAL FIX 1** Align components to dbstudio.one rendered values | ✅ | `8dd5fd7` | h1-h4 scale shifted up one step; buttons drop fixed height; card bg ivory→white; QR 220→180px |
+| **VISUAL FIX 2** Split logo into thin pre-hero brand strip | ✅ | `d3b296f` | Operator caught logo-eyebrow-headline redundancy; logo now in `.public-brand` strip above hero |
+| T13 /admin/customers list + new + detail + sub-tabs | ✅ | `4356979` | `_admin-customer-tabs` partial; status-pill component |
+| T14a admin NDAs subroute restyled | ✅ | `bb99a6b` | M8.5 multipart contract preserved byte-identical |
+| T14b admin documents subroute restyled | ✅ | `4a76f73` | M6 multipart contract preserved byte-identical |
+| T14c admin invoices subroute restyled | ✅ | `ba8c041` | |
+| T14d admin projects subroute restyled | ✅ | `775880c` | |
+| T14e admin credential-requests subroute restyled | ✅ | `26644b4` | M7 review M2 indexed-name field array preserved |
+| **VISUAL FIX 3** Eye/eye-off SVG icons for password toggle | ✅ | (this commit) | Operator reported `·` middot — replaced with feather-style SVG icons + JS toggle |
+| T15 /admin/profile (QR) + /admin/audit + export | ⬜ | — | **PAUSED** — see RESUME instructions in handoff doc |
 | T16 lib/customer-summary.js + unit tests | ⬜ | — | |
 | T17 /customer/dashboard restyled (bento + summary) | ⬜ | — | |
 | T18a Customer NDAs/Documents/Invoices/Projects restyled | ⬜ | — | |
@@ -100,6 +107,10 @@ No domain/, routes/, migrations/ work. M11 is presentation-layer.
 | T19 Extend scripts/a11y-check.js with M11 checks | ⬜ | — | |
 | T20 Add probe #10 to scripts/smoke.sh | ⬜ | — | |
 | T21 Author m11-acceptance-dryrun.md | ⬜ | — | |
+
+## Open issues at handoff (must address before resuming T15)
+
+1. **`/login/2fa` post-success redirect** — bounces back to `/login`. Operator entered a valid TOTP code, expected to land on the admin surface, instead got the login page. Hypothesis: `routes/public/login-2fa.js` redirects to `/` after successful 2FA; the `GET /` handler in `server.js` line ~119 unconditionally redirects to `/login`; admin sessions therefore can never reach an authenticated page. Fix likely: after admin 2FA, redirect to `/admin/customers`. After customer 2FA (does it route through here? customers go through completeCustomerWelcome which mints their session inline — so /login/2fa might be admin-only). Confirm by reading the route + the integration test `tests/integration/auth/login-flow.test.js`. If the test expects redirect to `/`, update both route + test together. **THIS BLOCKS THE OPERATOR FROM ACTUALLY USING THE PORTAL — fix first.**
 
 ---
 
