@@ -1,8 +1,11 @@
-<%# stub — full implementation in T6 %>
-<section class="hero hero--public section--dark">
-  <div class="container">
+<%# Hero (public surfaces). Locals: hero { eyebrow, title, lead }. %>
+<section class="hero hero--public section--dark" data-reveal>
+  <div class="container hero__inner">
+    <a href="/" aria-label="DB Studio Portal" class="hero__logo">
+      <img src="/static/brand/logo-white.png" alt="DB Studio">
+    </a>
     <% if (hero.eyebrow) { %><p class="eyebrow"><%= hero.eyebrow %></p><% } %>
-    <h1><%= hero.title %></h1>
+    <h1 class="hero__title"><%= hero.title %></h1>
     <% if (hero.lead) { %><p class="hero__lead"><%= hero.lead %></p><% } %>
   </div>
 </section>

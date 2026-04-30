@@ -1,8 +1,14 @@
-<%# stub — full implementation in T6 %>
-<nav id="m11-sidebar" class="sidebar" aria-label="Admin navigation">
-  <ul>
-    <li<%= active === 'customers' ? ' aria-current="page"' : '' %>><a href="/admin/customers">Customers</a></li>
-    <li<%= active === 'audit' ? ' aria-current="page"' : '' %>><a href="/admin/audit">Audit</a></li>
-    <li<%= active === 'profile' ? ' aria-current="page"' : '' %>><a href="/admin/profile">Profile</a></li>
+<%# Admin sidebar. Locals: active (customers|audit|profile). %>
+<nav id="m11-sidebar" class="sidebar sidebar--admin" aria-label="Admin navigation" data-collapsed="true">
+  <ul class="sidebar__list">
+    <li class="sidebar__item<%= active === 'customers' ? ' sidebar__item--active' : '' %>">
+      <a href="/admin/customers"<% if (active === 'customers') { %> aria-current="page"<% } %>>Customers</a>
+    </li>
+    <li class="sidebar__item<%= active === 'audit' ? ' sidebar__item--active' : '' %>">
+      <a href="/admin/audit"<% if (active === 'audit') { %> aria-current="page"<% } %>>Audit</a>
+    </li>
+    <li class="sidebar__item<%= active === 'profile' ? ' sidebar__item--active' : '' %>">
+      <a href="/admin/profile"<% if (active === 'profile') { %> aria-current="page"<% } %>>Profile</a>
+    </li>
   </ul>
 </nav>

@@ -26,5 +26,35 @@
   </main>
 
   <%- include('../components/_footer', { variant: 'dark' }) %>
+
+  <script nonce="<%= nonce %>">
+    (function () {
+      var ham = document.querySelector('.top-bar__hamburger');
+      var bar = document.getElementById('m11-sidebar');
+      if (ham && bar) {
+        ham.addEventListener('click', function () {
+          var open = bar.getAttribute('data-collapsed') === 'false';
+          bar.setAttribute('data-collapsed', open ? 'true' : 'false');
+          ham.setAttribute('aria-expanded', open ? 'false' : 'true');
+          ham.setAttribute('aria-label', open ? 'Open navigation' : 'Close navigation');
+        });
+      }
+      document.querySelectorAll('.input-field__toggle').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var id = btn.getAttribute('data-input');
+          var input = document.getElementById(id);
+          if (!input) return;
+          var show = input.getAttribute('type') === 'password';
+          input.setAttribute('type', show ? 'text' : 'password');
+          btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+          btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        });
+      });
+      var reveal = document.querySelector('[data-reveal]');
+      if (reveal) {
+        requestAnimationFrame(function () { reveal.classList.add('is-revealed'); });
+      }
+    })();
+  </script>
 </body>
 </html>

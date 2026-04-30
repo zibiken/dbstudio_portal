@@ -1,14 +1,23 @@
-<%# stub — full implementation in T6 %>
-<nav id="m11-sidebar" class="sidebar" aria-label="Section navigation">
-  <ul>
-    <li<%= active === 'dashboard'           ? ' aria-current="page"' : '' %>><a href="/customer/dashboard">Dashboard</a></li>
-    <li<%= active === 'ndas'                ? ' aria-current="page"' : '' %>><a href="/customer/ndas">NDAs</a></li>
-    <li<%= active === 'documents'           ? ' aria-current="page"' : '' %>><a href="/customer/documents">Documents</a></li>
-    <li<%= active === 'credentials'         ? ' aria-current="page"' : '' %>><a href="/customer/credentials">Credentials</a></li>
-    <li<%= active === 'credential-requests' ? ' aria-current="page"' : '' %>><a href="/customer/credential-requests">Credential requests</a></li>
-    <li<%= active === 'invoices'            ? ' aria-current="page"' : '' %>><a href="/customer/invoices">Invoices</a></li>
-    <li<%= active === 'projects'            ? ' aria-current="page"' : '' %>><a href="/customer/projects">Projects</a></li>
-    <li<%= active === 'activity'            ? ' aria-current="page"' : '' %>><a href="/customer/activity">Activity</a></li>
-    <li<%= active === 'profile'             ? ' aria-current="page"' : '' %>><a href="/customer/profile">Profile</a></li>
+<%# Customer sidebar. Locals: active (dashboard|ndas|documents|credentials|credential-requests|invoices|projects|activity|profile). %>
+<%
+  var items = [
+    { key: 'dashboard',           label: 'Dashboard',           href: '/customer/dashboard' },
+    { key: 'ndas',                label: 'NDAs',                href: '/customer/ndas' },
+    { key: 'documents',           label: 'Documents',           href: '/customer/documents' },
+    { key: 'credentials',         label: 'Credentials',         href: '/customer/credentials' },
+    { key: 'credential-requests', label: 'Credential requests', href: '/customer/credential-requests' },
+    { key: 'invoices',            label: 'Invoices',            href: '/customer/invoices' },
+    { key: 'projects',            label: 'Projects',            href: '/customer/projects' },
+    { key: 'activity',            label: 'Activity',            href: '/customer/activity' },
+    { key: 'profile',             label: 'Profile',             href: '/customer/profile' }
+  ];
+%>
+<nav id="m11-sidebar" class="sidebar sidebar--customer" aria-label="Section navigation" data-collapsed="true">
+  <ul class="sidebar__list">
+    <% items.forEach(function(it) { %>
+      <li class="sidebar__item<%= active === it.key ? ' sidebar__item--active' : '' %>">
+        <a href="<%= it.href %>"<% if (active === it.key) { %> aria-current="page"<% } %>><%= it.label %></a>
+      </li>
+    <% }) %>
   </ul>
 </nav>

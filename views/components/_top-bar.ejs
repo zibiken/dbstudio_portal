@@ -1,13 +1,16 @@
-<%# stub — full implementation in T6 %>
+<%# Top bar. Locals: surface (admin|customer), user { name }, sectionLabel. %>
 <header class="top-bar" role="banner">
-  <a href="/" aria-label="DB Studio Portal" class="top-bar__logo">
-    <img src="/static/brand/logo-black.png" alt="DB Studio">
+  <button class="top-bar__hamburger" type="button" aria-expanded="false" aria-controls="m11-sidebar" aria-label="Open navigation">
+    <span></span><span></span><span></span>
+  </button>
+  <a href="<%= surface === 'admin' ? '/admin' : '/customer/dashboard' %>" aria-label="DB Studio Portal" class="top-bar__logo">
+    <img src="/static/brand/logo-white.png" alt="DB Studio">
   </a>
   <p class="top-bar__section eyebrow"><%= sectionLabel %></p>
   <div class="top-bar__menu">
     <% if (user) { %>
-      <span><%= user.name %></span>
-      <a href="/logout">Sign out</a>
+      <span class="top-bar__user"><%= user.name %></span>
+      <a class="top-bar__signout" href="/logout">Sign out</a>
     <% } %>
   </div>
 </header>

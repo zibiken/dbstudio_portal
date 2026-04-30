@@ -49,6 +49,13 @@ import { registerPublicFilesRoutes } from './routes/public/files.js';
 import { MAX_FILE_BYTES } from './lib/files.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const portalVersion = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version || '';
+  } catch (_) {
+    return '';
+  }
+})();
 
 export async function build({
   skipSafetyCheck = false,
@@ -99,7 +106,7 @@ export async function build({
     engine: { ejs },
     root: path.join(__dirname, 'views'),
     propertyName: 'view',
-    defaultContext: { env: { PORTAL_BASE_URL: env.PORTAL_BASE_URL } },
+    defaultContext: { env: { PORTAL_BASE_URL: env.PORTAL_BASE_URL }, portalVersion },
     options: {
       filename: path.join(__dirname, 'views'),
       async: false
