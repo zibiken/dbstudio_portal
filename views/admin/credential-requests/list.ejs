@@ -1,0 +1,34 @@
+<section class="admin-cr-list">
+  <header class="admin-section-header">
+    <h1>Credential requests · <%= customer.razon_social %></h1>
+    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>">Back to customer</a>
+    <a class="btn btn-primary" href="/admin/customers/<%= customer.id %>/credential-requests/new">New request</a>
+  </header>
+
+  <% if (requests.length === 0) { %>
+    <p class="muted">No credential requests yet.</p>
+  <% } else { %>
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Provider</th>
+          <th>Status</th>
+          <th>Fields</th>
+          <th>Created</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% requests.forEach((r) => { %>
+          <tr>
+            <td><%= r.provider %></td>
+            <td><span class="status status-<%= r.status %>"><%= r.status %></span></td>
+            <td><%= r.fields.length %></td>
+            <td><%= euDateTime(r.created_at) %></td>
+            <td><a href="/admin/customers/<%= customer.id %>/credential-requests/<%= r.id %>">Open</a></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</section>

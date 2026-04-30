@@ -1,0 +1,37 @@
+<section class="customer-cr-list">
+  <header class="customer-section-header">
+    <h1>Credential requests</h1>
+    <a class="btn btn-secondary" href="/customer/dashboard">Back to dashboard</a>
+  </header>
+
+  <% if (requests.length === 0) { %>
+    <p class="muted">No credential requests yet.</p>
+  <% } else { %>
+    <table class="customer-table">
+      <thead>
+        <tr>
+          <th>Provider</th>
+          <th>Status</th>
+          <th>Fields</th>
+          <th>Created</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% requests.forEach((r) => { %>
+          <tr>
+            <td><%= r.provider %></td>
+            <td><span class="status status-<%= r.status %>"><%= r.status %></span></td>
+            <td><%= r.fields.length %></td>
+            <td><%= euDateTime(r.created_at) %></td>
+            <td>
+              <a href="/customer/credential-requests/<%= r.id %>">
+                <%= r.status === 'open' ? 'Fulfil' : 'View' %>
+              </a>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</section>

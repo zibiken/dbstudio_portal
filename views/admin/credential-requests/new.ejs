@@ -1,0 +1,59 @@
+<section class="admin-cr-new">
+  <header class="admin-section-header">
+    <h1>New credential request</h1>
+    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>/credential-requests">Cancel</a>
+  </header>
+
+  <p>Customer: <strong><%= customer.razon_social %></strong></p>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
+  <form method="post" action="/admin/customers/<%= customer.id %>/credential-requests" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <label>Provider
+      <input type="text" name="provider" required maxlength="200"
+             placeholder="AWS, Combell, Website admin, M365, ..."
+             value="<%= form?.provider ?? '' %>">
+      <span class="muted">Free text — type any provider name. Auto-fills from the catalogue when known.</span>
+    </label>
+
+    <h2>Fields the customer must fill in</h2>
+    <p class="muted">Add one row per piece of information. <code>secret</code> values are masked in the customer's UI; <code>note</code> renders as a multi-line textarea.</p>
+    <%
+      const rows = (form?.fields && form.fields.length > 0) ? form.fields : [
+        { name: '', label: '', type: 'text', required: true },
+      ];
+    %>
+    <table class="admin-table" data-cr-fields-table>
+      <thead>
+        <tr>
+          <th>Name (machine)</th>
+          <th>Label (display)</th>
+          <th>Type</th>
+          <th>Required</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach((f, i) => { %>
+          <tr>
+            <td><input type="text" name="field_name" value="<%= f.name %>" maxlength="80" required></td>
+            <td><input type="text" name="field_label" value="<%= f.label %>" maxlength="200" required></td>
+            <td>
+              <select name="field_type">
+                <% fieldTypes.forEach((t) => { %>
+                  <option value="<%= t %>" <%= f.type === t ? 'selected' : '' %>><%= t %></option>
+                <% }); %>
+              </select>
+            </td>
+            <td><input type="checkbox" name="field_required" <%= f.required ? 'checked' : '' %>></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+
+    <button type="submit" class="btn btn-primary">Create request</button>
+  </form>
+</section>

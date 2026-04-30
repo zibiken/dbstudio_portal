@@ -1,0 +1,69 @@
+<section class="customer-cr-detail">
+  <header class="customer-section-header">
+    <h1><%= request.provider %></h1>
+    <a class="btn btn-secondary" href="/customer/credential-requests">Back to requests</a>
+  </header>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
+  <dl class="customer-meta">
+    <dt>Status</dt><dd><span class="status status-<%= request.status %>"><%= request.status %></span></dd>
+    <dt>Created</dt><dd><%= euDateTime(request.created_at) %></dd>
+    <dt>Updated</dt><dd><%= euDateTime(request.updated_at) %></dd>
+    <% if (request.status === 'not_applicable' && request.not_applicable_reason) { %>
+      <dt>Your reason</dt><dd><%= request.not_applicable_reason %></dd>
+    <% } %>
+  </dl>
+
+  <% if (request.status === 'open') { %>
+    <h2>Provide credentials</h2>
+    <p class="muted">Values you enter here are encrypted with your account's data key before they are saved. Anything marked <code>secret</code> is masked when displayed back.</p>
+
+    <form method="post" action="/customer/credential-requests/<%= request.id %>/fulfil" autocomplete="off">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <label>Label
+        <input type="text" name="label" maxlength="200"
+               placeholder="<%= request.provider %>"
+               value="<%= form?.label ?? '' %>">
+        <span class="muted">Optional. Defaults to the provider name.</span>
+      </label>
+
+      <% request.fields.forEach((f) => { %>
+        <label>
+          <%= f.label %><%= f.required ? ' *' : '' %>
+          <% if (f.type === 'note') { %>
+            <textarea name="field__<%= f.name %>" rows="4" <%= f.required ? 'required' : '' %>><%= form?.payload?.[f.name] ?? '' %></textarea>
+          <% } else if (f.type === 'secret') { %>
+            <input type="password" name="field__<%= f.name %>" <%= f.required ? 'required' : '' %>
+                   autocomplete="new-password" value="<%= form?.payload?.[f.name] ?? '' %>">
+          <% } else if (f.type === 'url') { %>
+            <input type="url" name="field__<%= f.name %>" <%= f.required ? 'required' : '' %>
+                   value="<%= form?.payload?.[f.name] ?? '' %>">
+          <% } else { %>
+            <input type="text" name="field__<%= f.name %>" <%= f.required ? 'required' : '' %>
+                   value="<%= form?.payload?.[f.name] ?? '' %>">
+          <% } %>
+        </label>
+      <% }); %>
+
+      <button type="submit" class="btn btn-primary">Save credentials</button>
+    </form>
+
+    <h2>Or mark as not applicable</h2>
+    <p class="muted">If this provider does not apply to you, tell us briefly why and we'll close the request.</p>
+    <form method="post" action="/customer/credential-requests/<%= request.id %>/not-applicable">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>Reason
+        <textarea name="reason" rows="3" required maxlength="2000"><%= form?.reason ?? '' %></textarea>
+      </label>
+      <button type="submit" class="btn btn-secondary">Mark not applicable</button>
+    </form>
+  <% } else if (request.status === 'fulfilled') { %>
+    <p class="muted">Thank you — these credentials are saved.</p>
+  <% } else if (request.status === 'cancelled') { %>
+    <p class="muted">This request was cancelled.</p>
+  <% } %>
+</section>

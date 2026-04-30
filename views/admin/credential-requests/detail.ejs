@@ -1,0 +1,49 @@
+<section class="admin-cr-detail">
+  <header class="admin-section-header">
+    <h1>Credential request · <%= request.provider %></h1>
+    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>/credential-requests">Back to requests</a>
+  </header>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
+  <dl class="admin-meta">
+    <dt>Customer</dt><dd><%= customer.razon_social %></dd>
+    <dt>Provider</dt><dd><%= request.provider %></dd>
+    <dt>Status</dt><dd><span class="status status-<%= request.status %>"><%= request.status %></span></dd>
+    <dt>Created</dt><dd><%= euDateTime(request.created_at) %></dd>
+    <dt>Updated</dt><dd><%= euDateTime(request.updated_at) %></dd>
+    <% if (request.status === 'fulfilled' && request.fulfilled_credential_id) { %>
+      <dt>Fulfilled credential</dt><dd><code><%= request.fulfilled_credential_id %></code></dd>
+    <% } %>
+    <% if (request.status === 'not_applicable' && request.not_applicable_reason) { %>
+      <dt>Customer reason</dt><dd><%= request.not_applicable_reason %></dd>
+    <% } %>
+  </dl>
+
+  <h2>Fields the customer was asked to provide</h2>
+  <table class="admin-table">
+    <thead>
+      <tr><th>Name</th><th>Label</th><th>Type</th><th>Required</th></tr>
+    </thead>
+    <tbody>
+      <% request.fields.forEach((f) => { %>
+        <tr>
+          <td><code><%= f.name %></code></td>
+          <td><%= f.label %></td>
+          <td><%= f.type %></td>
+          <td><%= f.required ? 'yes' : 'no' %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+
+  <% if (request.status === 'open') { %>
+    <h2>Cancel</h2>
+    <form method="post" action="/admin/customers/<%= customer.id %>/credential-requests/<%= request.id %>/cancel">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-danger">Cancel this request</button>
+    </form>
+  <% } %>
+</section>
