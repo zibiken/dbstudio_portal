@@ -364,3 +364,141 @@ export const findNdaById = repo.findNdaById;
 export const findNdaWithDocs = repo.findNdaWithDocs;
 export const listNdasForAdmin = repo.listNdasForAdmin;
 export const listNdasForCustomer = repo.listNdasForCustomer;
+
+// M8 Task 8.5 — signed NDA + audit-trail upload, linked back to the
+// draft via the ndas row.
+//
+// The upload itself goes through documentsService.uploadForCustomer
+// (M6 pipeline: streams + magic-byte sniff + sha + atomic rename + the
+// document.uploaded audit visible_to_customer=true). We then run a
+// short follow-up tx that:
+//   - asserts the NDA exists and the slot we're filling is empty
+//   - asserts the new document belongs to the same customer + has the
+//     expected category (defence in depth on top of the FK)
+//   - sets ndas.{signed,audit}_document_id
+//   - writes the milestone audit visible_to_customer=true so the
+//     customer activity feed shows "signed NDA available".
+//
+// If the route-level upload commits but this follow-up fails, the
+// document remains on disk + in the documents table as the right
+// category but unattached. The admin sees it via the documents list
+// and can retry the attach manually. Acceptable v1 trade-off — the
+// alternative (inlining all of uploadForCustomer here so it shares one
+// tx) duplicates the M6 streaming pipeline for marginal benefit.
+
+export class NdaNotFoundError extends Error {
+  constructor(id) {
+    super(`nda ${id} not found`);
+    this.name = 'NdaNotFoundError';
+    this.code = 'NDA_NOT_FOUND';
+    this.status = 404;
+  }
+}
+export class NdaSlotAlreadyFilledError extends Error {
+  constructor(slot) {
+    super(`nda ${slot} already attached`);
+    this.name = 'NdaSlotAlreadyFilledError';
+    this.code = 'NDA_SLOT_FILLED';
+    this.status = 409;
+    this.slot = slot;
+  }
+}
+export class NdaCrossCustomerError extends Error {
+  constructor() {
+    super('document does not belong to this NDA\'s customer');
+    this.name = 'NdaCrossCustomerError';
+    this.code = 'NDA_CROSS_CUSTOMER';
+    this.status = 403;
+  }
+}
+export class NdaCategoryMismatchError extends Error {
+  constructor(expected, actual) {
+    super(`document has category '${actual}', expected '${expected}'`);
+    this.name = 'NdaCategoryMismatchError';
+    this.code = 'NDA_CATEGORY_MISMATCH';
+    this.status = 422;
+    this.expected = expected;
+    this.actual = actual;
+  }
+}
+
+async function loadNdaForAttach(tx, ndaId) {
+  const r = await sql`
+    SELECT id, customer_id, project_id, draft_document_id,
+           signed_document_id, audit_document_id, template_version_sha
+      FROM ndas WHERE id = ${ndaId}::uuid FOR UPDATE
+  `.execute(tx);
+  if (r.rows.length === 0) throw new NdaNotFoundError(ndaId);
+  return r.rows[0];
+}
+
+async function loadDocumentForAttach(tx, documentId) {
+  const r = await sql`
+    SELECT id, customer_id, category
+      FROM documents WHERE id = ${documentId}::uuid
+  `.execute(tx);
+  if (r.rows.length === 0) {
+    throw new Error(`document ${documentId} not found (post-upload disappearance)`);
+  }
+  return r.rows[0];
+}
+
+// kind ∈ {'signed', 'audit'}.
+const KIND_TO_CATEGORY = { signed: 'nda-signed', audit: 'nda-audit' };
+const KIND_TO_AUDIT_ACTION = {
+  signed: 'nda.signed_uploaded',
+  audit: 'nda.audit_trail_uploaded',
+};
+const KIND_TO_SLOT_COL = {
+  signed: 'signed_document_id',
+  audit: 'audit_document_id',
+};
+
+export async function attachUploadedDocument(db, {
+  adminId, ndaId, documentId, kind,
+}, ctx = {}) {
+  if (!Object.prototype.hasOwnProperty.call(KIND_TO_CATEGORY, kind)) {
+    throw new Error(`attachUploadedDocument: unknown kind '${kind}'`);
+  }
+  return await db.transaction().execute(async (tx) => {
+    const nda = await loadNdaForAttach(tx, ndaId);
+    if (kind === 'signed' && nda.signed_document_id) {
+      throw new NdaSlotAlreadyFilledError('signed');
+    }
+    if (kind === 'audit' && nda.audit_document_id) {
+      throw new NdaSlotAlreadyFilledError('audit');
+    }
+    const doc = await loadDocumentForAttach(tx, documentId);
+    if (doc.customer_id !== nda.customer_id) throw new NdaCrossCustomerError();
+    if (doc.category !== KIND_TO_CATEGORY[kind]) {
+      throw new NdaCategoryMismatchError(KIND_TO_CATEGORY[kind], doc.category);
+    }
+
+    if (kind === 'signed') {
+      await sql`UPDATE ndas SET signed_document_id = ${documentId}::uuid WHERE id = ${ndaId}::uuid`.execute(tx);
+    } else {
+      await sql`UPDATE ndas SET audit_document_id = ${documentId}::uuid WHERE id = ${ndaId}::uuid`.execute(tx);
+    }
+
+    const a = baseAudit(ctx);
+    await writeAudit(tx, {
+      actorType: 'admin',
+      actorId: adminId,
+      action: KIND_TO_AUDIT_ACTION[kind],
+      targetType: 'nda',
+      targetId: ndaId,
+      metadata: {
+        ...a.metadata,
+        customerId: nda.customer_id,
+        projectId: nda.project_id,
+        documentId,
+        slot: KIND_TO_SLOT_COL[kind],
+      },
+      visibleToCustomer: true,
+      ip: a.ip,
+      userAgentHash: a.userAgentHash,
+    });
+
+    return { ndaId, slot: KIND_TO_SLOT_COL[kind], documentId };
+  });
+}

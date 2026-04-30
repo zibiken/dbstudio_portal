@@ -4,6 +4,10 @@
     <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>/ndas">Back</a>
   </header>
 
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
   <table class="meta-table">
     <tr><th>Customer</th><td><a href="/admin/customers/<%= customer.id %>"><%= customer.razon_social %></a></td></tr>
     <tr><th>Project</th><td><%= nda.project_id %></td></tr>
@@ -29,7 +33,7 @@
             <%= nda.signed_filename %> (<%= Math.round((Number(nda.signed_size_bytes)/1024)) %> KB)
           </a>
         <% } else { %>
-          <span class="muted">Not uploaded yet — upload via Task 8.5 surface (coming).</span>
+          <span class="muted">Not uploaded yet.</span>
         <% } %>
       </td>
     </tr>
@@ -46,4 +50,62 @@
       </td>
     </tr>
   </table>
+
+  <% if (!nda.signed_document_id) { %>
+    <h2>Upload signed NDA</h2>
+    <p class="muted">After both parties sign on the secure signing platform, upload the
+      finished PDF here. The customer will be able to download it from their portal.</p>
+    <form id="signed-form" method="post"
+          action="/admin/ndas/<%= nda.id %>/upload-signed"
+          enctype="multipart/form-data"
+          data-csrf="<%= csrfToken %>"
+          autocomplete="off">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>Signed PDF
+        <input type="file" name="file" accept="application/pdf" required>
+      </label>
+      <button type="submit" class="btn btn-primary">Upload signed NDA</button>
+    </form>
+  <% } %>
+
+  <% if (nda.signed_document_id && !nda.audit_document_id) { %>
+    <h2>Upload audit-trail (optional)</h2>
+    <p class="muted">Audit-trail PDF from the signing platform. Customer-visible.</p>
+    <form id="audit-form" method="post"
+          action="/admin/ndas/<%= nda.id %>/upload-audit"
+          enctype="multipart/form-data"
+          data-csrf="<%= csrfToken %>"
+          autocomplete="off">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>Audit-trail PDF
+        <input type="file" name="file" accept="application/pdf" required>
+      </label>
+      <button type="submit" class="btn btn-primary">Upload audit-trail</button>
+    </form>
+  <% } %>
+
+  <% if (!nda.signed_document_id || !nda.audit_document_id) { %>
+    <script nonce="<%= nonce %>">
+      (function () {
+        for (var formId of ['signed-form', 'audit-form']) {
+          var f = document.getElementById(formId);
+          if (!f) continue;
+          f.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var fd = new FormData(this);
+            fetch(this.action, {
+              method: 'POST',
+              body: fd,
+              headers: { 'x-csrf-token': this.dataset.csrf },
+              credentials: 'same-origin',
+              redirect: 'follow',
+            }).then(function (r) {
+              if (r.redirected) window.location.href = r.url;
+              else r.text().then(function (t) { document.body.innerHTML = t; });
+            }).catch(function () { alert('Upload failed.'); });
+          });
+        }
+      })();
+    </script>
+  <% } %>
 </section>

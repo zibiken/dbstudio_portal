@@ -1,6 +1,7 @@
 import { renderAdmin } from '../../lib/render.js';
 import { requireAdminSession } from '../../lib/auth/middleware.js';
 import * as ndasService from '../../domain/ndas/service.js';
+import * as documentsService from '../../domain/documents/service.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { listProjectsByCustomer } from '../../domain/projects/repo.js';
 
@@ -114,6 +115,73 @@ export function registerAdminNdasRoutes(app) {
     },
   );
 
+  for (const kind of ['signed', 'audit']) {
+    const category = kind === 'signed' ? 'nda-signed' : 'nda-audit';
+
+    app.post(
+      `/admin/ndas/:id/upload-${kind}`,
+      { preHandler: app.csrfProtection },
+      async (req, reply) => {
+        const session = await requireAdminSession(app, req, reply);
+        if (!session) return;
+
+        const id = req.params?.id;
+        if (typeof id !== 'string' || !UUID_RE.test(id)) return notFound(req, reply);
+
+        const nda = await ndasService.findNdaById(app.db, id);
+        if (!nda) return notFound(req, reply);
+
+        // Multipart contract — text fields BEFORE the file. We don't
+        // need any text fields here, but the iterator pattern matches
+        // the M6 upload route and keeps the CSRF check inline.
+        let documentId = null;
+        const ctx = ctxFromSession(app, req, session);
+        try {
+          for await (const part of req.parts()) {
+            if (part.type === 'file') {
+              if (documentId) {
+                part.file.resume();
+                throw new Error('only one file per upload');
+              }
+              const r = await documentsService.uploadForCustomer(
+                app.db,
+                {
+                  customerId: nda.customer_id,
+                  projectId: nda.project_id,
+                  category,
+                  originalFilename: part.filename,
+                  declaredMime: part.mimetype || null,
+                  stream: part.file,
+                },
+                ctx,
+              );
+              documentId = r.documentId;
+            }
+          }
+        } catch (err) {
+          return await renderDetailWithError(req, reply, app, id, err.message);
+        }
+
+        if (!documentId) {
+          return await renderDetailWithError(req, reply, app, id, 'No file received.');
+        }
+
+        try {
+          await ndasService.attachUploadedDocument(app.db, {
+            adminId: session.user_id,
+            ndaId: id,
+            documentId,
+            kind,
+          }, ctx);
+        } catch (err) {
+          return await renderDetailWithError(req, reply, app, id, err.message);
+        }
+
+        reply.redirect(`/admin/ndas/${id}`, 302);
+      },
+    );
+  }
+
   app.get('/admin/ndas/:id', async (req, reply) => {
     const session = await requireAdminSession(app, req, reply);
     if (!session) return;
@@ -132,6 +200,21 @@ export function registerAdminNdasRoutes(app) {
       customer,
       csrfToken: await reply.generateCsrf(),
     });
+  });
+}
+
+async function renderDetailWithError(req, reply, app, ndaId, error) {
+  const nda = await ndasService.findNdaWithDocs(app.db, ndaId);
+  if (!nda) return notFound(req, reply);
+  const customer = await findCustomerById(app.db, nda.customer_id);
+  if (!customer) return notFound(req, reply);
+  reply.code(422);
+  return renderAdmin(req, reply, 'admin/ndas/detail', {
+    title: `NDA · ${customer.razon_social}`,
+    nda,
+    customer,
+    csrfToken: await reply.generateCsrf(),
+    error,
   });
 }
 
