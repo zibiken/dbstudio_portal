@@ -19,7 +19,20 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 function notFound(req, reply) {
   reply.code(404);
-  return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+  return renderAdmin(req, reply, 'admin/customers/not-found', {
+    title: 'Not found',
+    activeNav: 'customers',
+    mainWidth: 'content',
+    sectionLabel: 'ADMIN · CUSTOMERS',
+  });
+}
+
+function customerChrome(customer, activeTab) {
+  return {
+    activeNav: 'customers',
+    sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
+    activeTab,
+  };
 }
 
 export function registerAdminDocumentsRoutes(app) {
@@ -36,6 +49,8 @@ export function registerAdminDocumentsRoutes(app) {
       title: 'Upload document',
       customer,
       csrfToken: await reply.generateCsrf(),
+      mainWidth: 'content',
+      ...customerChrome(customer, 'documents'),
     });
   });
 
@@ -101,6 +116,8 @@ export function registerAdminDocumentsRoutes(app) {
           customer,
           csrfToken: await reply.generateCsrf(),
           error: err.message,
+          mainWidth: 'content',
+          ...customerChrome(customer, 'documents'),
         });
       }
 
@@ -113,6 +130,8 @@ export function registerAdminDocumentsRoutes(app) {
           customer,
           csrfToken: await reply.generateCsrf(),
           error: 'No file received.',
+          mainWidth: 'content',
+          ...customerChrome(customer, 'documents'),
         });
       }
 

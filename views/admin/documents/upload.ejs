@@ -1,66 +1,74 @@
-<section class="admin-document-upload">
-  <header class="admin-section-header">
-    <h1>Upload document</h1>
-    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>">Cancel</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'Upload document',
+  subtitle: customer.razon_social
+}) %>
 
-  <p>Customer: <strong><%= customer.razon_social %></strong></p>
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'documents' }) %>
 
-  <% if (typeof error !== 'undefined' && error) { %>
-    <p class="error" role="alert"><%= error %></p>
-  <% } %>
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
 
-  <form id="upload-form"
-        method="post"
-        action="/admin/customers/<%= customer.id %>/documents"
-        enctype="multipart/form-data"
-        data-csrf="<%= csrfToken %>"
-        autocomplete="off">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+<div class="card">
+  <p>50 MB max per file. 5 GB total per customer. The MIME type is detected from magic bytes; a mismatch with the filename extension is harmless but a mismatch with the upload's declared Content-Type is rejected.</p>
+</div>
 
-    <label>Category
-      <select name="category" required>
+<form id="upload-form"
+      method="post"
+      action="/admin/customers/<%= customer.id %>/documents"
+      enctype="multipart/form-data"
+      data-csrf="<%= csrfToken %>"
+      autocomplete="off"
+      class="form-stack">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+  <div class="input-field">
+    <label class="input-field__label" for="doc_category">Category</label>
+    <div class="input-field__control">
+      <select id="doc_category" name="category" required>
         <option value="generic" selected>Generic</option>
         <option value="invoice">Invoice</option>
         <option value="nda-draft">NDA draft</option>
         <option value="nda-signed">NDA signed</option>
         <option value="nda-audit">NDA audit</option>
       </select>
-    </label>
+    </div>
+  </div>
 
-    <label>File
-      <input type="file" name="file" required>
-    </label>
+  <div class="input-field">
+    <label class="input-field__label" for="doc_file">File</label>
+    <div class="input-field__control">
+      <input id="doc_file" type="file" name="file" required>
+    </div>
+  </div>
 
-    <p class="muted">50 MB max per file. 5 GB total per customer. The MIME
-    type is detected from magic bytes; a mismatch with the filename
-    extension is harmless but a mismatch with the upload's declared
-    Content-Type is rejected.</p>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Upload' }) %>
+    <%- include('../../components/_button', { variant: 'ghost',   size: 'md', href: '/admin/customers/' + customer.id, label: 'Cancel' }) %>
+  </div>
+</form>
 
-    <button type="submit" class="btn btn-primary">Upload</button>
-  </form>
-
-  <script nonce="<%= nonce %>">
-    (function () {
-      var f = document.getElementById('upload-form');
-      f.addEventListener('submit', function (e) {
-        e.preventDefault();
-        var fd = new FormData(f);
-        fetch(f.action, {
-          method: 'POST',
-          body: fd,
-          headers: { 'x-csrf-token': f.dataset.csrf },
-          credentials: 'same-origin',
-          redirect: 'follow'
-        }).then(function (r) {
-          if (r.redirected) window.location.href = r.url;
-          else r.text().then(function (t) {
-            document.body.innerHTML = t;
-          });
-        }).catch(function () {
-          alert('Upload failed.');
+<script nonce="<%= nonce %>">
+  (function () {
+    var f = document.getElementById('upload-form');
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(f);
+      fetch(f.action, {
+        method: 'POST',
+        body: fd,
+        headers: { 'x-csrf-token': f.dataset.csrf },
+        credentials: 'same-origin',
+        redirect: 'follow'
+      }).then(function (r) {
+        if (r.redirected) window.location.href = r.url;
+        else r.text().then(function (t) {
+          document.body.innerHTML = t;
         });
+      }).catch(function () {
+        alert('Upload failed.');
       });
-    })();
-  </script>
-</section>
+    });
+  })();
+</script>
