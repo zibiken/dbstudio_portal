@@ -1,12 +1,11 @@
-<section class="auth">
-  <h1>Save your backup codes</h1>
-  <p>You will not see these codes again. Store them in your password manager. Each code works once if you lose access to your authenticator.</p>
+<%- include('../components/_alert', { variant: 'warn', body: 'You will not see these codes again. Store them in your password manager. Each code works once if you lose access to your authenticator.' }) %>
 
-  <ul class="backup-codes">
-    <% codes.forEach(function(code) { %>
-      <li><code><%= code %></code></li>
-    <% }) %>
-  </ul>
+<ul class="backup-codes">
+  <% codes.forEach(function(code) { %>
+    <li><code><%= code %></code></li>
+  <% }) %>
+</ul>
 
-  <p><a href="/login" rel="noreferrer">I have saved my codes — continue to sign in</a></p>
-</section>
+<div class="form-actions">
+  <%- include('../components/_button', { variant: 'primary', size: 'md', href: '/login', label: 'I have saved my codes — continue to sign in' }) %>
+</div>
