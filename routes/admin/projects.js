@@ -11,7 +11,20 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 function notFound(req, reply) {
   reply.code(404);
-  return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+  return renderAdmin(req, reply, 'admin/customers/not-found', {
+    title: 'Not found',
+    activeNav: 'customers',
+    mainWidth: 'content',
+    sectionLabel: 'ADMIN · CUSTOMERS',
+  });
+}
+
+function customerChrome(customer, activeTab) {
+  return {
+    activeNav: 'customers',
+    sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
+    activeTab,
+  };
 }
 
 function makeCtx(req, session) {
@@ -37,6 +50,8 @@ export function registerAdminProjectsRoutes(app) {
       title: `Projects · ${customer.razon_social}`,
       customer,
       projects,
+      mainWidth: 'wide',
+      ...customerChrome(customer, 'projects'),
     });
   });
 
@@ -52,6 +67,8 @@ export function registerAdminProjectsRoutes(app) {
       customer,
       csrfToken: await reply.generateCsrf(),
       form: null,
+      mainWidth: 'content',
+      ...customerChrome(customer, 'projects'),
     });
   });
 
@@ -76,6 +93,8 @@ export function registerAdminProjectsRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           form: { name, objeto_proyecto: objetoProyecto },
           error: 'Name and objeto del proyecto are required.',
+          mainWidth: 'content',
+          ...customerChrome(customer, 'projects'),
         });
       }
 
@@ -93,6 +112,8 @@ export function registerAdminProjectsRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           form: { name, objeto_proyecto: objetoProyecto },
           error: err.message,
+          mainWidth: 'content',
+          ...customerChrome(customer, 'projects'),
         });
       }
       reply.redirect(`/admin/customers/${cid}/projects/${projectId}`, 302);
@@ -111,6 +132,8 @@ export function registerAdminProjectsRoutes(app) {
       customer,
       project,
       csrfToken: await reply.generateCsrf(),
+      mainWidth: 'content',
+      ...customerChrome(customer, 'projects'),
     });
   });
 
@@ -136,6 +159,8 @@ export function registerAdminProjectsRoutes(app) {
           project,
           csrfToken: await reply.generateCsrf(),
           error: 'At least one of name or objeto del proyecto must change.',
+          mainWidth: 'content',
+          ...customerChrome(customer, 'projects'),
         });
       }
       try {
@@ -152,6 +177,8 @@ export function registerAdminProjectsRoutes(app) {
           project,
           csrfToken: await reply.generateCsrf(),
           error: err.message,
+          mainWidth: 'content',
+          ...customerChrome(customer, 'projects'),
         });
       }
       reply.redirect(`/admin/customers/${cid}/projects/${id}`, 302);
@@ -181,6 +208,8 @@ export function registerAdminProjectsRoutes(app) {
           project,
           csrfToken: await reply.generateCsrf(),
           error: err.message,
+          mainWidth: 'content',
+          ...customerChrome(customer, 'projects'),
         });
       }
       reply.redirect(`/admin/customers/${cid}/projects/${id}`, 302);

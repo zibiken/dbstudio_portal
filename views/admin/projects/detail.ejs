@@ -1,44 +1,67 @@
-<section class="admin-project-detail">
-  <header class="admin-section-header">
-    <h1><%= project.name %></h1>
-    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>/projects">Back to projects</a>
-  </header>
+<%
+  function pillFor(s) {
+    var key = s === 'done' ? 'paid' : (s === 'paused' ? 'pending' : (s === 'archived' ? 'archived' : 'active'));
+    return '<span class="status-pill status-pill--' + key + '">' + s + '</span>';
+  }
+%>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: project.name,
+  subtitle: customer.razon_social,
+  actions: pillFor(project.status)
+}) %>
 
-  <% if (typeof error !== 'undefined' && error) { %>
-    <p class="error" role="alert"><%= error %></p>
-  <% } %>
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'projects' }) %>
 
-  <dl class="admin-meta">
-    <dt>Customer</dt><dd><%= customer.razon_social %></dd>
-    <dt>Status</dt><dd><span class="status status-<%= project.status %>"><%= project.status %></span></dd>
-    <dt>Objeto</dt><dd><%= project.objeto_proyecto %></dd>
-    <dt>Created</dt><dd><%= euDateTime(project.created_at) %></dd>
-    <dt>Updated</dt><dd><%= euDateTime(project.updated_at) %></dd>
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
+
+<div class="card">
+  <h2 class="card__title">Project details</h2>
+  <dl class="kv">
+    <dt>Customer</dt> <dd><%= customer.razon_social %></dd>
+    <dt>Status</dt>   <dd><%- pillFor(project.status) %></dd>
+    <dt>Objeto</dt>   <dd><%= project.objeto_proyecto %></dd>
+    <dt>Created</dt>  <dd><%= euDateTime(project.created_at) %></dd>
+    <dt>Updated</dt>  <dd><%= euDateTime(project.updated_at) %></dd>
   </dl>
+</div>
 
-  <h2>Status</h2>
-  <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/status">
+<div class="card">
+  <h2 class="card__title">Move status</h2>
+  <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/status" class="form-stack">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <label>Move to
-      <select name="status">
-        <% ['active', 'paused', 'done', 'archived'].forEach((s) => { %>
-          <option value="<%= s %>" <%= project.status === s ? 'selected' : '' %>><%= s %></option>
-        <% }); %>
-      </select>
-    </label>
-    <button type="submit" class="btn btn-primary">Update status</button>
+    <div class="input-field">
+      <label class="input-field__label" for="proj_status">Move to</label>
+      <div class="input-field__control">
+        <select id="proj_status" name="status">
+          <% ['active', 'paused', 'done', 'archived'].forEach((s) => { %>
+            <option value="<%= s %>" <%= project.status === s ? 'selected' : '' %>><%= s %></option>
+          <% }); %>
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Update status' }) %>
+    </div>
   </form>
+</div>
 
-  <h2>Edit</h2>
-  <p class="muted">objeto del proyecto is the legal subject of the NDA in M8 — fix typos here before signing.</p>
-  <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>" autocomplete="off">
+<div class="card">
+  <h2 class="card__title">Edit</h2>
+  <p>objeto del proyecto is the legal subject of the NDA in M8 — fix typos here before signing.</p>
+  <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>" autocomplete="off" class="form-stack">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <label>Name
-      <input type="text" name="name" maxlength="200" value="<%= project.name %>">
-    </label>
-    <label>Objeto del proyecto
-      <textarea name="objeto_proyecto" maxlength="2000" rows="4"><%= project.objeto_proyecto %></textarea>
-    </label>
-    <button type="submit" class="btn btn-primary">Save changes</button>
+    <%- include('../../components/_input', { name: 'name', type: 'text', label: 'Name', maxlength: 200, value: project.name }) %>
+    <div class="input-field">
+      <label class="input-field__label" for="proj_objeto_edit">Objeto del proyecto</label>
+      <div class="input-field__control">
+        <textarea id="proj_objeto_edit" name="objeto_proyecto" maxlength="2000" rows="4"><%= project.objeto_proyecto %></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Save changes' }) %>
+    </div>
   </form>
-</section>
+</div>

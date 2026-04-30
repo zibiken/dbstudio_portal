@@ -1,36 +1,37 @@
-<section class="admin-projects-list">
-  <header class="admin-section-header">
-    <h1>Projects · <%= customer.razon_social %></h1>
-    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>">Back to customer</a>
-    <a class="btn btn-primary" href="/admin/customers/<%= customer.id %>/projects/new">New project</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'Projects',
+  subtitle: customer.razon_social,
+  actions: '<a class="btn btn--primary btn--md" href="/admin/customers/' + customer.id + '/projects/new">+ New project</a>'
+}) %>
 
-  <% if (projects.length === 0) { %>
-    <p class="muted">No projects yet.</p>
-  <% } else { %>
-    <table class="admin-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Objeto</th>
-          <th>Status</th>
-          <th>Created</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <% projects.forEach((p) => { %>
-          <tr>
-            <td><%= p.name %></td>
-            <td class="muted"><%= p.objeto_proyecto %></td>
-            <td><span class="status status-<%= p.status %>"><%= p.status %></span></td>
-            <td><%= euDateTime(p.created_at) %></td>
-            <td>
-              <a href="/admin/customers/<%= customer.id %>/projects/<%= p.id %>">Open</a>
-            </td>
-          </tr>
-        <% }); %>
-      </tbody>
-    </table>
-  <% } %>
-</section>
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'projects' }) %>
+
+<%
+  function pillFor(s) {
+    var key = s === 'done' ? 'paid' : (s === 'paused' ? 'pending' : (s === 'archived' ? 'archived' : 'active'));
+    return '<span class="status-pill status-pill--' + key + '">' + s + '</span>';
+  }
+  var tableRows = (projects || []).map(function(p) {
+    var objeto = p.objeto_proyecto ? (p.objeto_proyecto.length > 80 ? p.objeto_proyecto.slice(0, 77) + '…' : p.objeto_proyecto) : '—';
+    return { cells: [
+      '<a href="/admin/customers/' + customer.id + '/projects/' + p.id + '">' + p.name + '</a>',
+      objeto,
+      pillFor(p.status),
+      euDateTime(p.created_at),
+      '<a class="btn btn--ghost btn--sm" href="/admin/customers/' + customer.id + '/projects/' + p.id + '">Open →</a>'
+    ]};
+  });
+%>
+<%- include('../../components/_table', {
+  density: 'medium',
+  columns: [
+    { label: 'Name',    align: 'left' },
+    { label: 'Objeto',  align: 'left' },
+    { label: 'Status',  align: 'left' },
+    { label: 'Created', align: 'left' },
+    { label: '',        align: 'right' }
+  ],
+  rows: tableRows,
+  emptyState: 'No projects yet.'
+}) %>

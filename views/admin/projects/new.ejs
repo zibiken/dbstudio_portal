@@ -1,28 +1,30 @@
-<section class="admin-projects-new">
-  <header class="admin-section-header">
-    <h1>New project</h1>
-    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>/projects">Cancel</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'New project',
+  subtitle: customer.razon_social
+}) %>
 
-  <p>Customer: <strong><%= customer.razon_social %></strong></p>
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'projects' }) %>
 
-  <% if (typeof error !== 'undefined' && error) { %>
-    <p class="error" role="alert"><%= error %></p>
-  <% } %>
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
 
-  <form method="post" action="/admin/customers/<%= customer.id %>/projects" autocomplete="off">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+<form method="post" action="/admin/customers/<%= customer.id %>/projects" autocomplete="off" class="form-stack">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-    <label>Name
-      <input type="text" name="name" required maxlength="200"
-             value="<%= form?.name ?? '' %>">
-    </label>
+  <%- include('../../components/_input', { name: 'name', type: 'text', label: 'Name', required: true, maxlength: 200, value: form ? (form.name || '') : '' }) %>
 
-    <label>Objeto del proyecto
-      <textarea name="objeto_proyecto" required maxlength="2000" rows="4"><%= form?.objeto_proyecto ?? '' %></textarea>
-      <span class="muted">Used as the legal subject of the NDA in M8.</span>
-    </label>
+  <div class="input-field">
+    <label class="input-field__label" for="proj_objeto">Objeto del proyecto</label>
+    <div class="input-field__control">
+      <textarea id="proj_objeto" name="objeto_proyecto" required maxlength="2000" rows="4"><%= form ? (form.objeto_proyecto || '') : '' %></textarea>
+    </div>
+    <p class="input-field__helper">Used as the legal subject of the NDA in M8.</p>
+  </div>
 
-    <button type="submit" class="btn btn-primary">Create project</button>
-  </form>
-</section>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Create project' }) %>
+    <%- include('../../components/_button', { variant: 'ghost',   size: 'md', href: '/admin/customers/' + customer.id + '/projects', label: 'Cancel' }) %>
+  </div>
+</form>
