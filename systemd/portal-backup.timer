@@ -1,0 +1,13 @@
+[Unit]
+Description=Nightly DB Studio Customer Portal backup at 02:30 UTC
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+# Catch up on missed runs after downtime / reboot — protects against the
+# laptop-was-off / box-was-down case mid-acceptance.
+Persistent=true
+RandomizedDelaySec=300
+Unit=portal-backup.service
+
+[Install]
+WantedBy=timers.target

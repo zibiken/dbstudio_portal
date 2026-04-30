@@ -1,0 +1,36 @@
+[Unit]
+Description=DB Studio Customer Portal — nightly age-encrypted backup
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=portal-app
+Group=portal-app
+WorkingDirectory=/opt/dbstudio_portal
+EnvironmentFile=/opt/dbstudio_portal/.env
+ExecStart=/opt/dbstudio_portal/scripts/backup.sh
+
+# Hardening — write access to /var/lib/portal (storage to read, backups to write)
+# and /var/log/portal (rotated journal-tag fallback). The script otherwise needs
+# to read the repo (ProtectSystem=strict makes /opt read-only, which is fine).
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=/var/lib/portal /var/log/portal
+ReadOnlyPaths=/opt/dbstudio_portal
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=true
+LockPersonality=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=portal-backup
