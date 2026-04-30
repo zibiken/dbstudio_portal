@@ -1,0 +1,52 @@
+<section class="customer-activity">
+  <header class="customer-section-header">
+    <h1>Activity</h1>
+    <p class="subtitle">Everything that happened on your account.</p>
+  </header>
+
+  <article class="customer-card">
+    <form method="get" action="/customer/activity" class="customer-filter">
+      <label for="activity-filter">Filter</label>
+      <select id="activity-filter" name="filter">
+        <% filterOptions.forEach(function (opt) { %>
+          <option value="<%= opt.value %>" <%= opt.value === filter ? 'selected' : '' %>><%= opt.label %></option>
+        <% }); %>
+      </select>
+      <label for="activity-since">From</label>
+      <input id="activity-since" name="since" type="date" value="<%= since %>">
+      <label for="activity-until">To</label>
+      <input id="activity-until" name="until" type="date" value="<%= until %>">
+      <label for="activity-limit">Show</label>
+      <input id="activity-limit" name="limit" type="number" min="1" max="200" value="<%= limit %>">
+      <button type="submit">Apply</button>
+      <a href="/customer/activity" class="cancel-link">Reset</a>
+    </form>
+  </article>
+
+  <article class="customer-card">
+    <% if (!events.length) { %>
+      <p class="muted">No events match these filters.</p>
+    <% } else { %>
+      <ul class="customer-activity-list">
+        <% events.forEach(function (e) { %>
+          <li>
+            <time datetime="<%= e.ts %>"><%= euDateTime(e.ts) %></time>
+            <span class="action"><%= e.action %></span>
+            <% if (e.actor_display_name) { %>
+              <span class="actor">by <%= e.actor_display_name %></span>
+            <% } %>
+            <% if (e.metadata && Object.keys(e.metadata).length > 0) { %>
+              <ul class="meta">
+                <% Object.entries(e.metadata).forEach(function (kv) {
+                     if (kv[0] === 'customerId') return;
+                %>
+                  <li><strong><%= kv[0] %></strong>: <code><%= typeof kv[1] === 'string' ? kv[1] : JSON.stringify(kv[1]) %></code></li>
+                <% }); %>
+              </ul>
+            <% } %>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+  </article>
+</section>
