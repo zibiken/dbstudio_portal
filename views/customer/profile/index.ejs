@@ -25,7 +25,25 @@
     <dl class="customer-fields">
       <dt>Current address</dt><dd><%= profile.email %></dd>
     </dl>
-    <p class="placeholder-note">Email change with verification ships in this M9 release (next sub-task).</p>
+    <% if (inflight) { %>
+      <p class="muted">A verification email has been sent to
+        <strong><%= inflight.new_email %></strong>. The link expires on
+        <%= euDateTime(inflight.verify_expires_at) %>. Submitting another
+        new address cancels this request.</p>
+    <% } %>
+    <% if (typeof emailError !== 'undefined' && emailError) { %>
+      <p class="form-error" role="alert"><%= emailError %></p>
+    <% } %>
+    <form method="post" action="/customer/profile/email" class="customer-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label for="profile-new-email">New email</label>
+      <input id="profile-new-email" name="new_email" type="email" required maxlength="320"
+             value="<%= typeof emailDraft !== 'undefined' ? emailDraft : '' %>"
+             autocomplete="email">
+      <p class="muted">We'll send a verification link to that address. Until you click
+        the link, your sign-in email stays at <strong><%= profile.email %></strong>.</p>
+      <button type="submit">Send verification link</button>
+    </form>
   </article>
 
   <article class="customer-card">

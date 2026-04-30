@@ -1,8 +1,17 @@
+import { randomBytes, createHash } from 'node:crypto';
 import { sql } from 'kysely';
+import { v7 as uuidv7 } from 'uuid';
 import { writeAudit } from '../../lib/audit.js';
+import { enqueue as enqueueEmail } from '../email-outbox/repo.js';
 import { findCustomerUserById } from './repo.js';
 
 const NAME_MAX = 256;
+
+export const VERIFY_TTL_MS = 24 * 3_600_000;
+export const REVERT_TTL_MS = 7 * 24 * 3_600_000;
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_MAX = 320;
 
 function audit(db, ctx, action, { customerUserId, customerId, metadata = {}, visibleToCustomer = true }) {
   return writeAudit(db, {
@@ -16,6 +25,26 @@ function audit(db, ctx, action, { customerUserId, customerId, metadata = {}, vis
     ip: ctx?.ip ?? null,
     userAgentHash: ctx?.userAgentHash ?? null,
   });
+}
+
+function generateToken() {
+  return randomBytes(32).toString('base64url');
+}
+
+function hashToken(token) {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+function trimTrailingSlashes(s) {
+  return typeof s === 'string' ? s.replace(/\/+$/, '') : '';
+}
+
+function requirePortalBaseUrl(ctx, callerName) {
+  const url = trimTrailingSlashes(ctx?.portalBaseUrl ?? process.env.PORTAL_BASE_URL ?? '');
+  if (!url) {
+    throw new Error(`${callerName} requires portalBaseUrl (ctx.portalBaseUrl or PORTAL_BASE_URL env)`);
+  }
+  return url;
 }
 
 export async function updateName(db, { customerUserId, name }, ctx = {}) {
@@ -53,5 +82,274 @@ export async function updateName(db, { customerUserId, name }, ctx = {}) {
       metadata: { previousName: row.name, newName: trimmed },
     });
     return { customerUserId, customerId: row.customer_id, changed: true };
+  });
+}
+
+function normaliseEmail(raw) {
+  if (typeof raw !== 'string') {
+    throw new Error('email must be a string');
+  }
+  const trimmed = raw.trim().toLowerCase();
+  if (trimmed.length === 0 || trimmed.length > EMAIL_MAX) {
+    throw new Error('email is not a valid address');
+  }
+  if (!EMAIL_RE.test(trimmed)) {
+    throw new Error('email is not a valid address');
+  }
+  return trimmed;
+}
+
+export async function requestEmailChange(db, { customerUserId, newEmail }, ctx = {}) {
+  const baseUrl = requirePortalBaseUrl(ctx, 'requestEmailChange');
+  const next = normaliseEmail(newEmail);
+
+  return await db.transaction().execute(async (tx) => {
+    const userR = await sql`
+      SELECT id::text AS id, customer_id::text AS customer_id, email, name
+        FROM customer_users WHERE id = ${customerUserId}::uuid FOR UPDATE
+    `.execute(tx);
+    const user = userR.rows[0];
+    if (!user) throw new Error(`customer_user ${customerUserId} not found`);
+    if (user.email === next) {
+      throw new Error('new email is the same as the current email');
+    }
+
+    // Reject hard collision against any existing user (admins or customer_users).
+    const collA = await sql`SELECT 1 FROM customer_users WHERE email = ${next}`.execute(tx);
+    const collB = await sql`SELECT 1 FROM admins WHERE email = ${next}`.execute(tx);
+    if (collA.rows.length > 0 || collB.rows.length > 0) {
+      throw new Error('email already in use');
+    }
+
+    // Cancel any prior in-flight request — drop tokens too so the partial
+    // unique index frees up.
+    await sql`
+      UPDATE email_change_requests
+         SET cancelled_at = now(), verify_token_hash = NULL, revert_token_hash = NULL
+       WHERE user_type = 'customer_user'
+         AND user_id = ${customerUserId}::uuid
+         AND verified_at IS NULL AND cancelled_at IS NULL
+    `.execute(tx);
+
+    const token = generateToken();
+    const tokenHash = hashToken(token);
+    const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
+    const reqId = uuidv7();
+    await sql`
+      INSERT INTO email_change_requests (
+        id, user_type, user_id, old_email, new_email, verify_token_hash, verify_expires_at
+      )
+      VALUES (
+        ${reqId}::uuid, 'customer_user', ${customerUserId}::uuid,
+        ${user.email}, ${next}, ${tokenHash}, ${expiresAt.toISOString()}::timestamptz
+      )
+    `.execute(tx);
+
+    await enqueueEmail(tx, {
+      idempotencyKey: `email_change_verify:${reqId}`,
+      toAddress: next,
+      template: 'email-change-verification',
+      locals: {
+        recipientName: user.name,
+        newEmail: next,
+        verifyUrl: `${baseUrl}/customer/profile/email/verify/${token}`,
+        expiresAt: expiresAt.toISOString(),
+      },
+    });
+
+    await audit(tx, ctx, 'customer_user.email_change_requested', {
+      customerUserId,
+      customerId: user.customer_id,
+      metadata: { oldEmail: user.email, newEmail: next, requestId: reqId },
+    });
+
+    return { token, expiresAt, requestId: reqId, oldEmail: user.email, newEmail: next };
+  });
+}
+
+async function lockChangeRequest(tx, where, errMsg) {
+  const r = await sql`
+    SELECT id::text AS id,
+           user_type,
+           user_id::text AS user_id,
+           old_email,
+           new_email,
+           verify_token_hash,
+           verify_expires_at,
+           verified_at,
+           revert_token_hash,
+           revert_expires_at,
+           reverted_at,
+           cancelled_at
+      FROM email_change_requests
+     WHERE ${where}
+       FOR UPDATE
+  `.execute(tx);
+  if (r.rows.length === 0) throw new Error(errMsg);
+  return r.rows[0];
+}
+
+export async function verifyEmailChange(db, { token }, ctx = {}) {
+  if (typeof token !== 'string' || token.length < 16) {
+    throw new Error('verifyEmailChange: invalid token');
+  }
+  const tokenHash = hashToken(token);
+
+  return await db.transaction().execute(async (tx) => {
+    const reqR = await sql`
+      SELECT id::text AS id,
+             user_type,
+             user_id::text AS user_id,
+             old_email,
+             new_email,
+             verify_expires_at,
+             verified_at,
+             cancelled_at
+        FROM email_change_requests
+       WHERE verify_token_hash = ${tokenHash}
+       FOR UPDATE
+    `.execute(tx);
+    if (reqR.rows.length === 0) throw new Error('verifyEmailChange: invalid token');
+    const req = reqR.rows[0];
+    if (req.user_type !== 'customer_user') {
+      throw new Error('verifyEmailChange: token is not for a customer_user');
+    }
+    if (req.cancelled_at || req.verified_at) {
+      throw new Error('verifyEmailChange: invalid token');
+    }
+    if (new Date(req.verify_expires_at).getTime() <= Date.now()) {
+      throw new Error('verifyEmailChange: token expired');
+    }
+
+    // Re-check collision against new_email at swap time — catches the
+    // race where a different user took the address between request and
+    // verify.
+    const userR = await sql`
+      SELECT customer_id::text AS customer_id, name
+        FROM customer_users WHERE id = ${req.user_id}::uuid FOR UPDATE
+    `.execute(tx);
+    if (userR.rows.length === 0) {
+      throw new Error('verifyEmailChange: user no longer exists');
+    }
+    const collA = await sql`SELECT 1 FROM customer_users WHERE email = ${req.new_email} AND id <> ${req.user_id}::uuid`.execute(tx);
+    const collB = await sql`SELECT 1 FROM admins WHERE email = ${req.new_email}`.execute(tx);
+    if (collA.rows.length > 0 || collB.rows.length > 0) {
+      throw new Error('verifyEmailChange: email already in use');
+    }
+
+    const baseUrl = requirePortalBaseUrl(ctx, 'verifyEmailChange');
+    const revertToken = generateToken();
+    const revertTokenHash = hashToken(revertToken);
+    const revertExpiresAt = new Date(Date.now() + REVERT_TTL_MS);
+
+    await sql`
+      UPDATE customer_users SET email = ${req.new_email}
+       WHERE id = ${req.user_id}::uuid
+    `.execute(tx);
+    await sql`
+      UPDATE email_change_requests
+         SET verified_at = now(),
+             verify_token_hash = NULL,
+             revert_token_hash = ${revertTokenHash},
+             revert_expires_at = ${revertExpiresAt.toISOString()}::timestamptz
+       WHERE id = ${req.id}::uuid
+    `.execute(tx);
+
+    await enqueueEmail(tx, {
+      idempotencyKey: `email_change_revert:${req.id}`,
+      toAddress: req.old_email,
+      template: 'email-change-notification-old',
+      locals: {
+        recipientName: userR.rows[0].name,
+        oldEmail: req.old_email,
+        newEmail: req.new_email,
+        changedAt: new Date().toISOString(),
+        revertUrl: `${baseUrl}/customer/profile/email/revert/${revertToken}`,
+      },
+    });
+
+    await audit(tx, ctx, 'customer_user.email_change_verified', {
+      customerUserId: req.user_id,
+      customerId: userR.rows[0].customer_id,
+      metadata: { oldEmail: req.old_email, newEmail: req.new_email, requestId: req.id },
+    });
+
+    return {
+      customerUserId: req.user_id,
+      customerId: userR.rows[0].customer_id,
+      oldEmail: req.old_email,
+      newEmail: req.new_email,
+      revertToken,
+      revertExpiresAt,
+    };
+  });
+}
+
+export async function revertEmailChange(db, { token }, ctx = {}) {
+  if (typeof token !== 'string' || token.length < 16) {
+    throw new Error('revertEmailChange: invalid token');
+  }
+  const tokenHash = hashToken(token);
+
+  return await db.transaction().execute(async (tx) => {
+    const reqR = await sql`
+      SELECT id::text AS id,
+             user_type,
+             user_id::text AS user_id,
+             old_email,
+             new_email,
+             revert_expires_at,
+             reverted_at
+        FROM email_change_requests
+       WHERE revert_token_hash = ${tokenHash}
+       FOR UPDATE
+    `.execute(tx);
+    if (reqR.rows.length === 0) throw new Error('revertEmailChange: invalid token');
+    const req = reqR.rows[0];
+    if (req.user_type !== 'customer_user') {
+      throw new Error('revertEmailChange: token is not for a customer_user');
+    }
+    if (req.reverted_at) throw new Error('revertEmailChange: invalid token');
+    if (!req.revert_expires_at || new Date(req.revert_expires_at).getTime() <= Date.now()) {
+      throw new Error('revertEmailChange: token expired');
+    }
+
+    const userR = await sql`
+      SELECT customer_id::text AS customer_id
+        FROM customer_users WHERE id = ${req.user_id}::uuid FOR UPDATE
+    `.execute(tx);
+    if (userR.rows.length === 0) {
+      throw new Error('revertEmailChange: user no longer exists');
+    }
+
+    await sql`
+      UPDATE customer_users SET email = ${req.old_email}
+       WHERE id = ${req.user_id}::uuid
+    `.execute(tx);
+    await sql`
+      UPDATE email_change_requests
+         SET reverted_at = now(),
+             revert_token_hash = NULL
+       WHERE id = ${req.id}::uuid
+    `.execute(tx);
+    await sql`
+      UPDATE sessions
+         SET revoked_at = now()
+       WHERE user_type = 'customer'
+         AND user_id = ${req.user_id}::uuid
+         AND revoked_at IS NULL
+    `.execute(tx);
+
+    await audit(tx, ctx, 'customer_user.email_change_reverted', {
+      customerUserId: req.user_id,
+      customerId: userR.rows[0].customer_id,
+      metadata: { restoredEmail: req.old_email, undoneEmail: req.new_email, requestId: req.id },
+    });
+
+    return {
+      customerUserId: req.user_id,
+      customerId: userR.rows[0].customer_id,
+      restoredEmail: req.old_email,
+    };
   });
 }
