@@ -139,6 +139,53 @@ export function registerCustomerProfileRoutes(app) {
     reply.redirect('/customer/profile?totp_regenerated=1', 302);
   });
 
+  app.get('/customer/profile/backup-codes', async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    const profile = await loadProfile(app, session);
+    if (!profile) return reply.redirect('/', 302);
+    return renderCustomer(req, reply, 'customer/profile/backup-codes-regen', {
+      title: 'Regenerate backup codes',
+      profile,
+      csrfToken: await reply.generateCsrf(),
+    });
+  });
+
+  app.post('/customer/profile/backup-codes', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    const profile = await loadProfile(app, session);
+    if (!profile) return reply.redirect('/', 302);
+    const totpCode = typeof req.body?.totp_code === 'string' ? req.body.totp_code.trim() : '';
+    const backupCode = typeof req.body?.backup_code === 'string' ? req.body.backup_code.trim() : '';
+
+    let result;
+    try {
+      result = await customerUsersService.regenBackupCodes(
+        app.db,
+        {
+          customerUserId: session.user_id,
+          currentCode: totpCode || null,
+          backupCode: backupCode || null,
+        },
+        { ...makeCtx(req, session, app), kek: app.kek },
+      );
+    } catch (err) {
+      reply.code(422);
+      return renderCustomer(req, reply, 'customer/profile/backup-codes-regen', {
+        title: 'Regenerate backup codes',
+        profile,
+        csrfToken: await reply.generateCsrf(),
+        error: err.message,
+      });
+    }
+    return renderCustomer(req, reply, 'customer/profile/backup-codes-show', {
+      title: 'Save your new backup codes',
+      profile,
+      codes: result.codes,
+    });
+  });
+
   app.post('/customer/profile/password', { preHandler: app.csrfProtection }, async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;

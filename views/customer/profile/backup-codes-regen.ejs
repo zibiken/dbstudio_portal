@@ -1,0 +1,28 @@
+<section class="customer-profile">
+  <header class="customer-section-header">
+    <h1>Regenerate backup codes</h1>
+    <p class="subtitle">Replace your 8 single-use recovery codes with a fresh set.</p>
+  </header>
+
+  <article class="customer-card">
+    <p class="muted">Backup codes let you sign in if you've lost access to your authenticator
+      app. After regenerating, your old codes stop working immediately. Save the new ones
+      somewhere safe — you'll only see them once.</p>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <p class="form-error" role="alert"><%= error %></p>
+    <% } %>
+    <form method="post" action="/customer/profile/backup-codes" class="customer-form" autocomplete="off">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <p class="muted">Prove it's you with either a current TOTP code OR an unconsumed
+        backup code (the backup-code path is for when you've lost the authenticator).</p>
+      <label for="totp-code">6-digit TOTP code</label>
+      <input id="totp-code" name="totp_code" type="text" inputmode="numeric"
+             pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code">
+      <label for="backup-code">…or unconsumed backup code (NNNNN-NNNNN)</label>
+      <input id="backup-code" name="backup_code" type="text" pattern="[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}"
+             maxlength="11" autocomplete="off">
+      <button type="submit">Generate new codes</button>
+      <a href="/customer/profile" class="cancel-link">Cancel</a>
+    </form>
+  </article>
+</section>

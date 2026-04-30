@@ -1,0 +1,17 @@
+<section class="customer-profile">
+  <header class="customer-section-header">
+    <h1>Your new backup codes</h1>
+    <p class="subtitle">Save these somewhere safe. We won't show them again.</p>
+  </header>
+
+  <article class="customer-card">
+    <ul class="backup-codes" aria-label="Backup codes">
+      <% codes.forEach(function (code) { %>
+        <li><code><%= code %></code></li>
+      <% }); %>
+    </ul>
+    <p class="muted">Each code is single-use. When you've used one to sign in, it's
+      consumed and removed from your account.</p>
+    <p><a href="/customer/profile">Done — back to profile</a></p>
+  </article>
+</section>

@@ -7,6 +7,7 @@ import {
 } from '../../lib/crypto/hash.js';
 import { encrypt, decrypt, unwrapDek } from '../../lib/crypto/envelope.js';
 import { verify as verifyTotp } from '../../lib/auth/totp.js';
+import { generateBackupCodes, verifyAndConsume } from '../../lib/auth/backup-codes.js';
 import { enqueue as enqueueEmail } from '../email-outbox/repo.js';
 import { findCustomerUserById } from './repo.js';
 
@@ -362,6 +363,77 @@ export async function regenTotp(
     });
 
     return { customerUserId, customerId: row.customer_id };
+  });
+}
+
+// Regenerate the 8-code backup-code set. Must prove current 2FA either
+// via a TOTP code (currentCode) OR by spending an unconsumed backup code
+// (backupCode); the latter path is the canonical recovery if the user
+// just lost their authenticator and is using a backup code to log in,
+// then immediately wants a fresh set. The old set is replaced wholesale.
+export async function regenBackupCodes(
+  db,
+  { customerUserId, currentCode = null, backupCode = null },
+  ctx = {},
+) {
+  const kek = requireKek(ctx, 'regenBackupCodes');
+  if (!currentCode && !backupCode) {
+    throw new Error('regenBackupCodes: provide currentCode (TOTP) or backupCode');
+  }
+
+  return await db.transaction().execute(async (tx) => {
+    const r = await sql`
+      SELECT cu.id::text AS id,
+             cu.customer_id::text AS customer_id,
+             cu.totp_secret_enc, cu.totp_iv, cu.totp_tag,
+             cu.backup_codes,
+             c.dek_ciphertext, c.dek_iv, c.dek_tag
+        FROM customer_users cu
+        JOIN customers c ON c.id = cu.customer_id
+       WHERE cu.id = ${customerUserId}::uuid
+         FOR UPDATE OF cu
+    `.execute(tx);
+    const row = r.rows[0];
+    if (!row) throw new Error(`customer_user ${customerUserId} not found`);
+
+    // Verify proof-of-2FA — TOTP first (cheap), backup-code fallback.
+    let proofOk = false;
+    let usedBackupCode = false;
+    if (currentCode) {
+      if (!row.totp_secret_enc) {
+        throw new Error('regenBackupCodes: user has no TOTP enrolled to verify against');
+      }
+      const dek = unwrapDek(
+        { ciphertext: row.dek_ciphertext, iv: row.dek_iv, tag: row.dek_tag },
+        kek,
+      );
+      const totpSecret = decrypt(
+        { ciphertext: row.totp_secret_enc, iv: row.totp_iv, tag: row.totp_tag },
+        dek,
+      ).toString('utf8');
+      proofOk = verifyTotp(totpSecret, currentCode);
+    }
+    if (!proofOk && backupCode) {
+      const consumed = await verifyAndConsume(row.backup_codes ?? [], backupCode);
+      proofOk = consumed.ok;
+      usedBackupCode = consumed.ok;
+    }
+    if (!proofOk) {
+      throw new Error('regenBackupCodes: 2FA code did not verify');
+    }
+
+    const { codes, stored } = await generateBackupCodes();
+    await sql`
+      UPDATE customer_users SET backup_codes = ${JSON.stringify(stored)}::jsonb
+       WHERE id = ${customerUserId}::uuid
+    `.execute(tx);
+    await audit(tx, ctx, 'customer_user.backup_codes_regenerated', {
+      customerUserId,
+      customerId: row.customer_id,
+      visibleToCustomer: true,
+      metadata: { proof: usedBackupCode ? 'backup_code' : 'totp' },
+    });
+    return { customerUserId, customerId: row.customer_id, codes };
   });
 }
 
