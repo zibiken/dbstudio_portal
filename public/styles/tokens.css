@@ -63,6 +63,27 @@ h3 { font-size: var(--fs-xl); }
 
 a { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
 a:hover { color: var(--color-accent-hover); }
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Skip-link: visually hidden until keyboard-focused, then floats over the
+   layout. Lets screen-reader / keyboard users jump past the brand header
+   straight to <main>. */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: var(--space-4);
+  background: var(--color-ink-900);
+  color: var(--color-bg);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  z-index: 1000;
+  transition: top 0.15s ease;
+}
+.skip-link:focus { top: var(--space-4); color: var(--color-bg); }
 
 main { padding: var(--space-8) var(--space-4); max-width: 64rem; margin: 0 auto; }
 header.brand { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-ink-100); display: flex; align-items: center; justify-content: space-between; }

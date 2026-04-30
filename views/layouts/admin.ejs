@@ -13,12 +13,13 @@
   <link rel="stylesheet" href="/static/styles/app.css" nonce="<%= nonce %>">
 </head>
 <body class="admin">
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <header class="brand">
     <a href="/admin" aria-label="DB Studio Portal — Admin">
       <img src="/static/brand/logo-black.png" alt="DB Studio">
     </a>
     <nav><span>Admin</span></nav>
   </header>
-  <main><%- body %></main>
+  <main id="main-content"><%- body %></main>
 </body>
 </html>

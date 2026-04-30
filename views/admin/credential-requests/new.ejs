@@ -46,17 +46,17 @@
       <tbody>
         <% rows.forEach((f, i) => { %>
           <tr>
-            <td><input type="text" name="field_name_<%= i %>" value="<%= f.name %>" maxlength="80" required></td>
-            <td><input type="text" name="field_label_<%= i %>" value="<%= f.label %>" maxlength="200" required></td>
+            <td><input type="text" name="field_name_<%= i %>" value="<%= f.name %>" maxlength="80" required aria-label="field <%= i + 1 %> machine name"></td>
+            <td><input type="text" name="field_label_<%= i %>" value="<%= f.label %>" maxlength="200" required aria-label="field <%= i + 1 %> display label"></td>
             <td>
-              <select name="field_type_<%= i %>">
+              <select name="field_type_<%= i %>" aria-label="field <%= i + 1 %> type">
                 <% fieldTypes.forEach((t) => { %>
                   <option value="<%= t %>" <%= f.type === t ? 'selected' : '' %>><%= t %></option>
                 <% }); %>
               </select>
             </td>
             <td>
-              <input type="checkbox" name="field_required_<%= i %>" value="on" <%= f.required ? 'checked' : '' %>>
+              <input type="checkbox" name="field_required_<%= i %>" value="on" <%= f.required ? 'checked' : '' %> aria-label="field <%= i + 1 %> required">
             </td>
           </tr>
         <% }); %>
