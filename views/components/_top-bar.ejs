@@ -1,0 +1,13 @@
+<%# stub — full implementation in T6 %>
+<header class="top-bar" role="banner">
+  <a href="/" aria-label="DB Studio Portal" class="top-bar__logo">
+    <img src="/static/brand/logo-black.png" alt="DB Studio">
+  </a>
+  <p class="top-bar__section eyebrow"><%= sectionLabel %></p>
+  <div class="top-bar__menu">
+    <% if (user) { %>
+      <span><%= user.name %></span>
+      <a href="/logout">Sign out</a>
+    <% } %>
+  </div>
+</header>

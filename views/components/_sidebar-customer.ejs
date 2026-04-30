@@ -1,0 +1,14 @@
+<%# stub — full implementation in T6 %>
+<nav id="m11-sidebar" class="sidebar" aria-label="Section navigation">
+  <ul>
+    <li<%= active === 'dashboard'           ? ' aria-current="page"' : '' %>><a href="/customer/dashboard">Dashboard</a></li>
+    <li<%= active === 'ndas'                ? ' aria-current="page"' : '' %>><a href="/customer/ndas">NDAs</a></li>
+    <li<%= active === 'documents'           ? ' aria-current="page"' : '' %>><a href="/customer/documents">Documents</a></li>
+    <li<%= active === 'credentials'         ? ' aria-current="page"' : '' %>><a href="/customer/credentials">Credentials</a></li>
+    <li<%= active === 'credential-requests' ? ' aria-current="page"' : '' %>><a href="/customer/credential-requests">Credential requests</a></li>
+    <li<%= active === 'invoices'            ? ' aria-current="page"' : '' %>><a href="/customer/invoices">Invoices</a></li>
+    <li<%= active === 'projects'            ? ' aria-current="page"' : '' %>><a href="/customer/projects">Projects</a></li>
+    <li<%= active === 'activity'            ? ' aria-current="page"' : '' %>><a href="/customer/activity">Activity</a></li>
+    <li<%= active === 'profile'             ? ' aria-current="page"' : '' %>><a href="/customer/profile">Profile</a></li>
+  </ul>
+</nav>

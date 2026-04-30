@@ -14,13 +14,17 @@
 </head>
 <body class="public">
   <a class="skip-link" href="#main-content">Skip to main content</a>
-  <header class="brand">
-    <a href="/" aria-label="DB Studio Portal">
-      <img src="/static/brand/logo-black.png" alt="DB Studio">
-    </a>
-  </header>
-  <main id="main-content">
-    <%- body %>
+
+  <% if (typeof hero !== 'undefined' && hero) { %>
+    <%- include('../components/_hero-public', { hero: hero }) %>
+  <% } %>
+
+  <main id="main-content" class="public-form section--light">
+    <div class="public-form__inner">
+      <%- body %>
+    </div>
   </main>
+
+  <%- include('../components/_footer', { variant: 'dark' }) %>
 </body>
 </html>

@@ -1,0 +1,4 @@
+<%# stub — full implementation in T4 %>
+<div class="alert alert--<%= variant %><%= (typeof sticky !== 'undefined' && sticky) ? ' alert--sticky' : '' %>" role="<%= (variant === 'error' || variant === 'warn') ? 'alert' : 'status' %>">
+  <%- body %>
+</div>

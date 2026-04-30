@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <meta name="theme-color" content="#0A0A0A">
-  <title><%= typeof title !== 'undefined' ? title : 'Admin' %> · DB Studio Portal</title>
+  <title><%= typeof title !== 'undefined' ? title : 'Admin' %> &middot; DB Studio Portal</title>
   <link rel="icon" href="/static/brand/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" href="/static/brand/favicon-32.png" sizes="32x32">
   <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
@@ -14,12 +14,20 @@
 </head>
 <body class="admin">
   <a class="skip-link" href="#main-content">Skip to main content</a>
-  <header class="brand">
-    <a href="/admin" aria-label="DB Studio Portal — Admin">
-      <img src="/static/brand/logo-black.png" alt="DB Studio">
-    </a>
-    <nav><span>Admin</span></nav>
-  </header>
-  <main id="main-content"><%- body %></main>
+
+  <%- include('../components/_top-bar', { surface: 'admin', user: typeof user !== 'undefined' ? user : null, sectionLabel: typeof sectionLabel !== 'undefined' ? sectionLabel : 'ADMIN' }) %>
+
+  <div class="surface-shell">
+    <%- include('../components/_sidebar-admin', { active: typeof activeNav !== 'undefined' ? activeNav : '' }) %>
+
+    <main id="main-content" class="surface" data-width="<%= typeof mainWidth !== 'undefined' ? mainWidth : 'wide' %>">
+      <% if (typeof vaultLockedBanner !== 'undefined' && vaultLockedBanner) { %>
+        <%- include('../components/_alert', { variant: 'warn', sticky: true, body: 'Credential vault is locked. Re-enter your password to unlock.' }) %>
+      <% } %>
+      <%- body %>
+    </main>
+  </div>
+
+  <%- include('../components/_footer', { variant: 'light' }) %>
 </body>
 </html>
