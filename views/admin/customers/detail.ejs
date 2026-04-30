@@ -29,9 +29,14 @@
     </div>
   <% } %>
 
+  <p><a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>/edit">Edit profile</a></p>
+
   <dl class="admin-fields">
     <dt>NIF</dt><dd><%= customer.nif ?? '—' %></dd>
     <dt>Domicilio</dt><dd><%= customer.domicilio ?? '—' %></dd>
+    <dt>Representante (nombre)</dt><dd><%= customer.representante_nombre ?? '—' %></dd>
+    <dt>Representante (DNI)</dt><dd><%= customer.representante_dni ?? '—' %></dd>
+    <dt>Representante (cargo)</dt><dd><%= customer.representante_cargo ?? '—' %></dd>
     <dt>Created</dt><dd><%= euDateTime(customer.created_at) %></dd>
     <dt>Updated</dt><dd><%= euDateTime(customer.updated_at) %></dd>
   </dl>

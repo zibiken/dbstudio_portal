@@ -1,0 +1,57 @@
+<section class="admin-customer-edit">
+  <header class="admin-section-header">
+    <h1>Edit customer</h1>
+    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>">Cancel</a>
+  </header>
+
+  <% if (error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
+  <% const v = (k, fallback) => (form && Object.prototype.hasOwnProperty.call(form, k) ? form[k] : fallback) ?? ''; %>
+
+  <form method="post" action="/admin/customers/<%= customer.id %>/edit" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <fieldset>
+      <legend>Identity</legend>
+
+      <label>Razón social
+        <input type="text" name="razon_social" required maxlength="200"
+               value="<%= v('razon_social', customer.razon_social) %>">
+      </label>
+
+      <label>NIF / CIF
+        <input type="text" name="nif" maxlength="40"
+               value="<%= v('nif', customer.nif) %>">
+      </label>
+
+      <label>Domicilio
+        <input type="text" name="domicilio" maxlength="300"
+               value="<%= v('domicilio', customer.domicilio) %>">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Representante legal (NDA)</legend>
+      <p class="muted">Required to generate an NDA draft for this customer.</p>
+
+      <label>Nombre completo
+        <input type="text" name="representante_nombre" maxlength="200"
+               value="<%= v('representante_nombre', customer.representante_nombre) %>">
+      </label>
+
+      <label>DNI
+        <input type="text" name="representante_dni" maxlength="40"
+               value="<%= v('representante_dni', customer.representante_dni) %>">
+      </label>
+
+      <label>Cargo
+        <input type="text" name="representante_cargo" maxlength="120"
+               value="<%= v('representante_cargo', customer.representante_cargo) %>">
+      </label>
+    </fieldset>
+
+    <button type="submit" class="btn btn-primary">Save changes</button>
+  </form>
+</section>

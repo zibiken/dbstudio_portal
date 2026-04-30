@@ -43,6 +43,17 @@ export function registerCustomerDocumentsRoutes(app) {
       return { error: 'forbidden' };
     }
 
+    // M8 Task 8.4: NDA drafts are admin-only. The customer must NEVER be
+    // able to download a draft, even with a known UUID — this surface
+    // refuses the category outright (defence-in-depth on top of the
+    // audit-invisible draft generator). Customer-visible NDA documents
+    // are 'nda-signed' and 'nda-audit', uploaded after the signed PDF
+    // comes back from the operator's secure signing platform (Task 8.5).
+    if (doc.category === 'nda-draft') {
+      reply.code(404);
+      return { error: 'not found' };
+    }
+
     await recordFail(app.db, rlKey, {
       limit: SIGNED_URL_LIMIT,
       windowMs: SIGNED_URL_WINDOW_MS,

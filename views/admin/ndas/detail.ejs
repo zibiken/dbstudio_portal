@@ -1,0 +1,49 @@
+<section class="admin-nda-detail">
+  <header class="admin-section-header">
+    <h1>NDA · <%= customer.razon_social %></h1>
+    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>/ndas">Back</a>
+  </header>
+
+  <table class="meta-table">
+    <tr><th>Customer</th><td><a href="/admin/customers/<%= customer.id %>"><%= customer.razon_social %></a></td></tr>
+    <tr><th>Project</th><td><%= nda.project_id %></td></tr>
+    <tr><th>Generated</th><td><%= euDateTime(nda.generated_at) %></td></tr>
+    <tr><th>Template version sha</th><td><code><%= nda.template_version_sha %></code></td></tr>
+  </table>
+
+  <h2>Documents</h2>
+  <table class="data-table">
+    <tr>
+      <th>Draft (admin-only)</th>
+      <td>
+        <a href="/admin/documents/<%= nda.draft_document_id %>/download">
+          <%= nda.draft_filename %> (<%= Math.round((Number(nda.draft_size_bytes)/1024)) %> KB)
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <th>Signed</th>
+      <td>
+        <% if (nda.signed_document_id) { %>
+          <a href="/admin/documents/<%= nda.signed_document_id %>/download">
+            <%= nda.signed_filename %> (<%= Math.round((Number(nda.signed_size_bytes)/1024)) %> KB)
+          </a>
+        <% } else { %>
+          <span class="muted">Not uploaded yet — upload via Task 8.5 surface (coming).</span>
+        <% } %>
+      </td>
+    </tr>
+    <tr>
+      <th>Audit-trail</th>
+      <td>
+        <% if (nda.audit_document_id) { %>
+          <a href="/admin/documents/<%= nda.audit_document_id %>/download">
+            <%= nda.audit_filename %> (<%= Math.round((Number(nda.audit_size_bytes)/1024)) %> KB)
+          </a>
+        <% } else { %>
+          <span class="muted">—</span>
+        <% } %>
+      </td>
+    </tr>
+  </table>
+</section>

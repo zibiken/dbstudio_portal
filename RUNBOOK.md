@@ -54,6 +54,46 @@ Verification (saved 2026-04-29):
 - `psql -h 127.0.0.1 -U portal_user -d portal_db` → connects successfully (scram-sha-256)
 - `/opt/dbstudio_portal/.node/bin/node --version` → v20.19.6
 
+### M0-B-pdf — Chromium runtime libs + NDA template + Cormorant font
+
+`portal-pdf.service` runs Puppeteer's bundled Chromium. Puppeteer
+downloads the Chromium binary into `/var/lib/portal-pdf/.cache/puppeteer/`
+during `npm install`, but Chromium has shared-library dependencies that
+the host OS must provide. Install once on the box:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  libnspr4 libnss3 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+  libgbm1 libxkbcommon0 libpango-1.0-0 libcairo2 libasound2t64 \
+  libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 libdrm2
+```
+
+Symptom if missing: `portal-pdf` returns
+`{ok:false, error:'crash', message:"libnspr4.so: cannot open shared
+object file"}` (or similar) on the first NDA generation. The service
+itself stays alive; only the render fails.
+
+NDA template + Cormorant Garamond 500 woff2:
+
+```bash
+# Template (re-run after any legal-counsel update to templates/nda.html):
+sudo bash /opt/dbstudio_portal/scripts/bootstrap-templates.sh
+
+# Font (one-time): copy a Cormorant Garamond 500 woff2 onto the box.
+# Cormorant Garamond is OFL-licensed; download from Google Fonts on a
+# workstation, then:
+scp ~/Downloads/CormorantGaramond-Medium.woff2 \
+    portal:/var/lib/portal/fonts/cormorant-garamond-500.woff2
+ssh portal "sudo chown portal-app:portal-app \
+  /var/lib/portal/fonts/cormorant-garamond-500.woff2 && \
+  sudo chmod 0640 /var/lib/portal/fonts/cormorant-garamond-500.woff2"
+```
+
+The NDA template references `file:///var/lib/portal/fonts/...` after
+bootstrap; the font file MUST be present before any NDA is generated in
+production, or the rendered PDF will fall back to the system serif.
+
 ### M0-B — bootstrap-secrets.sh
 
 ```bash

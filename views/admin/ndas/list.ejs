@@ -1,0 +1,37 @@
+<section class="admin-ndas">
+  <header class="admin-section-header">
+    <h1>NDAs · <%= customer.razon_social %></h1>
+    <a class="btn btn-primary" href="/admin/customers/<%= customer.id %>/ndas/new">Generate draft</a>
+  </header>
+
+  <% if (rows.length === 0) { %>
+    <p class="muted">No NDAs generated for this customer yet.</p>
+  <% } else { %>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Project</th>
+          <th>Generated</th>
+          <th>Template sha (8)</th>
+          <th>Draft</th>
+          <th>Signed</th>
+          <th>Audit-trail</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const r of rows) { %>
+          <tr>
+            <td><%= r.project_name %></td>
+            <td><%= euDateTime(r.generated_at) %></td>
+            <td><code><%= r.template_version_sha.slice(0, 8) %></code></td>
+            <td><span class="status status-active">yes</span></td>
+            <td><% if (r.signed_document_id) { %><span class="status status-active">yes</span><% } else { %><span class="muted">—</span><% } %></td>
+            <td><% if (r.audit_document_id) { %><span class="status status-active">yes</span><% } else { %><span class="muted">—</span><% } %></td>
+            <td><a href="/admin/ndas/<%= r.id %>">Open →</a></td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+  <% } %>
+</section>

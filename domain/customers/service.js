@@ -9,7 +9,7 @@ import { hashPassword, hibpHasBeenPwned as defaultHibp } from '../../lib/crypto/
 import { generateBackupCodes } from '../../lib/auth/backup-codes.js';
 import { createSession, stepUp } from '../../lib/auth/session.js';
 import { enqueue as enqueueEmail } from '../email-outbox/repo.js';
-import { insertCustomer, insertCustomerUser } from './repo.js';
+import { insertCustomer, insertCustomerUser, updateCustomer as repoUpdateCustomer } from './repo.js';
 
 export const INVITE_TTL_MS = 7 * 24 * 3_600_000;
 
@@ -170,6 +170,86 @@ export async function reactivateCustomer(db, { customerId }, ctx = {}) {
     // log in fresh.
     await customerAudit(tx, ctx, 'customer.reactivated', customerId, { visibleToCustomer: true });
     return { customerId, status: 'active' };
+  });
+}
+
+// Editable customer profile fields. NOT included: status (managed via
+// suspend/reactivate/archive), DEK columns (immutable per customer),
+// timestamps. The legal-representative trio (representante_*) was added
+// in M8 Task 8.4 — those values feed the NDA generator and must be
+// editable here so the operator can complete a customer profile before
+// generating the first NDA. NULL clears the field; undefined keeps it.
+const EDITABLE_FIELDS = Object.freeze([
+  'razonSocial',
+  'nif',
+  'domicilio',
+  'representanteNombre',
+  'representanteDni',
+  'representanteCargo',
+]);
+const EDITABLE_FIELD_TO_DB_COLUMN = Object.freeze({
+  representanteNombre: 'representante_nombre',
+  representanteDni:    'representante_dni',
+  representanteCargo:  'representante_cargo',
+});
+
+function normaliseEditField(name, value) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') {
+    throw new Error(`updateCustomer: ${name} must be a string or null`);
+  }
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
+export async function updateCustomer(db, { customerId, fields }, ctx = {}) {
+  const patch = {};
+  for (const k of EDITABLE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(fields ?? {}, k)) {
+      patch[k] = normaliseEditField(k, fields[k]);
+    }
+  }
+  if (patch.razonSocial === null) {
+    throw new Error('updateCustomer: razonSocial cannot be cleared (NOT NULL)');
+  }
+  if (Object.keys(patch).length === 0) {
+    throw new Error('updateCustomer: at least one editable field must be provided');
+  }
+
+  return await db.transaction().execute(async (tx) => {
+    const row = await lockCustomerById(tx, customerId);
+    if (row.status === 'archived') {
+      throw new Error(`cannot edit an archived customer`);
+    }
+
+    // The repo's updateCustomer accepts camelCase keys for the
+    // razonSocial/nif/domicilio cases via CUSTOMER_COLUMN_MAP; the three
+    // representante_ keys post-date that map, so we land them via raw
+    // UPDATEs in the same tx (one statement per provided field — the set
+    // is small and bounded).
+    const repoFields = {};
+    const extraSql = [];
+    for (const [k, v] of Object.entries(patch)) {
+      const repCol = EDITABLE_FIELD_TO_DB_COLUMN[k];
+      if (repCol) {
+        extraSql.push({ col: repCol, val: v });
+      } else {
+        repoFields[k] = v;
+      }
+    }
+    if (Object.keys(repoFields).length > 0) {
+      await repoUpdateCustomer(tx, customerId, repoFields);
+    }
+    for (const { col, val } of extraSql) {
+      await sql`UPDATE customers SET ${sql.ref(col)} = ${val}, updated_at = now() WHERE id = ${customerId}::uuid`.execute(tx);
+    }
+
+    await customerAudit(tx, ctx, 'customer.updated', customerId, {
+      visibleToCustomer: false,
+      metadata: { fieldsChanged: Object.keys(patch) },
+    });
+    return { customerId };
   });
 }
 

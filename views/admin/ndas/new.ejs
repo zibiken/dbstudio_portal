@@ -1,0 +1,49 @@
+<section class="admin-nda-new">
+  <header class="admin-section-header">
+    <h1>Generate NDA draft</h1>
+    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>/ndas">Cancel</a>
+  </header>
+
+  <p>Customer: <strong><%= customer.razon_social %></strong></p>
+  <p class="muted">The draft is rendered server-side from <code>templates/nda.html</code>
+    and stored as <code>category='nda-draft'</code>. Drafts are admin-only — the customer
+    will only see the signed copy + audit-trail once you upload them after signing
+    on your secure platform.</p>
+
+  <% if (error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
+  <% if (missingFields.length > 0) { %>
+    <p class="warning">
+      The customer profile is missing fields required by the NDA template:
+      <strong><%= missingFields.join(', ') %></strong>.
+      <a href="/admin/customers/<%= customer.id %>/edit">Edit profile →</a>
+    </p>
+  <% } %>
+
+  <% if (projects.length === 0) { %>
+    <p class="muted">No projects yet for this customer.
+      <a href="/admin/customers/<%= customer.id %>/projects/new">Create a project</a> first.</p>
+  <% } else { %>
+    <form method="post" action="/admin/customers/<%= customer.id %>/ndas" autocomplete="off">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <label>Project
+        <select name="project_id" required>
+          <option value="">—</option>
+          <% for (const p of projects) { %>
+            <option value="<%= p.id %>"><%= p.name %></option>
+          <% } %>
+        </select>
+      </label>
+
+      <p class="muted">Place of signature: <strong>Adeje</strong> (fixed).
+        Date of signature: <strong><%= euDate(new Date()) %></strong> (today).</p>
+
+      <button type="submit" class="btn btn-primary"<% if (missingFields.length > 0) { %> disabled<% } %>>
+        Generate draft PDF
+      </button>
+    </form>
+  <% } %>
+</section>

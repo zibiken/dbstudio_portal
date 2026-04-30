@@ -166,6 +166,73 @@ export function registerAdminCustomerRoutes(app) {
     });
   });
 
+  app.get('/admin/customers/:id/edit', async (req, reply) => {
+    const session = await requireAdminSession(app, req, reply);
+    if (!session) return;
+
+    const id = req.params?.id;
+    if (typeof id !== 'string' || !UUID_RE.test(id)) {
+      reply.code(404);
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+    }
+    const customer = await findCustomerById(app.db, id);
+    if (!customer) {
+      reply.code(404);
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+    }
+
+    return renderAdmin(req, reply, 'admin/customers/edit', {
+      title: `Edit · ${customer.razon_social}`,
+      customer,
+      csrfToken: await reply.generateCsrf(),
+      form: null,
+      error: null,
+    });
+  });
+
+  app.post('/admin/customers/:id/edit', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireAdminSession(app, req, reply);
+    if (!session) return;
+
+    const id = req.params?.id;
+    if (typeof id !== 'string' || !UUID_RE.test(id)) {
+      reply.code(404);
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+    }
+    const customer = await findCustomerById(app.db, id);
+    if (!customer) {
+      reply.code(404);
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+    }
+
+    const body = req.body ?? {};
+    const fields = {
+      razonSocial: typeof body.razon_social === 'string' ? body.razon_social : undefined,
+      nif: typeof body.nif === 'string' ? body.nif : undefined,
+      domicilio: typeof body.domicilio === 'string' ? body.domicilio : undefined,
+      representanteNombre: typeof body.representante_nombre === 'string' ? body.representante_nombre : undefined,
+      representanteDni: typeof body.representante_dni === 'string' ? body.representante_dni : undefined,
+      representanteCargo: typeof body.representante_cargo === 'string' ? body.representante_cargo : undefined,
+    };
+
+    try {
+      await customersService.updateCustomer(app.db, { customerId: id, fields }, {
+        actorType: 'admin', actorId: session.user_id,
+        ip: req.ip ?? null, userAgentHash: null, audit: {},
+      });
+    } catch (err) {
+      reply.code(422);
+      return renderAdmin(req, reply, 'admin/customers/edit', {
+        title: `Edit · ${customer.razon_social}`,
+        customer,
+        csrfToken: await reply.generateCsrf(),
+        form: body,
+        error: err.message,
+      });
+    }
+    reply.redirect(`/admin/customers/${id}`, 302);
+  });
+
   for (const action of ['suspend', 'reactivate', 'archive']) {
     app.post(`/admin/customers/:id/${action}`, { preHandler: app.csrfProtection }, async (req, reply) => {
       const session = await requireAdminSession(app, req, reply);

@@ -51,7 +51,13 @@ async function render({ html, options }) {
 }
 
 if (existsSync(SOCK)) unlinkSync(SOCK);
-const server = createServer((conn) => {
+// allowHalfOpen=true is REQUIRED. Protocol: client writes the request and
+// half-closes (FIN), server reads to end, server writes reply and FINs.
+// Without allowHalfOpen the server auto-FINs as soon as it receives the
+// client's FIN, which closes its writable side BEFORE the async render()
+// completes — the reply then silently drops and the client sees an empty
+// socket close, surfacing as "Unexpected end of JSON input" on parse.
+const server = createServer({ allowHalfOpen: true }, (conn) => {
   let buf = '';
   conn.on('data', (d) => { buf += d.toString('utf8'); });
   conn.on('end', async () => {
