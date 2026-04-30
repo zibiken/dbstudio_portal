@@ -1,4 +1,7 @@
-<section class="auth">
-  <h1>Invitation no longer valid</h1>
-  <p>This invitation link has expired or has already been used. Ask an administrator to issue a new invitation.</p>
-</section>
+<%- include('../components/_alert', { variant: 'warn', body: 'This invitation link is no longer valid. It may have been used already or expired.' }) %>
+
+<p>If you believe this is wrong, contact your account manager and request a new invite.</p>
+
+<div class="form-actions">
+  <%- include('../components/_button', { variant: 'secondary', size: 'md', href: '/login', label: 'Back to sign in' }) %>
+</div>
