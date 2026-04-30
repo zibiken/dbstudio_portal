@@ -179,7 +179,7 @@ describe.skipIf(skip)('public auth route flow', () => {
       payload: `method=totp&totp_code=${totp2}&_csrf=${encodeURIComponent(cCsrf)}`,
     });
     expect(cOk.statusCode).toBe(302);
-    expect(cOk.headers.location).toBe('/');
+    expect(cOk.headers.location).toBe('/admin/customers');
 
     // First login from a fresh device fingerprint must queue a new-device-login
     // outbox row and write an admin.new_device_login audit row.
@@ -257,7 +257,7 @@ describe.skipIf(skip)('public auth route flow', () => {
       payload: `method=backup&backup_code=${encodeURIComponent(codes[0])}&_csrf=${encodeURIComponent(cCsrf)}`,
     });
     expect(cOk.statusCode).toBe(302);
-    expect(cOk.headers.location).toBe('/');
+    expect(cOk.headers.location).toBe('/admin/customers');
 
     // Same code cannot be used a second time.
     const cReplay = await app.inject({

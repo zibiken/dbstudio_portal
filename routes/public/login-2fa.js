@@ -122,6 +122,6 @@ export function registerLogin2faRoutes(app) {
       },
       { actorType: 'admin', actorId: admin.id, ip: req.ip ?? null },
     );
-    reply.redirect('/', 302);
+    reply.redirect('/admin/customers', 302);
   });
 }
