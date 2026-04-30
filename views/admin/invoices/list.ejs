@@ -1,0 +1,35 @@
+<section class="admin-invoices">
+  <header class="admin-section-header">
+    <h1>Invoices · <%= customer.razon_social %></h1>
+    <a class="btn btn-primary" href="/admin/customers/<%= customer.id %>/invoices/new">Upload invoice</a>
+  </header>
+
+  <% if (rows.length === 0) { %>
+    <p class="muted">No invoices yet.</p>
+  <% } else { %>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Number</th>
+          <th>Amount</th>
+          <th>Issued</th>
+          <th>Due</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const r of rows) { %>
+          <tr>
+            <td><a href="/admin/invoices/<%= r.id %>"><%= r.invoice_number %></a></td>
+            <td><%= (Number(r.amount_cents)/100).toFixed(2) %> <%= r.currency %></td>
+            <td><%= euDate(r.issued_on) %></td>
+            <td><%= euDate(r.due_on) %><% if (r.overdue) { %> <span class="badge badge-warning">overdue</span><% } %></td>
+            <td><%= r.status %></td>
+            <td><a href="/admin/invoices/<%= r.id %>">Open →</a></td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+  <% } %>
+</section>

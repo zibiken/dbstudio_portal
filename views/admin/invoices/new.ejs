@@ -1,0 +1,83 @@
+<section class="admin-invoice-new">
+  <header class="admin-section-header">
+    <h1>Upload invoice</h1>
+    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>">Cancel</a>
+  </header>
+
+  <p>Customer: <strong><%= customer.razon_social %></strong></p>
+  <p class="muted">Invoices are issued in the billing platform. Upload the
+    finished PDF here and record the metadata so the customer can see and
+    download it.</p>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
+  <form id="invoice-form"
+        method="post"
+        action="/admin/customers/<%= customer.id %>/invoices"
+        enctype="multipart/form-data"
+        data-csrf="<%= csrfToken %>"
+        autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <label>Invoice number
+      <input type="text" name="invoice_number" required maxlength="64"
+             value="<%= (form && form.invoice_number) || '' %>">
+    </label>
+
+    <label>Amount (cents)
+      <input type="number" name="amount_cents" required min="0" step="1"
+             value="<%= (form && form.amount_cents) || '' %>">
+    </label>
+
+    <label>Currency
+      <input type="text" name="currency" required pattern="[A-Z]{3}" maxlength="3"
+             value="<%= (form && form.currency) || 'EUR' %>">
+    </label>
+
+    <label>Issued on
+      <input type="date" name="issued_on" required
+             value="<%= (form && form.issued_on) || '' %>">
+    </label>
+
+    <label>Due on
+      <input type="date" name="due_on" required
+             value="<%= (form && form.due_on) || '' %>">
+    </label>
+
+    <label>Notes (optional)
+      <textarea name="notes" rows="3"><%= (form && form.notes) || '' %></textarea>
+    </label>
+
+    <label>Invoice PDF
+      <input type="file" name="file" accept="application/pdf" required>
+    </label>
+
+    <p class="muted">50 MB cap per file; total per customer 5 GB.</p>
+
+    <button type="submit" class="btn btn-primary">Upload invoice</button>
+  </form>
+
+  <script nonce="<%= nonce %>">
+    (function () {
+      var f = document.getElementById('invoice-form');
+      f.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var fd = new FormData(f);
+        fetch(f.action, {
+          method: 'POST',
+          body: fd,
+          headers: { 'x-csrf-token': f.dataset.csrf },
+          credentials: 'same-origin',
+          redirect: 'follow'
+        }).then(function (r) {
+          if (r.redirected) window.location.href = r.url;
+          else r.text().then(function (t) { document.body.innerHTML = t; });
+        }).catch(function () {
+          alert('Upload failed.');
+        });
+      });
+    })();
+  </script>
+</section>

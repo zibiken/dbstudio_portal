@@ -1,0 +1,32 @@
+<section class="admin-invoice-detail">
+  <header class="admin-section-header">
+    <h1>Invoice <%= row.invoice_number %></h1>
+    <a class="btn btn-secondary" href="/admin/customers/<%= row.customer_id %>/invoices">Back</a>
+  </header>
+
+  <% if (typeof flash !== 'undefined' && flash) { %>
+    <p class="info" role="status"><%= flash %></p>
+  <% } %>
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+
+  <table class="meta-table">
+    <tr><th>Customer</th><td><a href="/admin/customers/<%= row.customer_id %>"><%= customer.razon_social %></a></td></tr>
+    <tr><th>Amount</th><td><%= (Number(row.amount_cents)/100).toFixed(2) %> <%= row.currency %></td></tr>
+    <tr><th>Issued</th><td><%= euDate(row.issued_on) %></td></tr>
+    <tr><th>Due</th><td><%= euDate(row.due_on) %><% if (row.overdue) { %> <span class="badge badge-warning">overdue</span><% } %></td></tr>
+    <tr><th>Status</th><td><%= row.status %></td></tr>
+    <tr><th>Notes</th><td><%= row.notes || '—' %></td></tr>
+    <tr><th>PDF</th><td><a href="/admin/documents/<%= row.document_id %>/download">Download invoice PDF</a></td></tr>
+  </table>
+
+  <h2>Status</h2>
+  <% for (const next of nextStatuses) { %>
+    <form method="post" action="/admin/invoices/<%= row.id %>/status" class="inline-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="status" value="<%= next %>">
+      <button type="submit" class="btn btn-secondary">Mark <%= next %></button>
+    </form>
+  <% } %>
+</section>
