@@ -27,6 +27,13 @@
         { name: '', label: '', type: 'text', required: true },
       ];
     %>
+    <%# M7 review M2: indexed names + an explicit field_count, NOT parallel arrays.
+        Unchecked checkboxes don't submit, so a parallel-array shape silently
+        truncates required-flags whenever any row is unchecked. With the index
+        scheme below, parseFieldsFromBody iterates 0..field_count-1 and looks
+        up field_name_<i>/field_label_<i>/field_type_<i>/field_required_<i>.
+        Unchecked → key absent → required=false; checked → 'on' → required=true. %>
+    <input type="hidden" name="field_count" value="<%= rows.length %>">
     <table class="admin-table" data-cr-fields-table>
       <thead>
         <tr>
@@ -39,16 +46,18 @@
       <tbody>
         <% rows.forEach((f, i) => { %>
           <tr>
-            <td><input type="text" name="field_name" value="<%= f.name %>" maxlength="80" required></td>
-            <td><input type="text" name="field_label" value="<%= f.label %>" maxlength="200" required></td>
+            <td><input type="text" name="field_name_<%= i %>" value="<%= f.name %>" maxlength="80" required></td>
+            <td><input type="text" name="field_label_<%= i %>" value="<%= f.label %>" maxlength="200" required></td>
             <td>
-              <select name="field_type">
+              <select name="field_type_<%= i %>">
                 <% fieldTypes.forEach((t) => { %>
                   <option value="<%= t %>" <%= f.type === t ? 'selected' : '' %>><%= t %></option>
                 <% }); %>
               </select>
             </td>
-            <td><input type="checkbox" name="field_required" <%= f.required ? 'checked' : '' %>></td>
+            <td>
+              <input type="checkbox" name="field_required_<%= i %>" value="on" <%= f.required ? 'checked' : '' %>>
+            </td>
           </tr>
         <% }); %>
       </tbody>

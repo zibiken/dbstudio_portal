@@ -189,6 +189,61 @@ describe.skipIf(skip)('credentials/service view + markNeedsUpdate (admin-side)',
       ).rejects.toThrow(/not found|credential/i);
     });
 
+    it('writes a credential.decrypt_failure operator-forensic audit on corrupt ciphertext, throws DecryptFailureError, no credential.viewed audit', async () => {
+      // Mirrors the M6 documents file_integrity_failure pattern (review I1):
+      // tampered/corrupt ciphertext → forensic audit visible_to_customer=FALSE
+      // → throw, so plaintext (or garbled bytes) NEVER reaches the client.
+      const adminId = await makeAdmin('decrypt-fail');
+      const sid = await makeAdminSession(adminId);
+      const { customerId, primaryUserId } = await makeCustomer('decrypt-fail-co');
+      const created = await makeCredential({
+        customerId, customerUserId: primaryUserId,
+        provider: 'github', label: 'corruptable',
+        payload: { token: 'original' },
+      });
+
+      // Tamper with the ciphertext at the column level. AES-GCM auth tag
+      // verification will fail on read; we want to verify the service
+      // (a) does not return plaintext, (b) writes the forensic audit,
+      // (c) throws a typed DecryptFailureError.
+      await sql`
+        UPDATE credentials SET payload_ciphertext = ${Buffer.from('tamperedbytes-not-real-ciphertext')}
+         WHERE id = ${created.credentialId}::uuid
+      `.execute(db);
+
+      await expect(
+        credentialsService.view(db, {
+          adminId, sessionId: sid, credentialId: created.credentialId,
+        }, baseCtx()),
+      ).rejects.toThrow(/decrypt|integrity/i);
+
+      // Forensic audit IS written (operator-side stream, not customer-visible).
+      const forensic = await sql`
+        SELECT actor_type, actor_id::text AS actor_id, target_type, target_id::text AS target_id,
+               metadata, visible_to_customer
+          FROM audit_log
+         WHERE action = 'credential.decrypt_failure' AND metadata->>'tag' = ${tag}
+      `.execute(db);
+      expect(forensic.rows).toHaveLength(1);
+      const f = forensic.rows[0];
+      expect(f.actor_type).toBe('admin');
+      expect(f.actor_id).toBe(adminId);
+      expect(f.target_type).toBe('credential');
+      expect(f.target_id).toBe(created.credentialId);
+      // Operator-forensic: NOT visible to the customer activity feed.
+      expect(f.visible_to_customer).toBe(false);
+      expect(f.metadata.customerId).toBe(customerId);
+
+      // No credential.viewed audit was written (the corrupt-vault view
+      // path MUST NOT count toward the audit-visible-to-customer trust
+      // contract — the customer was never shown anything).
+      const viewed = await sql`
+        SELECT count(*)::int AS c FROM audit_log
+         WHERE action = 'credential.viewed' AND metadata->>'tag' = ${tag}
+      `.execute(db);
+      expect(viewed.rows[0].c).toBe(0);
+    });
+
     it('still requires kek (envelope encryption is enforced even if other guards pass)', async () => {
       const adminId = await makeAdmin('nokek');
       const sid = await makeAdminSession(adminId);

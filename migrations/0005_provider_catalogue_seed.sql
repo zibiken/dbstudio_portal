@@ -13,9 +13,12 @@
 -- catalogue's default_fields is purely a UX nicety to pre-fill the form
 -- when an admin types a known provider name.
 --
--- ON CONFLICT (slug) DO NOTHING: re-applying the seed (e.g. via tooling
--- after editing) is a no-op for slugs already present. Updates to existing
--- rows are intentionally manual to avoid clobbering operator edits.
+-- ON CONFLICT (slug) DO NOTHING: belt-and-suspenders. The migration runner
+-- already gates re-applies via the _migrations ledger, so a normal `runner`
+-- pass won't touch this twice. The ON CONFLICT covers the manual-psql case
+-- (someone copy-pasting this file straight into the DB during incident
+-- response) and protects operator edits to existing rows from being
+-- clobbered. Updates to existing rows remain intentionally manual.
 
 INSERT INTO provider_catalogue (slug, display_name, default_fields, active) VALUES
   ('aws', 'Amazon Web Services',

@@ -248,6 +248,50 @@ describe.skipIf(skip)('listCredentialActivityForCustomer (Task 7.5)', () => {
     expect(actions).toContain('credential.created');
   });
 
+  it('strips unknown metadata keys via an explicit allow-list (M7 review M1 — hardens against future audit-writer drift)', async () => {
+    // Synthesise an audit row whose metadata carries fields the
+    // activity-feed reader has never been asked to expose. The reader
+    // MUST NOT pass them through; even though current writers all stamp
+    // a known shape, "trust the writer" leaks under future drift.
+    const customer = await makeCustomer('allowlist');
+    const credentialId = '22222222-2222-7222-8222-222222222222';
+    await sql`
+      INSERT INTO audit_log (id, actor_type, actor_id, action, target_type, target_id, metadata, visible_to_customer)
+      VALUES (gen_random_uuid(), 'admin', NULL, 'credential.viewed',
+              'credential', ${credentialId}::uuid,
+              ${JSON.stringify({
+                tag,
+                customerId: customer.customerId,
+                provider: 'GitHub',
+                label: 'Allowlist test',
+                // The leak-bait fields:
+                adminEmail: 'leaked@example.com',
+                rawPayloadSnippet: 'gh_should_never_appear',
+                userAgentHash: 'should-not-render',
+                ip: '127.0.0.1',
+              })}::jsonb, TRUE)
+    `.execute(db);
+
+    const feed = await listCredentialActivityForCustomer(db, customer.customerId);
+    expect(feed).toHaveLength(1);
+    const row = feed[0];
+
+    // The known-good keys came through.
+    expect(row.label).toBe('Allowlist test');
+    expect(row.metadata.provider).toBe('GitHub');
+    expect(row.metadata.customerId).toBe(customer.customerId);
+
+    // The leak-bait keys did NOT.
+    expect(row.metadata).not.toHaveProperty('adminEmail');
+    expect(row.metadata).not.toHaveProperty('rawPayloadSnippet');
+    expect(row.metadata).not.toHaveProperty('userAgentHash');
+    expect(row.metadata).not.toHaveProperty('ip');
+
+    const json = JSON.stringify(row);
+    expect(json).not.toContain('leaked@example.com');
+    expect(json).not.toContain('gh_should_never_appear');
+  });
+
   it('respects the limit option (default 50; explicit limit clamps the slice)', async () => {
     const adminId = await makeAdmin('admin4', 'Op4');
     const { customerId, primaryUserId } = await makeCustomer('limit-co');

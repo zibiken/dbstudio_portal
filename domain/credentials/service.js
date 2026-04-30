@@ -52,6 +52,15 @@ export class StepUpRequiredError extends Error {
   }
 }
 
+export class DecryptFailureError extends Error {
+  constructor(message = 'credential decrypt failed; corrupt ciphertext or DEK mismatch') {
+    super(message);
+    this.name = 'DecryptFailureError';
+    this.code = 'DECRYPT_FAILURE';
+    this.status = 500;
+  }
+}
+
 function requireKek(ctx, callerName) {
   const kek = ctx?.kek;
   if (!Buffer.isBuffer(kek) || kek.length !== 32) {
@@ -270,6 +279,16 @@ export async function createByAdminFromRequest(db, {
   });
 }
 
+// Note (M7 review M4 — admin view of suspended-customer credentials):
+// `view` does NOT enforce customer.status='active'. This is intentional
+// for the admin path: an operator may need to read a customer's
+// credentials during forensic / dispute / off-boarding work even after
+// the customer has been suspended or archived. The trust contract still
+// holds — every view writes credential.viewed visible_to_customer=true,
+// so on customer reactivation they see the access in their activity feed.
+// The customer-side view path (M8 work) MUST add the active-status check;
+// a suspended customer reading their own credentials is a different
+// authorisation question.
 export async function view(db, {
   adminId,
   sessionId,
@@ -288,54 +307,110 @@ export async function view(db, {
     throw new StepUpRequiredError();
   }
 
-  return await db.transaction().execute(async (tx) => {
-    const cred = await repo.findCredentialById(tx, credentialId);
-    if (!cred) throw new CredentialNotFoundError(credentialId);
+  // Decrypt-failure handling (M7 review I1 — mirrors M6's documents
+  // file_integrity_failure). If unwrapDek/decrypt throws (corrupt
+  // ciphertext, DEK mismatch, GCM auth-tag failure), we MUST:
+  //   - NOT return plaintext (or anything that could be partial plaintext)
+  //   - write an operator-forensic audit OUTSIDE the rolled-back tx
+  //     (visible_to_customer=false; this is operator-side, not the
+  //     trust-contract stream — the customer was never shown anything)
+  //   - NOT refresh the vault-lock timer
+  //   - throw a typed DecryptFailureError so the route returns 500
+  //
+  // The audit-write itself may fail (DB unreachable, statement timeout).
+  // The throw happens unconditionally so corrupt bytes never reach the
+  // client even if we couldn't record the forensic trail.
+  try {
+    return await db.transaction().execute(async (tx) => {
+      const cred = await repo.findCredentialById(tx, credentialId);
+      if (!cred) throw new CredentialNotFoundError(credentialId);
 
-    const customer = await loadCustomerDekRow(tx, cred.customer_id);
-    const dek = unwrapDek({
-      ciphertext: customer.dek_ciphertext,
-      iv: customer.dek_iv,
-      tag: customer.dek_tag,
-    }, kek);
-    const plaintext = decrypt({
-      ciphertext: cred.payload_ciphertext,
-      iv: cred.payload_iv,
-      tag: cred.payload_tag,
-    }, dek);
-    const payload = JSON.parse(plaintext.toString('utf8'));
+      const customer = await loadCustomerDekRow(tx, cred.customer_id);
+      const dek = unwrapDek({
+        ciphertext: customer.dek_ciphertext,
+        iv: customer.dek_iv,
+        tag: customer.dek_tag,
+      }, kek);
+      let plaintext;
+      let payload;
+      try {
+        plaintext = decrypt({
+          ciphertext: cred.payload_ciphertext,
+          iv: cred.payload_iv,
+          tag: cred.payload_tag,
+        }, dek);
+        payload = JSON.parse(plaintext.toString('utf8'));
+      } catch (err) {
+        // Re-thrown below outside the tx so the forensic audit doesn't
+        // get rolled back with the failed decrypt.
+        const dfe = new DecryptFailureError();
+        dfe._forensic = { credentialId, customerId: cred.customer_id, provider: cred.provider, label: cred.label, cause: err.message };
+        throw dfe;
+      }
 
-    const a = baseAudit(ctx);
-    await writeAudit(tx, {
-      actorType: 'admin',
-      actorId: adminId,
-      action: 'credential.viewed',
-      targetType: 'credential',
-      targetId: credentialId,
-      metadata: {
-        ...a.metadata,
+      const a = baseAudit(ctx);
+      await writeAudit(tx, {
+        actorType: 'admin',
+        actorId: adminId,
+        action: 'credential.viewed',
+        targetType: 'credential',
+        targetId: credentialId,
+        metadata: {
+          ...a.metadata,
+          customerId: cred.customer_id,
+          provider: cred.provider,
+          label: cred.label,
+        },
+        visibleToCustomer: true,
+        ip: a.ip,
+        userAgentHash: a.userAgentHash,
+      });
+
+      // Slide the vault-lock window forward inside the same tx. If anything
+      // above this point throws, the timer is left untouched (rollback).
+      await unlockVault(tx, sessionId);
+
+      return {
+        credentialId,
         customerId: cred.customer_id,
         provider: cred.provider,
         label: cred.label,
-      },
-      visibleToCustomer: true,
-      ip: a.ip,
-      userAgentHash: a.userAgentHash,
+        needsUpdate: cred.needs_update,
+        payload,
+      };
     });
-
-    // Slide the vault-lock window forward inside the same tx. If anything
-    // above this point throws, the timer is left untouched (rollback).
-    await unlockVault(tx, sessionId);
-
-    return {
-      credentialId,
-      customerId: cred.customer_id,
-      provider: cred.provider,
-      label: cred.label,
-      needsUpdate: cred.needs_update,
-      payload,
-    };
-  });
+  } catch (err) {
+    if (err instanceof DecryptFailureError && err._forensic) {
+      const a = baseAudit(ctx);
+      try {
+        await writeAudit(db, {
+          actorType: 'admin',
+          actorId: adminId,
+          action: 'credential.decrypt_failure',
+          targetType: 'credential',
+          targetId: credentialId,
+          metadata: {
+            ...a.metadata,
+            customerId: err._forensic.customerId,
+            provider: err._forensic.provider,
+            label: err._forensic.label,
+            cause: err._forensic.cause,
+          },
+          visibleToCustomer: false,
+          ip: a.ip,
+          userAgentHash: a.userAgentHash,
+        });
+      } catch (auditErr) {
+        if (typeof ctx?.log?.error === 'function') {
+          ctx.log.error({ err: auditErr, credentialId },
+            'failed to write credential.decrypt_failure audit; throwing DecryptFailureError unconditionally');
+        }
+      }
+      // Strip the internal forensic payload before propagating.
+      delete err._forensic;
+    }
+    throw err;
+  }
 }
 
 export async function markNeedsUpdate(db, {

@@ -25,30 +25,28 @@ function makeCtx(req, session) {
   };
 }
 
-// Parses the indexed-form-field shape used by the new-request form:
-//   field_name[0], field_label[0], field_type[0], field_required[0],
-//   field_name[1], ...
-// Falls through with empty arrays — service.createByAdmin then rejects
+// Parses the per-row indexed shape from the new-request form (M7 review M2):
+//   field_count, field_name_<i>, field_label_<i>, field_type_<i>, field_required_<i>
+// Indexed (rather than parallel-array) so unchecked checkboxes don't desync
+// the required-flag from the name/label/type triple — checkboxes that
+// aren't ticked simply omit field_required_<i> from the body and we read
+// `required: false` for that row. field_count is a hidden input written
+// by the EJS so we can iterate without trusting form-key enumeration.
+// Returns [] for malformed/missing input; service.createByAdmin rejects
 // "fields must be a non-empty array" and the route re-renders with the
 // error.
 function parseFieldsFromBody(body) {
   const out = [];
-  const names = body.field_name;
-  if (!names) return out;
-  const arr = Array.isArray(names) ? names : [names];
-  for (let i = 0; i < arr.length; i += 1) {
-    const get = (k) => {
-      const v = body[k];
-      if (v === undefined || v === null) return undefined;
-      return Array.isArray(v) ? v[i] : (i === 0 ? v : undefined);
-    };
-    const name = (get('field_name') ?? '').toString().trim();
+  const count = Number.parseInt(body?.field_count ?? '', 10);
+  if (!Number.isFinite(count) || count < 1) return out;
+  for (let i = 0; i < count; i += 1) {
+    const name = (body[`field_name_${i}`] ?? '').toString().trim();
     if (!name) continue;
     out.push({
       name,
-      label: (get('field_label') ?? '').toString().trim(),
-      type: (get('field_type') ?? 'text').toString(),
-      required: get('field_required') === 'on' || get('field_required') === 'true',
+      label: (body[`field_label_${i}`] ?? '').toString().trim(),
+      type: (body[`field_type_${i}`] ?? 'text').toString(),
+      required: body[`field_required_${i}`] === 'on',
     });
   }
   return out;
