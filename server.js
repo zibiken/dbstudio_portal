@@ -116,16 +116,8 @@ export async function build({
   app.get('/apple-touch-icon.png', (_req, reply) => reply.sendFile('brand/apple-touch-icon.png'));
   app.get('/site.webmanifest', (_req, reply) => reply.sendFile('brand/site.webmanifest'));
 
-  app.get('/', async (req, reply) => {
-    const html = await ejs.renderFile(
-      path.join(__dirname, 'views/layouts/public.ejs'),
-      {
-        nonce: req.cspNonce,
-        title: 'DB Studio Portal',
-        body: await ejs.renderFile(path.join(__dirname, 'views/public/coming-soon.ejs'))
-      }
-    );
-    reply.type('text/html').send(html);
+  app.get('/', async (_req, reply) => {
+    reply.redirect('/login', 302);
   });
 
   registerWelcomeRoutes(app);
