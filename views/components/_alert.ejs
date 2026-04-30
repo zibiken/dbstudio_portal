@@ -1,4 +1,13 @@
-<%# stub — full implementation in T4 %>
-<div class="alert alert--<%= variant %><%= (typeof sticky !== 'undefined' && sticky) ? ' alert--sticky' : '' %>" role="<%= (variant === 'error' || variant === 'warn') ? 'alert' : 'status' %>">
-  <%- body %>
+<%# Usage:
+    <%- include('../components/_alert', { variant: 'info'|'success'|'warn'|'error',
+                                          body: '...HTML or text...',
+                                          sticky: false }) %>
+    body may contain HTML; callers must HTML-escape user input themselves. %>
+<%
+  var v = (typeof variant !== 'undefined') ? variant : 'info';
+  var role = (v === 'error' || v === 'warn') ? 'alert' : 'status';
+  var sticky = (typeof sticky !== 'undefined') && sticky;
+%>
+<div class="alert alert--<%= v %><%= sticky ? ' alert--sticky' : '' %>" role="<%= role %>">
+  <div class="alert__body"><%- body %></div>
 </div>

@@ -107,7 +107,90 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
   white-space: nowrap; border: 0;
 }
 
-/* ---- M11 component styles (filled in by Tasks 4–6) ---- */
+/* ---- M11 component styles ---- */
+
+/* _eyebrow uses the .eyebrow rule from the global resets — no extra style needed. */
+
+/* _alert */
+.alert {
+  display: flex;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius-card);
+  border-left: 4px solid var(--c-slate);
+  background: var(--bg-light-alt);
+  color: var(--fg-on-light);
+  margin-block: var(--s-3);
+}
+.alert--info    { border-left-color: var(--c-ice); }
+.alert--success { border-left-color: var(--c-success); }
+.alert--warn    { border-left-color: var(--c-warn); }
+.alert--error   { border-left-color: var(--c-error); }
+.alert--sticky  { position: sticky; top: 0; z-index: 50; }
+.alert__body    { flex: 1; }
+
+/* _button */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: var(--s-2);
+  font-family: var(--f-body);
+  font-weight: 600;
+  border-radius: var(--radius-btn);
+  border: 1px solid transparent;
+  transition: background var(--dur-micro) var(--ease-expo),
+              color      var(--dur-micro) var(--ease-expo),
+              border     var(--dur-micro) var(--ease-expo),
+              opacity    var(--dur-micro) var(--ease-expo);
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn--md { height: 40px; padding: 0 var(--s-4); font-size: var(--f-md); }
+.btn--sm { height: 32px; padding: 0 var(--s-3); font-size: var(--f-sm); }
+.btn--primary       { background: var(--c-moss); color: var(--c-ivory); border-color: var(--c-moss); }
+.btn--primary:hover { background: var(--c-gold); border-color: var(--c-gold); color: var(--c-obsidian); }
+.btn--secondary       { background: var(--c-ivory); color: var(--c-obsidian); border-color: var(--c-stone); }
+.btn--secondary:hover { background: var(--c-pearl); }
+.btn--ghost       { background: transparent; color: var(--c-obsidian); border-color: transparent; }
+.btn--ghost:hover { text-decoration: underline; text-underline-offset: 3px; }
+.btn--danger       { background: var(--c-error); color: var(--c-white); border-color: var(--c-error); }
+.btn--danger:hover { background: #c12626; border-color: #c12626; }
+.btn:disabled, .btn[aria-busy="true"] { opacity: 0.5; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  .btn { transition: none; }
+}
+
+/* _input */
+.input-field { display: flex; flex-direction: column; gap: var(--s-2); margin-block: var(--s-3); }
+.input-field__label   { font-size: var(--f-sm); font-weight: 600; color: var(--fg-on-light); }
+.input-field__control { position: relative; display: flex; align-items: stretch; }
+.input-field__control input {
+  flex: 1;
+  height: 40px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--c-stone);
+  border-radius: var(--radius-btn);
+  background: var(--c-white);
+  color: var(--fg-on-light);
+  font-family: var(--f-body);
+  font-size: var(--f-md);
+  transition: border var(--dur-micro) var(--ease-expo);
+}
+.input-field__control input:focus { outline: none; border-color: var(--c-moss); }
+.input-field__control input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.input-field--error .input-field__control input { border-color: var(--c-error); }
+.input-field__toggle {
+  position: absolute; right: var(--s-2); top: 50%; transform: translateY(-50%);
+  width: 28px; height: 28px;
+  border-radius: var(--radius-btn);
+  border: 1px solid var(--c-stone);
+  background: var(--c-ivory);
+  color: var(--fg-on-light);
+}
+.input-field__helper { font-size: var(--f-xs); color: var(--fg-on-light-muted); margin: 0; }
+.input-field__error  { font-size: var(--f-xs); color: var(--c-error); margin: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .input-field__control input { transition: none; }
+}
 
 @tailwind base;
 @tailwind components;

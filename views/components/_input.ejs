@@ -1,0 +1,49 @@
+<%# Usage:
+    <%- include('../components/_input', { name: 'email',
+                                          type: 'email',
+                                          label: 'Email',
+                                          value: '',
+                                          required: true,
+                                          autocomplete: 'username',
+                                          inputmode: null,
+                                          pattern: null,
+                                          minlength: null,
+                                          maxlength: null,
+                                          autofocus: false,
+                                          placeholder: null,
+                                          helper: null,
+                                          error: null,
+                                          showHideToggle: false }) %>
+%>
+<%
+  var t = (typeof type !== 'undefined') ? type : 'text';
+  var v = (typeof value !== 'undefined' && value !== null) ? value : '';
+  var req = (typeof required !== 'undefined') && required;
+  var hasErr = (typeof error !== 'undefined') && error;
+  var inputId = 'inp_' + name + '_' + Math.random().toString(36).slice(2, 8);
+%>
+<div class="input-field<%= hasErr ? ' input-field--error' : '' %>">
+  <label class="input-field__label" for="<%= inputId %>"><%= label %></label>
+  <div class="input-field__control">
+    <input id="<%= inputId %>" name="<%= name %>" type="<%= t %>" value="<%= v %>"
+      <% if (req) { %>required<% } %>
+      <% if (typeof autocomplete !== 'undefined' && autocomplete) { %>autocomplete="<%= autocomplete %>"<% } %>
+      <% if (typeof inputmode !== 'undefined' && inputmode) { %>inputmode="<%= inputmode %>"<% } %>
+      <% if (typeof pattern !== 'undefined' && pattern) { %>pattern="<%= pattern %>"<% } %>
+      <% if (typeof minlength !== 'undefined' && minlength !== null) { %>minlength="<%= minlength %>"<% } %>
+      <% if (typeof maxlength !== 'undefined' && maxlength !== null) { %>maxlength="<%= maxlength %>"<% } %>
+      <% if (typeof autofocus !== 'undefined' && autofocus) { %>autofocus<% } %>
+      <% if (typeof placeholder !== 'undefined' && placeholder) { %>placeholder="<%= placeholder %>"<% } %>
+      <% if (hasErr) { %>aria-invalid="true" aria-describedby="<%= inputId %>_err"<% } else if (typeof helper !== 'undefined' && helper) { %>aria-describedby="<%= inputId %>_help"<% } %>
+    >
+    <% if (t === 'password' && (typeof showHideToggle !== 'undefined') && showHideToggle) { %>
+      <button type="button" class="input-field__toggle" data-input="<%= inputId %>" aria-label="Show password" aria-pressed="false">&middot;</button>
+    <% } %>
+  </div>
+  <% if (typeof helper !== 'undefined' && helper && !hasErr) { %>
+    <p class="input-field__helper" id="<%= inputId %>_help"><%= helper %></p>
+  <% } %>
+  <% if (hasErr) { %>
+    <p class="input-field__error" id="<%= inputId %>_err" role="alert"><%= error %></p>
+  <% } %>
+</div>
