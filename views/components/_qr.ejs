@@ -1,0 +1,8 @@
+<%# QR partial. Locals: svg (precomputed SVG string from lib/qr.js renderTotpQrSvg), secret (manual base32 fallback). %>
+<div class="qr-block">
+  <div class="qr-block__svg"><%- svg %></div>
+  <p class="qr-block__fallback">
+    <span class="qr-block__fallback-label">Or enter this code manually</span>
+    <code class="qr-block__secret"><%= secret %></code>
+  </p>
+</div>
