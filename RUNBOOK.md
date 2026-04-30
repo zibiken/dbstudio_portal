@@ -106,48 +106,56 @@ bootstrap; both font files MUST be present before any NDA is generated
 in production, or the rendered PDF will fall back to the system serif
 for any character outside the present subset.
 
-### M8.7 — Multi-page NDA print design (deferred)
+### M8.7 — Multi-page NDA print design (landed)
 
-The verbatim legal template at 8.5pt body type currently overflows one
-A4 page when populated with realistic Spanish company data (razón social
-~50 chars, full address ~70 chars, representative title ~40 chars).
-The strict single-page guard in `pdf-service.js` correctly catches this
-(after the M8 review I3 fix it now identifies the offending field by
-name + length instead of reporting `field: null, length: 0`).
+The verbatim legal NDA template now renders across multiple A4 pages
+with disciplined page breaks (no clause splits across pages),
+`Página X de Y` page numbering bottom-center, a slim continuation
+header on every page, and two Yousign-anchor signature rectangles on
+the final page.
 
-Real-world NDAs commonly span 2–3 pages. To enable production multi-page
-rendering safely, a deliberate design + legal-counsel pass is required,
-not a removed guard. Acceptance criteria for the M8.7 follow-up:
+Spec: `docs/superpowers/specs/2026-04-30-m8-7-multi-page-nda-design.md`.
+Plan: `docs/superpowers/plans/2026-04-30-m8-7-multi-page-nda-implementation.md`.
 
-1. **Multi-page allowed**: drop the strict `scrollHeight > A4_HEIGHT_PX`
-   check from `pdf-service.js`; let Puppeteer render as many A4 pages
-   as the content needs.
-2. **No mid-clause splits**: every `.clausula`/`.section` block in
-   `templates/nda.html` carries `page-break-inside: avoid` + every
-   heading carries `page-break-after: avoid`.
-3. **Per-page signature affordance**: operator + legal counsel decide
-   between (a) initials line on every page footer + full signature on
-   the last page, or (b) running header listing the parties on every
-   page. Whichever — must be visible on every printed page so an
-   ink-and-paper sign-and-scan workflow has a place to mark each page.
-4. **Page numbering**: footer `Página X de Y` rendered via
-   `pdf({displayHeaderFooter: true, footerTemplate: '...'})` — Chromium
-   passes `pageNumber` and `totalPages` placeholders.
-5. **Proper A4 margins** restored: currently `@page { margin: 0 }`
-   which is fine for one tightly-laid page but unreadable across
-   multi-page when text runs to physical-paper edges. Legal counsel's
-   typical expectation is 25mm side / 20mm top / 20mm bottom.
-6. **Re-validation with legal counsel** before any production NDAs
-   are issued from the new template — the rendered HTML's sha256 will
-   change once any of the above lands, so every prior NDA's
-   `template_version_sha` will reference the OLD rendered HTML
-   (archive it under `templates/nda-<old-sha>.html` per the procedure
-   above before re-running `bootstrap-templates.sh`).
-7. The integration test at
-   `tests/integration/ndas/generate.test.js`'s "exchanges a real round-
-   trip" assertion should narrow back to "produces a real PDF" once
-   the redesign lands — the realistic fixture at the top of that test
-   IS the prod-shape data the new template must accommodate.
+Implementation summary:
+
+- `templates/nda.html`: `@page { margin: 20mm 18mm 20mm 25mm }`,
+  body 9.5pt + line-height 1.4, headings 10.5pt,
+  `page-break-inside: avoid` + `break-inside: avoid` on every numbered
+  clause + the parties block + the signature block. The signature
+  block is a flexbox row of two 78×40mm rectangles, each carrying
+  `data-yousign-anchor="provider"` / `"client"`. Verbatim legal text
+  body is byte-for-byte identical to its M8.2 source.
+- `pdf-service.js`: `displayHeaderFooter: true` with a continuation
+  `headerTemplate` ("Acuerdo de Confidencialidad — <razón social>")
+  + footer `Página <pageNumber> de <totalPages>`. Page-1 brand bar
+  inside the body provides the page-1 distinction; pages 2+ are clean.
+  Puppeteer 24 returns `Uint8Array` from `page.pdf()` — wrap as Buffer
+  before sha256 + base64 encode (latent bug fixed during M8.7 since
+  the new multi-page renders surfaced it).
+- `domain/ndas/service.js`: `NdaOverflowError` removed; the
+  `nda.draft_overflow` audit path is unreachable. Any pdf-service !ok
+  is a genuine `NdaPdfServiceError` (forensic audit
+  `nda.draft_failed`). Service passes `continuationTitle =
+  customer.razon_social` to the IPC call.
+- `lib/pdf-client.js`: default `timeoutMs` bumped from 30s → 60s for
+  multi-page + Chromium cold-start.
+
+To re-bootstrap the rendered template after any future edit to
+`templates/nda.html` (e.g. legal counsel update):
+
+```bash
+PREV_SHA="$(sudo sha256sum /var/lib/portal/templates/nda.html | awk '{print $1}')"
+sudo cp /var/lib/portal/templates/nda.html "/var/lib/portal/templates/nda-$PREV_SHA.html"
+sudo bash /opt/dbstudio_portal/scripts/bootstrap-templates.sh
+sudo systemctl restart portal-pdf.service
+```
+
+Yousign workflow: in Yousign's signature-box placement UI, click each
+of the two `data-yousign-anchor` rectangles in the rendered draft to
+anchor signature widgets — provider on the left, client on the right.
+Future API integration with Yousign can target the same anchors
+programmatically.
 
 ### M0-B-pdf-prereqs — Chromium under the systemd sandbox
 
