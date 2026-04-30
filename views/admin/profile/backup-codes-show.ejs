@@ -1,0 +1,14 @@
+<section class="admin-profile">
+  <header class="admin-section-header">
+    <h1>Your new backup codes</h1>
+    <p class="subtitle">Save these somewhere safe. We won't show them again.</p>
+  </header>
+  <article class="admin-card">
+    <ul class="backup-codes" aria-label="Backup codes">
+      <% codes.forEach(function (code) { %>
+        <li><code><%= code %></code></li>
+      <% }); %>
+    </ul>
+    <p><a href="/admin/profile">Done — back to profile</a></p>
+  </article>
+</section>

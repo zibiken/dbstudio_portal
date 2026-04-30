@@ -1,0 +1,12 @@
+<section class="public-card">
+  <h1>Revert email change</h1>
+  <p>You're about to revert a recent change of email address on a DB Studio admin account.</p>
+  <p class="muted">When you confirm, the previous email is restored and every active admin session is signed out.</p>
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="form-error" role="alert"><%= error %></p>
+  <% } %>
+  <form method="post" action="/admin/profile/email/revert/<%= token %>" class="public-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <button type="submit">Revert change</button>
+  </form>
+</section>

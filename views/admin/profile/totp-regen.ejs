@@ -1,0 +1,28 @@
+<section class="admin-profile">
+  <header class="admin-section-header">
+    <h1>Regenerate two-factor authentication</h1>
+  </header>
+  <article class="admin-card">
+    <h2>Step 1 — scan the new QR code</h2>
+    <p class="muted">Don't remove the existing DB Studio entry yet — we'll need a code from it in step 2.</p>
+    <p class="totp-secret"><code><%= newSecret %></code></p>
+    <p class="muted">otpauth URI: <code><%= otpauthUri %></code></p>
+  </article>
+  <article class="admin-card">
+    <h2>Step 2 — confirm the swap</h2>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <p class="form-error" role="alert"><%= error %></p>
+    <% } %>
+    <form method="post" action="/admin/profile/2fa" class="admin-form" autocomplete="off">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label for="current-code">Current 6-digit code</label>
+      <input id="current-code" name="current_code" type="text" inputmode="numeric"
+             pattern="[0-9]{6}" maxlength="6" required autocomplete="one-time-code">
+      <label for="new-code">New 6-digit code</label>
+      <input id="new-code" name="new_code" type="text" inputmode="numeric"
+             pattern="[0-9]{6}" maxlength="6" required autocomplete="one-time-code">
+      <button type="submit">Replace TOTP secret</button>
+      <a href="/admin/profile" class="cancel-link">Cancel</a>
+    </form>
+  </article>
+</section>

@@ -1,0 +1,58 @@
+<section class="admin-profile">
+  <header class="admin-section-header">
+    <h1>Active sessions</h1>
+  </header>
+  <% if (typeof error !== 'undefined' && error) { %>
+    <p class="form-error" role="alert"><%= error %></p>
+  <% } %>
+  <article class="admin-card">
+    <% if (!sessions.length) { %>
+      <p class="muted">No active sessions.</p>
+    <% } else { %>
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th scope="col">First seen</th>
+            <th scope="col">Last seen</th>
+            <th scope="col">IP range</th>
+            <th scope="col">2FA</th>
+            <th scope="col">This device</th>
+            <th scope="col">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% sessions.forEach(function (s) { %>
+            <tr>
+              <td><%= euDateTime(s.created_at) %></td>
+              <td><%= euDateTime(s.last_seen_at) %></td>
+              <td><code><%= s.ip_prefix ?? '—' %></code></td>
+              <td><%= s.step_up_at ? 'verified' : 'pending' %></td>
+              <td><%= s.is_current ? 'yes' : 'no' %></td>
+              <td>
+                <form method="post" action="/admin/profile/sessions/<%= encodeURIComponent(s.id) %>/revoke">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="link-button">
+                    <%= s.is_current ? 'Sign out this device' : 'Revoke' %>
+                  </button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </article>
+  <article class="admin-card">
+    <h2>Sign out everywhere</h2>
+    <form method="post" action="/admin/profile/sessions/revoke-all" class="admin-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit">Sign out other sessions</button>
+    </form>
+    <p class="muted">If you also want to sign out this browser:</p>
+    <form method="post" action="/admin/profile/sessions/revoke-all" class="admin-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="include_current" value="1">
+      <button type="submit">Sign out everywhere (including here)</button>
+    </form>
+  </article>
+</section>

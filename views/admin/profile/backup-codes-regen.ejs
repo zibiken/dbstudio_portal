@@ -1,0 +1,23 @@
+<section class="admin-profile">
+  <header class="admin-section-header">
+    <h1>Regenerate backup codes</h1>
+  </header>
+  <article class="admin-card">
+    <p class="muted">After regenerating, your old codes stop working immediately.</p>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <p class="form-error" role="alert"><%= error %></p>
+    <% } %>
+    <form method="post" action="/admin/profile/backup-codes" class="admin-form" autocomplete="off">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <p class="muted">Prove it's you with either a current TOTP code OR an unconsumed backup code.</p>
+      <label for="totp-code">6-digit TOTP code</label>
+      <input id="totp-code" name="totp_code" type="text" inputmode="numeric"
+             pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code">
+      <label for="backup-code">…or unconsumed backup code (NNNNN-NNNNN)</label>
+      <input id="backup-code" name="backup_code" type="text" pattern="[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}"
+             maxlength="11" autocomplete="off">
+      <button type="submit">Generate new codes</button>
+      <a href="/admin/profile" class="cancel-link">Cancel</a>
+    </form>
+  </article>
+</section>
