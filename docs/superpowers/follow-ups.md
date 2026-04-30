@@ -180,9 +180,12 @@ error vocabulary mapping `err.code` → customer-safe label.
 
 ### M7 (M9 review) — TOTP regen view shows the otpauth URI as text
 
-The QR is intentional design (server-side derive + render). In v1 the
-URI appears as a copy/paste line; v1.1 enhancement is to render an SVG
-QR server-side (no client JS, CSP-clean).
+**Status: re-classified as v1 / M11 work, no longer a v1.1 follow-up.**
+The bootstrap-admin onboarding attempt at the close of M10-C surfaced
+that the manual-only otpauth URI is unusable in practice — the operator
+refused to onboard against it. Server-side SVG QR rendering moves into
+M11 alongside the visual redesign. See
+`docs/superpowers/specs/2026-04-30-m11-visual-redesign-design.md`.
 
 ### M8 — i18n localisation already tracked above (the §11 line-item).
 
