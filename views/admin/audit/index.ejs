@@ -1,0 +1,85 @@
+<section class="admin-audit">
+  <header class="admin-section-header">
+    <h1>Audit log</h1>
+    <p class="subtitle">Append-only stream of every audit-relevant event.</p>
+  </header>
+
+  <article class="admin-card">
+    <form method="get" action="/admin/audit" class="admin-filter">
+      <label for="audit-filter">Filter</label>
+      <select id="audit-filter" name="filter">
+        <% filterOptions.forEach(function (opt) { %>
+          <option value="<%= opt.value %>" <%= opt.value === filter ? 'selected' : '' %>><%= opt.label %></option>
+        <% }); %>
+      </select>
+      <label for="audit-actor">Actor</label>
+      <select id="audit-actor" name="actor">
+        <% actorOptions.forEach(function (opt) { %>
+          <option value="<%= opt.value %>" <%= opt.value === actorType ? 'selected' : '' %>><%= opt.label %></option>
+        <% }); %>
+      </select>
+      <label for="audit-since">From</label>
+      <input id="audit-since" name="since" type="date" value="<%= since %>">
+      <label for="audit-until">To</label>
+      <input id="audit-until" name="until" type="date" value="<%= until %>">
+      <label for="audit-limit">Show</label>
+      <input id="audit-limit" name="limit" type="number" min="1" max="500" value="<%= limit %>">
+      <button type="submit">Apply</button>
+      <a href="/admin/audit" class="cancel-link">Reset</a>
+      <a href="/admin/audit-export.csv?<%= currentQueryString %>" class="cta-link">Export CSV</a>
+    </form>
+  </article>
+
+  <article class="admin-card">
+    <% if (!events.length) { %>
+      <p class="muted">No events match these filters.</p>
+    <% } else { %>
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th scope="col">When</th>
+            <th scope="col">Actor</th>
+            <th scope="col">Action</th>
+            <th scope="col">Target</th>
+            <th scope="col">Customer-visible</th>
+            <th scope="col">IP</th>
+            <th scope="col">Metadata</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% events.forEach(function (e) { %>
+            <tr>
+              <td><time datetime="<%= e.ts %>"><%= euDateTime(e.ts) %></time></td>
+              <td>
+                <%= e.actor_type %>
+                <% if (e.actor_email) { %>
+                  · <%= e.actor_name ?? '' %>
+                  <% if (e.actor_name) { %>(<%= e.actor_email %>)<% } else { %><%= e.actor_email %><% } %>
+                <% } %>
+              </td>
+              <td><code><%= e.action %></code></td>
+              <td>
+                <% if (e.target_type) { %>
+                  <%= e.target_type %><% if (e.target_id) { %>:<code><%= e.target_id %></code><% } %>
+                <% } %>
+              </td>
+              <td><%= e.visible_to_customer ? 'yes' : 'no' %></td>
+              <td><code><%= e.ip ?? '' %></code></td>
+              <td><code class="meta-json"><%= JSON.stringify(e.metadata) %></code></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+
+      <% if (nextCursor) {
+           const qs = currentQueryString
+             .split('&')
+             .filter(function (p) { return p && !p.startsWith('cursor='); })
+             .concat(['cursor=' + encodeURIComponent(nextCursor)])
+             .join('&');
+      %>
+        <p><a href="/admin/audit?<%= qs %>">Older →</a></p>
+      <% } %>
+    <% } %>
+  </article>
+</section>
