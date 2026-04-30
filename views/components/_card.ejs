@@ -1,0 +1,32 @@
+<%# Card. Locals: eyebrow, title, body (raw HTML), footerHref, footerLabel, count, latestAt, unread, modal, modalLabelledBy. %>
+<%
+  var modal = (typeof modal !== 'undefined') && modal;
+  var lab = (typeof modalLabelledBy !== 'undefined') ? modalLabelledBy : null;
+%>
+<article class="card<%= modal ? ' card--modal' : '' %>"
+  <% if (modal) { %>role="dialog" aria-modal="true"<% } %>
+  <% if (lab) { %>aria-labelledby="<%= lab %>"<% } %>>
+  <% if (typeof eyebrow !== 'undefined' && eyebrow) { %>
+    <p class="eyebrow card__eyebrow"><%= eyebrow %></p>
+  <% } %>
+  <% if (typeof title !== 'undefined' && title) { %>
+    <h2 class="card__title" <% if (lab) { %>id="<%= lab %>"<% } %>><%= title %></h2>
+  <% } %>
+  <% if (typeof count !== 'undefined' && count !== null) { %>
+    <p class="card__count">
+      <span class="card__count-value"><%= count %></span>
+      <% if (typeof latestAt !== 'undefined' && latestAt) { %>
+        <span class="card__count-meta">updated <%= latestAt %></span>
+      <% } %>
+      <% if (typeof unread !== 'undefined' && unread > 0) { %>
+        <span class="card__unread" aria-label="<%= unread %> unread"><%= unread %></span>
+      <% } %>
+    </p>
+  <% } %>
+  <% if (typeof body !== 'undefined' && body) { %>
+    <div class="card__body"><%- body %></div>
+  <% } %>
+  <% if (typeof footerHref !== 'undefined' && footerHref) { %>
+    <a class="card__footer" href="<%= footerHref %>"><%= footerLabel %></a>
+  <% } %>
+</article>

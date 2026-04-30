@@ -1,8 +1,4 @@
-<%# Usage:
-    <%- include('../components/_alert', { variant: 'info'|'success'|'warn'|'error',
-                                          body: '...HTML or text...',
-                                          sticky: false }) %>
-    body may contain HTML; callers must HTML-escape user input themselves. %>
+<%# Alert. Locals: variant (info|success|warn|error), body (raw HTML), sticky (bool). %>
 <%
   var v = (typeof variant !== 'undefined') ? variant : 'info';
   var role = (v === 'error' || v === 'warn') ? 'alert' : 'status';

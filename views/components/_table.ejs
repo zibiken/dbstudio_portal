@@ -1,0 +1,31 @@
+<%# Table. Locals: density (dense|medium), columns [{label,align}], rows [{cells:[raw HTML]}], emptyState. %>
+<%
+  var density = (typeof density !== 'undefined' && density) ? density : 'medium';
+%>
+<% if (typeof rows !== 'undefined' && rows && rows.length) { %>
+  <div class="table-wrap">
+    <table class="data-table data-table--<%= density %>">
+      <thead>
+        <tr>
+          <% columns.forEach(function(c) { %>
+            <th scope="col" class="data-table__th data-table__th--<%= c.align || 'left' %>"><%= c.label %></th>
+          <% }) %>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(function(r) { %>
+          <tr>
+            <% r.cells.forEach(function(cell, i) {
+                 var align = columns[i] && columns[i].align ? columns[i].align : 'left'; %>
+              <td class="data-table__td data-table__td--<%= align %>"><%- cell %></td>
+            <% }) %>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+<% } else { %>
+  <div class="data-table__empty">
+    <p><%= (typeof emptyState !== 'undefined' && emptyState) ? emptyState : 'Nothing here yet.' %></p>
+  </div>
+<% } %>

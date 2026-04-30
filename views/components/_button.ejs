@@ -1,13 +1,4 @@
-<%# Usage:
-    <%- include('../components/_button', { variant: 'primary'|'secondary'|'ghost'|'danger',
-                                           size: 'md'|'sm',
-                                           type: 'submit'|'button',
-                                           label: 'Sign in',
-                                           href: null,
-                                           name: null, value: null,
-                                           disabled: false,
-                                           busy: false }) %>
-%>
+<%# Button. Locals: variant (primary|secondary|ghost|danger), size (md|sm), type, label, href, name, value, disabled, busy. %>
 <%
   var v = (typeof variant !== 'undefined') ? variant : 'primary';
   var s = (typeof size !== 'undefined') ? size : 'md';

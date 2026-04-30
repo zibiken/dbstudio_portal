@@ -1,6 +1,16 @@
-<%# stub — full implementation in T5 %>
-<footer class="site-footer <%= (typeof variant !== 'undefined' && variant === 'dark') ? 'section--dark' : 'section--light' %>">
-  <div class="container">
-    <small>&copy; DB Studio &middot; <a href="https://dbstudio.one/privacy">privacy</a> &middot; <a href="https://dbstudio.one/terms">terms</a></small>
+<%# Footer. Locals: variant (dark|light). Reads portalVersion from defaultContext. %>
+<%
+  var v = (typeof variant !== 'undefined') ? variant : 'light';
+  var ver = (typeof portalVersion !== 'undefined' && portalVersion) ? portalVersion : '';
+%>
+<footer class="site-footer site-footer--<%= v %>">
+  <div class="container site-footer__inner">
+    <p class="site-footer__brand">&copy; DB Studio</p>
+    <ul class="site-footer__links">
+      <li><a href="https://dbstudio.one/privacy">Privacy</a></li>
+      <li><a href="https://dbstudio.one/terms">Terms</a></li>
+      <li><a href="https://dbstudio.one">dbstudio.one</a></li>
+    </ul>
+    <% if (ver) { %><p class="site-footer__version eyebrow">portal <%= ver %></p><% } %>
   </div>
 </footer>

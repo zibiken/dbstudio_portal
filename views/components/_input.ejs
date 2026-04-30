@@ -1,20 +1,4 @@
-<%# Usage:
-    <%- include('../components/_input', { name: 'email',
-                                          type: 'email',
-                                          label: 'Email',
-                                          value: '',
-                                          required: true,
-                                          autocomplete: 'username',
-                                          inputmode: null,
-                                          pattern: null,
-                                          minlength: null,
-                                          maxlength: null,
-                                          autofocus: false,
-                                          placeholder: null,
-                                          helper: null,
-                                          error: null,
-                                          showHideToggle: false }) %>
-%>
+<%# Input. Locals: name, type, label, value, required, autocomplete, inputmode, pattern, minlength, maxlength, autofocus, placeholder, helper, error, showHideToggle. %>
 <%
   var t = (typeof type !== 'undefined') ? type : 'text';
   var v = (typeof value !== 'undefined' && value !== null) ? value : '';

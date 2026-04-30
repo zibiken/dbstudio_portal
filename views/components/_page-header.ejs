@@ -1,0 +1,13 @@
+<%# Page header. Locals: eyebrow, title, subtitle, actions (raw HTML). %>
+<header class="page-header">
+  <% if (typeof eyebrow !== 'undefined' && eyebrow) { %>
+    <p class="eyebrow"><%= eyebrow %></p>
+  <% } %>
+  <h1 class="page-header__title"><%= title %></h1>
+  <% if (typeof subtitle !== 'undefined' && subtitle) { %>
+    <p class="page-header__subtitle"><%= subtitle %></p>
+  <% } %>
+  <% if (typeof actions !== 'undefined' && actions) { %>
+    <div class="page-header__actions"><%- actions %></div>
+  <% } %>
+</header>

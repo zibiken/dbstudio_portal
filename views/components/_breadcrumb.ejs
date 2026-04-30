@@ -1,0 +1,17 @@
+<%# Breadcrumb. Locals: trail [{label, href}] — null href = current crumb. %>
+<% if (trail && trail.length > 1) { %>
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <ol>
+      <% trail.forEach(function(c, i) { %>
+        <li>
+          <% if (c.href && i < trail.length - 1) { %>
+            <a href="<%= c.href %>"><%= c.label %></a>
+            <span class="breadcrumb__sep" aria-hidden="true">&rsaquo;</span>
+          <% } else { %>
+            <span aria-current="page"><%= c.label %></span>
+          <% } %>
+        </li>
+      <% }) %>
+    </ol>
+  </nav>
+<% } %>
