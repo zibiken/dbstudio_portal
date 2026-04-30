@@ -9,7 +9,20 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 function notFound(req, reply) {
   reply.code(404);
-  return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+  return renderAdmin(req, reply, 'admin/customers/not-found', {
+    title: 'Not found',
+    activeNav: 'customers',
+    mainWidth: 'content',
+    sectionLabel: 'ADMIN · CUSTOMERS',
+  });
+}
+
+function customerChrome(customer, activeTab) {
+  return {
+    activeNav: 'customers',
+    sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
+    activeTab,
+  };
 }
 
 function ctxFromSession(app, req, session) {
@@ -38,6 +51,8 @@ export function registerAdminNdasRoutes(app) {
       title: `NDAs · ${customer.razon_social}`,
       customer,
       rows,
+      mainWidth: 'wide',
+      ...customerChrome(customer, 'ndas'),
     });
   });
 
@@ -60,6 +75,8 @@ export function registerAdminNdasRoutes(app) {
       missingFields,
       csrfToken: await reply.generateCsrf(),
       error: null,
+      mainWidth: 'content',
+      ...customerChrome(customer, 'ndas'),
     });
   });
 
@@ -88,6 +105,8 @@ export function registerAdminNdasRoutes(app) {
           missingFields: computeMissingNdaFields(customer),
           csrfToken: await reply.generateCsrf(),
           error: 'Pick a project.',
+          mainWidth: 'content',
+          ...customerChrome(customer, 'ndas'),
         });
       }
 
@@ -110,6 +129,8 @@ export function registerAdminNdasRoutes(app) {
           missingFields: computeMissingNdaFields(customer),
           csrfToken: await reply.generateCsrf(),
           error: err.message,
+          mainWidth: 'content',
+          ...customerChrome(customer, 'ndas'),
         });
       }
     },
@@ -207,6 +228,8 @@ export function registerAdminNdasRoutes(app) {
       nda,
       customer,
       csrfToken: await reply.generateCsrf(),
+      mainWidth: 'content',
+      ...customerChrome(customer, 'ndas'),
     });
   });
 }
@@ -223,6 +246,8 @@ async function renderDetailWithError(req, reply, app, ndaId, error) {
     customer,
     csrfToken: await reply.generateCsrf(),
     error,
+    mainWidth: 'content',
+    ...customerChrome(customer, 'ndas'),
   });
 }
 

@@ -1,111 +1,126 @@
-<section class="admin-nda-detail">
-  <header class="admin-section-header">
-    <h1>NDA · <%= customer.razon_social %></h1>
-    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>/ndas">Back</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'NDA',
+  subtitle: customer.razon_social
+}) %>
 
-  <% if (typeof error !== 'undefined' && error) { %>
-    <p class="error" role="alert"><%= error %></p>
-  <% } %>
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'ndas' }) %>
 
-  <table class="meta-table">
-    <tr><th>Customer</th><td><a href="/admin/customers/<%= customer.id %>"><%= customer.razon_social %></a></td></tr>
-    <tr><th>Project</th><td><%= nda.project_id %></td></tr>
-    <tr><th>Generated</th><td><%= euDateTime(nda.generated_at) %></td></tr>
-    <tr><th>Template version sha</th><td><code><%= nda.template_version_sha || '' %></code></td></tr>
-  </table>
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
 
-  <h2>Documents</h2>
-  <table class="data-table">
-    <tr>
-      <th>Draft (admin-only)</th>
-      <td>
-        <a href="/admin/documents/<%= nda.draft_document_id %>/download">
-          <%= nda.draft_filename %> (<%= Math.round((Number(nda.draft_size_bytes)/1024)) %> KB)
+<div class="card">
+  <h2 class="card__title">Metadata</h2>
+  <dl class="kv">
+    <dt>Customer</dt>             <dd><a href="/admin/customers/<%= customer.id %>"><%= customer.razon_social %></a></dd>
+    <dt>Project</dt>              <dd><%= nda.project_id %></dd>
+    <dt>Generated</dt>            <dd><%= euDateTime(nda.generated_at) %></dd>
+    <dt>Template version sha</dt> <dd><code class="qr-block__secret"><%= nda.template_version_sha || '' %></code></dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h2 class="card__title">Documents</h2>
+  <dl class="kv">
+    <dt>Draft (admin-only)</dt>
+    <dd>
+      <a href="/admin/documents/<%= nda.draft_document_id %>/download">
+        <%= nda.draft_filename %> (<%= Math.round((Number(nda.draft_size_bytes)/1024)) %> KB)
+      </a>
+    </dd>
+    <dt>Signed</dt>
+    <dd>
+      <% if (nda.signed_document_id) { %>
+        <a href="/admin/documents/<%= nda.signed_document_id %>/download">
+          <%= nda.signed_filename %> (<%= Math.round((Number(nda.signed_size_bytes)/1024)) %> KB)
         </a>
-      </td>
-    </tr>
-    <tr>
-      <th>Signed</th>
-      <td>
-        <% if (nda.signed_document_id) { %>
-          <a href="/admin/documents/<%= nda.signed_document_id %>/download">
-            <%= nda.signed_filename %> (<%= Math.round((Number(nda.signed_size_bytes)/1024)) %> KB)
-          </a>
-        <% } else { %>
-          <span class="muted">Not uploaded yet.</span>
-        <% } %>
-      </td>
-    </tr>
-    <tr>
-      <th>Audit-trail</th>
-      <td>
-        <% if (nda.audit_document_id) { %>
-          <a href="/admin/documents/<%= nda.audit_document_id %>/download">
-            <%= nda.audit_filename %> (<%= Math.round((Number(nda.audit_size_bytes)/1024)) %> KB)
-          </a>
-        <% } else { %>
-          <span class="muted">—</span>
-        <% } %>
-      </td>
-    </tr>
-  </table>
+      <% } else { %>
+        <span>Not uploaded yet.</span>
+      <% } %>
+    </dd>
+    <dt>Audit-trail</dt>
+    <dd>
+      <% if (nda.audit_document_id) { %>
+        <a href="/admin/documents/<%= nda.audit_document_id %>/download">
+          <%= nda.audit_filename %> (<%= Math.round((Number(nda.audit_size_bytes)/1024)) %> KB)
+        </a>
+      <% } else { %>
+        <span>—</span>
+      <% } %>
+    </dd>
+  </dl>
+</div>
 
-  <% if (!nda.signed_document_id) { %>
-    <h2>Upload signed NDA</h2>
-    <p class="muted">After both parties sign on the secure signing platform, upload the
-      finished PDF here. The customer will be able to download it from their portal.</p>
+<% if (!nda.signed_document_id) { %>
+  <div class="card">
+    <h2 class="card__title">Upload signed NDA</h2>
+    <p>After both parties sign on the secure signing platform, upload the finished PDF here. The customer will be able to download it from their portal.</p>
     <form id="signed-form" method="post"
           action="/admin/ndas/<%= nda.id %>/upload-signed"
           enctype="multipart/form-data"
           data-csrf="<%= csrfToken %>"
-          autocomplete="off">
+          autocomplete="off"
+          class="form-stack">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <label>Signed PDF
-        <input type="file" name="file" accept="application/pdf" required>
-      </label>
-      <button type="submit" class="btn btn-primary">Upload signed NDA</button>
+      <div class="input-field">
+        <label class="input-field__label" for="signed-file">Signed PDF</label>
+        <div class="input-field__control">
+          <input id="signed-file" type="file" name="file" accept="application/pdf" required>
+        </div>
+      </div>
+      <div class="form-actions">
+        <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Upload signed NDA' }) %>
+      </div>
     </form>
-  <% } %>
+  </div>
+<% } %>
 
-  <% if (nda.signed_document_id && !nda.audit_document_id) { %>
-    <h2>Upload audit-trail (optional)</h2>
-    <p class="muted">Audit-trail PDF from the signing platform. Customer-visible.</p>
+<% if (nda.signed_document_id && !nda.audit_document_id) { %>
+  <div class="card">
+    <h2 class="card__title">Upload audit-trail (optional)</h2>
+    <p>Audit-trail PDF from the signing platform. Customer-visible.</p>
     <form id="audit-form" method="post"
           action="/admin/ndas/<%= nda.id %>/upload-audit"
           enctype="multipart/form-data"
           data-csrf="<%= csrfToken %>"
-          autocomplete="off">
+          autocomplete="off"
+          class="form-stack">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <label>Audit-trail PDF
-        <input type="file" name="file" accept="application/pdf" required>
-      </label>
-      <button type="submit" class="btn btn-primary">Upload audit-trail</button>
+      <div class="input-field">
+        <label class="input-field__label" for="audit-file">Audit-trail PDF</label>
+        <div class="input-field__control">
+          <input id="audit-file" type="file" name="file" accept="application/pdf" required>
+        </div>
+      </div>
+      <div class="form-actions">
+        <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Upload audit-trail' }) %>
+      </div>
     </form>
-  <% } %>
+  </div>
+<% } %>
 
-  <% if (!nda.signed_document_id || !nda.audit_document_id) { %>
-    <script nonce="<%= nonce %>">
-      (function () {
-        for (var formId of ['signed-form', 'audit-form']) {
-          var f = document.getElementById(formId);
-          if (!f) continue;
-          f.addEventListener('submit', function (e) {
-            e.preventDefault();
-            var fd = new FormData(this);
-            fetch(this.action, {
-              method: 'POST',
-              body: fd,
-              headers: { 'x-csrf-token': this.dataset.csrf },
-              credentials: 'same-origin',
-              redirect: 'follow',
-            }).then(function (r) {
-              if (r.redirected) window.location.href = r.url;
-              else r.text().then(function (t) { document.body.innerHTML = t; });
-            }).catch(function () { alert('Upload failed.'); });
-          });
-        }
-      })();
-    </script>
-  <% } %>
-</section>
+<% if (!nda.signed_document_id || !nda.audit_document_id) { %>
+  <script nonce="<%= nonce %>">
+    (function () {
+      for (var formId of ['signed-form', 'audit-form']) {
+        var f = document.getElementById(formId);
+        if (!f) continue;
+        f.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var fd = new FormData(this);
+          fetch(this.action, {
+            method: 'POST',
+            body: fd,
+            headers: { 'x-csrf-token': this.dataset.csrf },
+            credentials: 'same-origin',
+            redirect: 'follow',
+          }).then(function (r) {
+            if (r.redirected) window.location.href = r.url;
+            else r.text().then(function (t) { document.body.innerHTML = t; });
+          }).catch(function () { alert('Upload failed.'); });
+        });
+      }
+    })();
+  </script>
+<% } %>
