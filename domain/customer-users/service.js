@@ -2,8 +2,13 @@ import { randomBytes, createHash } from 'node:crypto';
 import { sql } from 'kysely';
 import { v7 as uuidv7 } from 'uuid';
 import { writeAudit } from '../../lib/audit.js';
+import {
+  hashPassword, verifyPassword, hibpHasBeenPwned as defaultHibp, SENTINEL_HASH,
+} from '../../lib/crypto/hash.js';
 import { enqueue as enqueueEmail } from '../email-outbox/repo.js';
 import { findCustomerUserById } from './repo.js';
+
+export const PASSWORD_MIN_LENGTH = 12;
 
 const NAME_MAX = 256;
 
@@ -283,6 +288,68 @@ export async function verifyEmailChange(db, { token }, ctx = {}) {
       revertExpiresAt,
     };
   });
+}
+
+export async function changePassword(
+  db,
+  { customerUserId, currentPassword, newPassword, currentSessionId = null },
+  ctx = {},
+) {
+  if (typeof newPassword !== 'string' || newPassword.length < PASSWORD_MIN_LENGTH) {
+    throw new Error(`changePassword: new password must be at least ${PASSWORD_MIN_LENGTH} characters`);
+  }
+  if (typeof currentPassword !== 'string' || currentPassword.length === 0) {
+    throw new Error('changePassword: current password is required');
+  }
+  if (newPassword === currentPassword) {
+    throw new Error('changePassword: new password must be different from current password');
+  }
+
+  // Load row for verify; if missing/no-pw, run a sentinel verify so the
+  // wall-clock cost is constant regardless of branch (mirrors admins.verifyLogin).
+  const userR = await sql`
+    SELECT id::text AS id, customer_id::text AS customer_id, password_hash
+      FROM customer_users WHERE id = ${customerUserId}::uuid
+  `.execute(db);
+  const user = userR.rows[0] ?? null;
+  const ok = await verifyPassword(user?.password_hash ?? SENTINEL_HASH, currentPassword);
+  if (!ok || !user?.password_hash) {
+    await audit(db, ctx, 'customer_user.password_change_failed', {
+      customerUserId,
+      customerId: user?.customer_id ?? null,
+      visibleToCustomer: true,
+    });
+    throw new Error('changePassword: current password did not match');
+  }
+
+  const hibpFn = ctx.hibpHasBeenPwned ?? defaultHibp;
+  if (await hibpFn(newPassword)) {
+    throw new Error('changePassword: new password appears in a known data breach (HIBP)');
+  }
+
+  const newHash = await hashPassword(newPassword);
+
+  await db.transaction().execute(async (tx) => {
+    await sql`UPDATE customer_users SET password_hash = ${newHash} WHERE id = ${customerUserId}::uuid`.execute(tx);
+    // Revoke every other session — common best practice on password change.
+    // The current session stays alive so the in-flight browser doesn't
+    // get bounced in the middle of the form submission.
+    await sql`
+      UPDATE sessions
+         SET revoked_at = now()
+       WHERE user_type = 'customer'
+         AND user_id = ${customerUserId}::uuid
+         AND revoked_at IS NULL
+         AND id <> COALESCE(${currentSessionId}, '')
+    `.execute(tx);
+    await audit(tx, ctx, 'customer_user.password_changed', {
+      customerUserId,
+      customerId: user.customer_id,
+      visibleToCustomer: true,
+    });
+  });
+
+  return { customerUserId, customerId: user.customer_id };
 }
 
 export async function revertEmailChange(db, { token }, ctx = {}) {

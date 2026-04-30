@@ -84,6 +84,34 @@ export function registerCustomerProfileRoutes(app) {
     reply.redirect('/customer/profile', 302);
   });
 
+  app.post('/customer/profile/password', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    const currentPassword = typeof req.body?.current_password === 'string' ? req.body.current_password : '';
+    const newPassword = typeof req.body?.new_password === 'string' ? req.body.new_password : '';
+
+    try {
+      await customerUsersService.changePassword(
+        app.db,
+        {
+          customerUserId: session.user_id,
+          currentPassword,
+          newPassword,
+          currentSessionId: session.id,
+        },
+        { ...makeCtx(req, session, app), hibpHasBeenPwned: app.hibpHasBeenPwned },
+      );
+    } catch (err) {
+      reply.code(422);
+      return renderIndex(req, reply, app, session, {
+        passwordError: /breach|compromised|pwned/i.test(err.message)
+          ? 'That password appears in a known data breach. Choose a different one.'
+          : err.message,
+      });
+    }
+    reply.redirect('/customer/profile?password_changed=1', 302);
+  });
+
   app.post('/customer/profile/email', { preHandler: app.csrfProtection }, async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;

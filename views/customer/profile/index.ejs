@@ -47,7 +47,28 @@
   </article>
 
   <article class="customer-card">
-    <h2>Security</h2>
-    <p class="placeholder-note">Password change, two-factor regeneration, backup codes, and active-session management ship in this M9 release.</p>
+    <h2>Password</h2>
+    <p class="muted">Changing your password signs out every other browser. Your current
+      session stays alive so you don't get bounced mid-form.</p>
+    <% if (typeof passwordError !== 'undefined' && passwordError) { %>
+      <p class="form-error" role="alert"><%= passwordError %></p>
+    <% } %>
+    <form method="post" action="/customer/profile/password" class="customer-form" autocomplete="off">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label for="current-password">Current password</label>
+      <input id="current-password" name="current_password" type="password" required
+             autocomplete="current-password" minlength="1">
+      <label for="new-password">New password</label>
+      <input id="new-password" name="new_password" type="password" required
+             autocomplete="new-password" minlength="12">
+      <p class="muted">Minimum 12 characters. We screen new passwords against the
+        Have I Been Pwned breach corpus.</p>
+      <button type="submit">Change password</button>
+    </form>
+  </article>
+
+  <article class="customer-card">
+    <h2>Two-factor authentication</h2>
+    <p class="placeholder-note">Two-factor regeneration, backup codes, and active-session management ship in subsequent M9 sub-tasks.</p>
   </article>
 </section>
