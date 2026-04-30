@@ -39,6 +39,7 @@ import { registerCustomerCredentialRequestsRoutes } from './routes/customer/cred
 import { registerAdminInvoicesRoutes } from './routes/admin/invoices.js';
 import { registerCustomerInvoicesRoutes } from './routes/customer/invoices.js';
 import { registerAdminNdasRoutes } from './routes/admin/ndas.js';
+import { registerCustomerNdasRoutes } from './routes/customer/ndas.js';
 import { registerPublicFilesRoutes } from './routes/public/files.js';
 import { MAX_FILE_BYTES } from './lib/files.js';
 
@@ -139,6 +140,7 @@ export async function build({
   registerAdminInvoicesRoutes(app);
   registerCustomerInvoicesRoutes(app);
   registerAdminNdasRoutes(app);
+  registerCustomerNdasRoutes(app);
   registerPublicFilesRoutes(app);
 
   app.addHook('onClose', async () => { await db.destroy(); });

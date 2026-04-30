@@ -1,0 +1,43 @@
+<section class="customer-ndas">
+  <header class="customer-section-header">
+    <h1>NDAs</h1>
+  </header>
+
+  <% if (rows.length === 0) { %>
+    <p class="muted">You don't have any signed NDAs yet.</p>
+  <% } else { %>
+    <p class="muted">These are the NDAs you have signed with DB Studio. Each row
+      links to the signed PDF and, when present, the audit-trail document from
+      the signing platform.</p>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Project</th>
+          <th>Generated</th>
+          <th>Template version</th>
+          <th>Signed PDF</th>
+          <th>Audit-trail</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const r of rows) { %>
+          <tr>
+            <td><%= r.project_name %></td>
+            <td><%= euDate(r.generated_at) %></td>
+            <td><code><%= r.template_version_sha.slice(0, 8) %></code></td>
+            <td>
+              <a href="/customer/documents/<%= r.signed_document_id %>/download">Download</a>
+            </td>
+            <td>
+              <% if (r.audit_document_id) { %>
+                <a href="/customer/documents/<%= r.audit_document_id %>/download">Download</a>
+              <% } else { %>
+                <span class="muted">—</span>
+              <% } %>
+            </td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+  <% } %>
+</section>
