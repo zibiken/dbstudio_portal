@@ -139,6 +139,74 @@ export function registerCustomerProfileRoutes(app) {
     reply.redirect('/customer/profile?totp_regenerated=1', 302);
   });
 
+  app.get('/customer/profile/sessions', async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    const profile = await loadProfile(app, session);
+    if (!profile) return reply.redirect('/', 302);
+    const sessions = await customerUsersService.listSessions(
+      app.db,
+      { customerUserId: session.user_id, currentSessionId: session.id },
+    );
+    return renderCustomer(req, reply, 'customer/profile/sessions', {
+      title: 'Active sessions',
+      profile,
+      sessions,
+      csrfToken: await reply.generateCsrf(),
+    });
+  });
+
+  app.post('/customer/profile/sessions/:sid/revoke', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    const target = req.params?.sid;
+    try {
+      await customerUsersService.revokeSession(
+        app.db,
+        { customerUserId: session.user_id, sessionId: target },
+        makeCtx(req, session, app),
+      );
+    } catch {
+      // Either not the user's session or already revoked — surface as 404
+      // rather than leaking which.
+      reply.code(404);
+      return renderCustomer(req, reply, 'customer/profile/sessions', {
+        title: 'Active sessions',
+        profile: await loadProfile(app, session),
+        sessions: await customerUsersService.listSessions(
+          app.db,
+          { customerUserId: session.user_id, currentSessionId: session.id },
+        ),
+        csrfToken: await reply.generateCsrf(),
+        error: 'That session is no longer active.',
+      });
+    }
+    if (target === session.id) {
+      clearSessionCookie(reply, app.env);
+      return reply.redirect('/', 302);
+    }
+    reply.redirect('/customer/profile/sessions', 302);
+  });
+
+  app.post('/customer/profile/sessions/revoke-all', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    const includeCurrent = req.body?.include_current === '1' || req.body?.include_current === 'on';
+    await customerUsersService.revokeAllSessions(
+      app.db,
+      {
+        customerUserId: session.user_id,
+        exceptSessionId: includeCurrent ? null : session.id,
+      },
+      makeCtx(req, session, app),
+    );
+    if (includeCurrent) {
+      clearSessionCookie(reply, app.env);
+      return reply.redirect('/', 302);
+    }
+    reply.redirect('/customer/profile/sessions', 302);
+  });
+
   app.get('/customer/profile/backup-codes', async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;

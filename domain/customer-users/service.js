@@ -437,6 +437,98 @@ export async function regenBackupCodes(
   });
 }
 
+function ipPrefix(ip) {
+  if (!ip || typeof ip !== 'string') return null;
+  const v4 = ip.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}$/);
+  if (v4) return `${v4[1]}.0/24`;
+  const v6 = ip.match(/^([0-9a-f:]+):[0-9a-f]+$/i);
+  if (v6) return `${v6[1]}::/64`;
+  return ip;
+}
+
+export async function listSessions(db, { customerUserId, currentSessionId = null }) {
+  const r = await sql`
+    SELECT id,
+           created_at,
+           last_seen_at,
+           absolute_expires_at,
+           step_up_at,
+           device_fingerprint,
+           host(ip) AS ip
+      FROM sessions
+     WHERE user_type = 'customer'
+       AND user_id = ${customerUserId}::uuid
+       AND revoked_at IS NULL
+       AND absolute_expires_at > now()
+     ORDER BY last_seen_at DESC
+  `.execute(db);
+  return r.rows.map((row) => ({
+    id: row.id,
+    created_at: row.created_at,
+    last_seen_at: row.last_seen_at,
+    absolute_expires_at: row.absolute_expires_at,
+    step_up_at: row.step_up_at,
+    device_fingerprint: row.device_fingerprint,
+    ip_prefix: ipPrefix(row.ip),
+    is_current: currentSessionId !== null && row.id === currentSessionId,
+  }));
+}
+
+export async function revokeSession(db, { customerUserId, sessionId }, ctx = {}) {
+  return await db.transaction().execute(async (tx) => {
+    const r = await sql`
+      UPDATE sessions
+         SET revoked_at = now()
+       WHERE id = ${sessionId}
+         AND user_type = 'customer'
+         AND user_id = ${customerUserId}::uuid
+         AND revoked_at IS NULL
+       RETURNING id
+    `.execute(tx);
+    if (r.rows.length === 0) {
+      throw new Error('revokeSession: session not found for this user');
+    }
+    const userR = await sql`
+      SELECT customer_id::text AS customer_id FROM customer_users WHERE id = ${customerUserId}::uuid
+    `.execute(tx);
+    await audit(tx, ctx, 'customer_user.session_revoked', {
+      customerUserId,
+      customerId: userR.rows[0]?.customer_id ?? null,
+      visibleToCustomer: true,
+      metadata: { sessionId },
+    });
+    return { sessionId };
+  });
+}
+
+export async function revokeAllSessions(
+  db,
+  { customerUserId, exceptSessionId = null },
+  ctx = {},
+) {
+  return await db.transaction().execute(async (tx) => {
+    const r = await sql`
+      UPDATE sessions
+         SET revoked_at = now()
+       WHERE user_type = 'customer'
+         AND user_id = ${customerUserId}::uuid
+         AND revoked_at IS NULL
+         AND id <> COALESCE(${exceptSessionId}, '')
+       RETURNING id
+    `.execute(tx);
+    const userR = await sql`
+      SELECT customer_id::text AS customer_id FROM customer_users WHERE id = ${customerUserId}::uuid
+    `.execute(tx);
+    await audit(tx, ctx, 'customer_user.logged_out_everywhere', {
+      customerUserId,
+      customerId: userR.rows[0]?.customer_id ?? null,
+      visibleToCustomer: true,
+      metadata: { revokedCount: r.rows.length, keptSessionId: exceptSessionId },
+    });
+    return { revokedCount: r.rows.length };
+  });
+}
+
 export async function changePassword(
   db,
   { customerUserId, currentPassword, newPassword, currentSessionId = null },
