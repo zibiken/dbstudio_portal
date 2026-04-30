@@ -483,7 +483,9 @@ If the drill reports `FAIL` at any step, do NOT proceed to go-live. The likely d
 
 | Date (UTC) | Picked backup | Outcome | Operator |
 |---|---|---|---|
-| _to be filled at M10-B_ | | | |
+| 2026-04-30 17:08 | 20260430T170447Z | OK — round-trip verified (no customers yet → "scratch DB restored cleanly, no credentials to decrypt"). Re-run during M10-C once a test customer + credential exists. | bram |
+
+**M10-B status:** infrastructure round-trip proven (encrypt → upload → download → decrypt → pg_restore). The §11 acceptance line "1 customer + 1 credential decrypted cleanly" needs a re-run during M10-C after the first test customer is created via admin onboarding.
 
 
 ### Incident response — secret leaked into git history

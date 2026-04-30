@@ -29,6 +29,11 @@ KEK_PATH=${MASTER_KEY_PATH:-/var/lib/portal/master.key}
 REMOTE=${BACKUP_RCLONE_REMOTE:-hetzner-portal:portal/}
 TS=$(date -u +%Y%m%dT%H%M%SZ)
 WORKDIR=$(mktemp -d /tmp/portal-drill-XXXXXX)
+# portal-app needs write (rclone copy) and postgres needs read+traverse
+# (pg_restore the decrypted dump). 0755 root:portal-app with group-write
+# gives portal-app write, postgres traversal+read, no other-write.
+chown root:portal-app "$WORKDIR"
+chmod 0775 "$WORKDIR"
 SCRATCH_DB=portal_drill_$TS
 
 cleanup() {
@@ -88,6 +93,7 @@ DB_DUMP=$WORKDIR/db.dump
 ST_TAR=$WORKDIR/storage.tar
 echo "[5/8] decrypting db dump"
 age --decrypt -i "$AGE_KEY_PATH" -o "$DB_DUMP" "$DB_AGE"
+chmod 0644 "$DB_DUMP"   # postgres (different user) reads this for pg_restore
 echo "       db dump head: $(head -c 5 "$DB_DUMP")"
 if [[ "$(head -c 5 "$DB_DUMP")" != "PGDMP" ]]; then
   echo "FAIL: decrypted file is not a pg_dump custom-format archive" >&2; exit 3
