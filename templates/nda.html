@@ -195,37 +195,47 @@
     line-height: 1.35;
   }
 
-  /* ─────────── SIGNATURES ─────────── */
+  /* ─────────── SIGNATURES (M8.7 redesign for Yousign anchors) ─────────── */
   .firmas-section {
     page-break-inside: avoid;
+    break-inside: avoid;
+    margin-top: 8mm;
+  }
+
+  .firmas-closing {
+    font-size: 9.5pt;
+    margin-bottom: 4mm;
+    line-height: 1.4;
   }
 
   .firmas-date {
     text-align: center;
     color: #6B6B68;
-    font-size: 8.5pt;
-    margin: 8px 0 14px 0;
+    font-size: 9pt;
+    margin: 4mm 0 6mm 0;
   }
 
   .firmas {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 6mm;
+    display: flex;
+    flex-direction: row;
+    gap: 11mm;
     page-break-inside: avoid;
+    break-inside: avoid;
   }
 
   .firma-box {
+    width: 78mm;
     page-break-inside: avoid;
+    break-inside: avoid;
   }
 
-  .firma-box .meta-label {
-    margin-bottom: 6px;
-  }
-
-  .firma-line {
-    height: 60px;
-    border-bottom: 1px dotted #D4D4D2;
-    margin-bottom: 6px;
+  .firma-label {
+    font-size: 7.5pt;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #555;
+    margin-bottom: 2mm;
   }
 
   .firma-name {
@@ -234,13 +244,21 @@
     font-size: 10.5pt;
     color: #0A0A0A;
     line-height: 1.25;
-    margin-bottom: 2px;
+    margin-bottom: 3mm;
   }
 
-  .firma-meta {
-    font-size: 8pt;
-    color: #6B6B68;
-    line-height: 1.35;
+  .firma-rect {
+    width: 78mm;
+    height: 40mm;
+    border: 0.5pt solid #999;
+    box-sizing: border-box;
+  }
+
+  .firmas-footer {
+    margin-top: 6mm;
+    font-size: 7.5pt;
+    text-align: center;
+    color: #666;
   }
 
   /* ─────────── PRINT ─────────── */
@@ -386,28 +404,33 @@
 
       <hr class="divider">
 
-      <!-- 04 · FIRMAS -->
+      <!-- 04 · FIRMAS (M8.7: Yousign-anchor rectangles, no printed signature lines) -->
       <section class="firmas-section">
         <div class="meta-label">04 · Firmas</div>
+
+        <p class="firmas-closing">
+          Y en prueba de conformidad, las Partes firman el presente Acuerdo
+          electrónicamente en el lugar y la fecha indicados arriba.
+        </p>
 
         <p class="firmas-date">En {{LUGAR_FIRMA}}, a {{FECHA_FIRMA}}.</p>
 
         <div class="firmas">
-          <div class="firma-box">
-            <div class="meta-label">Por el Proveedor</div>
-            <div class="firma-line"></div>
-            <p class="firma-name">Fdo.: D. Bram Georges R Deprez</p>
-            <p class="firma-meta">DNI/NIE: Y2941696X</p>
-            <p class="firma-meta">Administrador único · Solbizz Canarias S.L.U.</p>
+          <div class="firma-box" data-yousign-anchor="provider">
+            <div class="firma-label">Por el Proveedor — DBStudio</div>
+            <div class="firma-name">D. Bram Georges R Deprez</div>
+            <div class="firma-rect" aria-label="Firma del proveedor"></div>
           </div>
-          <div class="firma-box">
-            <div class="meta-label">Por el Cliente</div>
-            <div class="firma-line"></div>
-            <p class="firma-name">Fdo.: {{CLIENTE_REPRESENTANTE_NOMBRE}}</p>
-            <p class="firma-meta">DNI/NIE: {{CLIENTE_REPRESENTANTE_DNI}}</p>
-            <p class="firma-meta">{{CLIENTE_REPRESENTANTE_CARGO}} · {{CLIENTE_RAZON_SOCIAL}}</p>
+          <div class="firma-box" data-yousign-anchor="client">
+            <div class="firma-label">Por el Cliente — {{CLIENTE_RAZON_SOCIAL}}</div>
+            <div class="firma-name">{{CLIENTE_REPRESENTANTE_NOMBRE}}</div>
+            <div class="firma-rect" aria-label="Firma del cliente"></div>
           </div>
         </div>
+
+        <p class="firmas-footer">
+          Firmado electrónicamente mediante Yousign · {{LUGAR_FIRMA}}, {{FECHA_FIRMA}}
+        </p>
       </section>
 
     </main>
