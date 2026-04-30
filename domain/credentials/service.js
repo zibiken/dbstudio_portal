@@ -3,6 +3,7 @@ import { sql } from 'kysely';
 import { writeAudit } from '../../lib/audit.js';
 import { unwrapDek, encrypt, decrypt } from '../../lib/crypto/envelope.js';
 import { isStepped } from '../../lib/auth/session.js';
+import { isVaultUnlocked, unlockVault } from '../../lib/auth/vault-lock.js';
 import * as repo from './repo.js';
 
 // Customer DEK envelope contract (spec §2.4): credential payloads are
@@ -276,11 +277,14 @@ export async function view(db, {
 }, ctx = {}) {
   const kek = requireKek(ctx, 'credentials.view');
 
-  // Step-up gate first — if it fails we MUST NOT touch the credential row
-  // and MUST NOT write an audit (the trust contract is "every successful
-  // view is audited"; failed step-up attempts are surfaced via the route's
-  // own auth/login.failure stream, not here).
-  if (!(await isStepped(db, sessionId))) {
+  // Vault-lock gate (Task 7.3) — the credential-vault sliding-idle flag
+  // replaces the bare step-up gate for `view`. Step-up sets the flag,
+  // every successful view refreshes it, 5 min of credential idleness
+  // clears it. If we fail this gate we MUST NOT touch the credential
+  // row, MUST NOT write an audit, and MUST NOT refresh the timer
+  // (refreshing a locked vault would let a leaked sid keep itself alive
+  // forever by hammering the route).
+  if (!(await isVaultUnlocked(db, sessionId))) {
     throw new StepUpRequiredError();
   }
 
@@ -318,6 +322,10 @@ export async function view(db, {
       ip: a.ip,
       userAgentHash: a.userAgentHash,
     });
+
+    // Slide the vault-lock window forward inside the same tx. If anything
+    // above this point throws, the timer is left untouched (rollback).
+    await unlockVault(tx, sessionId);
 
     return {
       credentialId,

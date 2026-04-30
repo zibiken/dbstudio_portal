@@ -158,11 +158,12 @@ describe.skipIf(skip)('credentials/service view + markNeedsUpdate (admin-side)',
       expect(audit.rows[0].c).toBe(0);
     });
 
-    it('refuses when step-up window has expired (>5 min)', async () => {
+    it('refuses when vault-lock window has expired (>5 min idle since last credential touch)', async () => {
       const adminId = await makeAdmin('expired');
       const sid = await makeAdminSession(adminId);
-      // Backdate the step-up beyond the 5-min window.
-      await sql`UPDATE sessions SET step_up_at = now() - INTERVAL '6 minutes' WHERE id = ${sid}`.execute(db);
+      // The view gate is now vault-lock, not bare step-up: backdate the
+      // vault timer beyond its 5-min sliding-idle window.
+      await sql`UPDATE sessions SET vault_unlocked_at = now() - INTERVAL '6 minutes' WHERE id = ${sid}`.execute(db);
 
       const { customerId, primaryUserId } = await makeCustomer('view-3');
       const created = await makeCredential({
