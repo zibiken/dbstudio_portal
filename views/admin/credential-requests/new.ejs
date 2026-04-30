@@ -1,68 +1,72 @@
-<section class="admin-cr-new">
-  <header class="admin-section-header">
-    <h1>New credential request</h1>
-    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>/credential-requests">Cancel</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'New credential request',
+  subtitle: customer.razon_social
+}) %>
 
-  <p>Customer: <strong><%= customer.razon_social %></strong></p>
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'credential-requests' }) %>
 
-  <% if (typeof error !== 'undefined' && error) { %>
-    <p class="error" role="alert"><%= error %></p>
-  <% } %>
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
 
-  <form method="post" action="/admin/customers/<%= customer.id %>/credential-requests" autocomplete="off">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+<form method="post" action="/admin/customers/<%= customer.id %>/credential-requests" autocomplete="off" class="form-stack">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-    <label>Provider
-      <input type="text" name="provider" required maxlength="200"
-             placeholder="AWS, Combell, Website admin, M365, ..."
-             value="<%= form?.provider ?? '' %>">
-      <span class="muted">Free text — type any provider name. Auto-fills from the catalogue when known.</span>
-    </label>
+  <%- include('../../components/_input', {
+    name: 'provider', type: 'text', label: 'Provider', required: true, maxlength: 200,
+    placeholder: 'AWS, Combell, Website admin, M365, ...',
+    value: form ? (form.provider || '') : '',
+    helper: 'Free text — type any provider name. Auto-fills from the catalogue when known.'
+  }) %>
 
-    <h2>Fields the customer must fill in</h2>
-    <p class="muted">Add one row per piece of information. <code>secret</code> values are masked in the customer's UI; <code>note</code> renders as a multi-line textarea.</p>
-    <%
-      const rows = (form?.fields && form.fields.length > 0) ? form.fields : [
-        { name: '', label: '', type: 'text', required: true },
-      ];
-    %>
-    <%# M7 review M2: indexed names + an explicit field_count, NOT parallel arrays.
-        Unchecked checkboxes don't submit, so a parallel-array shape silently
-        truncates required-flags whenever any row is unchecked. With the index
-        scheme below, parseFieldsFromBody iterates 0..field_count-1 and looks
-        up field_name_<i>/field_label_<i>/field_type_<i>/field_required_<i>.
-        Unchecked → key absent → required=false; checked → 'on' → required=true. %>
-    <input type="hidden" name="field_count" value="<%= rows.length %>">
-    <table class="admin-table" data-cr-fields-table>
+  <h2>Fields the customer must fill in</h2>
+  <p>Add one row per piece of information. <code>secret</code> values are masked in the customer's UI; <code>note</code> renders as a multi-line textarea.</p>
+
+  <%
+    const rows = (form && form.fields && form.fields.length > 0) ? form.fields : [
+      { name: '', label: '', type: 'text', required: true }
+    ];
+  %>
+  <%# M7 review M2: indexed names + explicit field_count, NOT parallel arrays.
+      Unchecked checkboxes don't submit, so a parallel-array shape silently
+      truncates required-flags whenever any row is unchecked. With the index
+      scheme below, parseFieldsFromBody iterates 0..field_count-1 and looks
+      up field_name_<i>/field_label_<i>/field_type_<i>/field_required_<i>. %>
+  <input type="hidden" name="field_count" value="<%= rows.length %>">
+  <div class="table-wrap">
+    <table class="data-table data-table--medium" data-cr-fields-table>
       <thead>
         <tr>
-          <th>Name (machine)</th>
-          <th>Label (display)</th>
-          <th>Type</th>
-          <th>Required</th>
+          <th class="data-table__th">Name (machine)</th>
+          <th class="data-table__th">Label (display)</th>
+          <th class="data-table__th">Type</th>
+          <th class="data-table__th">Required</th>
         </tr>
       </thead>
       <tbody>
         <% rows.forEach((f, i) => { %>
           <tr>
-            <td><input type="text" name="field_name_<%= i %>" value="<%= f.name %>" maxlength="80" required aria-label="field <%= i + 1 %> machine name"></td>
-            <td><input type="text" name="field_label_<%= i %>" value="<%= f.label %>" maxlength="200" required aria-label="field <%= i + 1 %> display label"></td>
-            <td>
+            <td class="data-table__td"><input type="text" name="field_name_<%= i %>" value="<%= f.name %>" maxlength="80" required aria-label="field <%= i + 1 %> machine name"></td>
+            <td class="data-table__td"><input type="text" name="field_label_<%= i %>" value="<%= f.label %>" maxlength="200" required aria-label="field <%= i + 1 %> display label"></td>
+            <td class="data-table__td">
               <select name="field_type_<%= i %>" aria-label="field <%= i + 1 %> type">
                 <% fieldTypes.forEach((t) => { %>
                   <option value="<%= t %>" <%= f.type === t ? 'selected' : '' %>><%= t %></option>
                 <% }); %>
               </select>
             </td>
-            <td>
+            <td class="data-table__td">
               <input type="checkbox" name="field_required_<%= i %>" value="on" <%= f.required ? 'checked' : '' %> aria-label="field <%= i + 1 %> required">
             </td>
           </tr>
         <% }); %>
       </tbody>
     </table>
+  </div>
 
-    <button type="submit" class="btn btn-primary">Create request</button>
-  </form>
-</section>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Create request' }) %>
+    <%- include('../../components/_button', { variant: 'ghost',   size: 'md', href: '/admin/customers/' + customer.id + '/credential-requests', label: 'Cancel' }) %>
+  </div>
+</form>

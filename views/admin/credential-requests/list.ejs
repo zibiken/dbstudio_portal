@@ -1,34 +1,36 @@
-<section class="admin-cr-list">
-  <header class="admin-section-header">
-    <h1>Credential requests · <%= customer.razon_social %></h1>
-    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>">Back to customer</a>
-    <a class="btn btn-primary" href="/admin/customers/<%= customer.id %>/credential-requests/new">New request</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'Credential requests',
+  subtitle: customer.razon_social,
+  actions: '<a class="btn btn--primary btn--md" href="/admin/customers/' + customer.id + '/credential-requests/new">+ New request</a>'
+}) %>
 
-  <% if (requests.length === 0) { %>
-    <p class="muted">No credential requests yet.</p>
-  <% } else { %>
-    <table class="admin-table">
-      <thead>
-        <tr>
-          <th>Provider</th>
-          <th>Status</th>
-          <th>Fields</th>
-          <th>Created</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <% requests.forEach((r) => { %>
-          <tr>
-            <td><%= r.provider %></td>
-            <td><span class="status status-<%= r.status %>"><%= r.status %></span></td>
-            <td><%= r.fields.length %></td>
-            <td><%= euDateTime(r.created_at) %></td>
-            <td><a href="/admin/customers/<%= customer.id %>/credential-requests/<%= r.id %>">Open</a></td>
-          </tr>
-        <% }); %>
-      </tbody>
-    </table>
-  <% } %>
-</section>
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'credential-requests' }) %>
+
+<%
+  function pillFor(s) {
+    var key = s === 'open' ? 'pending' : (s === 'fulfilled' ? 'fulfilled' : (s === 'cancelled' ? 'archived' : (s === 'not_applicable' ? 'void' : 'pending')));
+    return '<span class="status-pill status-pill--' + key + '">' + s + '</span>';
+  }
+  var tableRows = (requests || []).map(function(r) {
+    return { cells: [
+      r.provider,
+      pillFor(r.status),
+      String((r.fields || []).length),
+      euDateTime(r.created_at),
+      '<a class="btn btn--ghost btn--sm" href="/admin/customers/' + customer.id + '/credential-requests/' + r.id + '">Open →</a>'
+    ]};
+  });
+%>
+<%- include('../../components/_table', {
+  density: 'dense',
+  columns: [
+    { label: 'Provider', align: 'left' },
+    { label: 'Status',   align: 'left' },
+    { label: 'Fields',   align: 'left' },
+    { label: 'Created',  align: 'left' },
+    { label: '',         align: 'right' }
+  ],
+  rows: tableRows,
+  emptyState: 'No credential requests yet.'
+}) %>

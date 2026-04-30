@@ -12,7 +12,20 @@ const ALLOWED_FIELD_TYPES = ['text', 'secret', 'url', 'note'];
 
 function notFound(req, reply) {
   reply.code(404);
-  return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+  return renderAdmin(req, reply, 'admin/customers/not-found', {
+    title: 'Not found',
+    activeNav: 'customers',
+    mainWidth: 'content',
+    sectionLabel: 'ADMIN · CUSTOMERS',
+  });
+}
+
+function customerChrome(customer, activeTab) {
+  return {
+    activeNav: 'customers',
+    sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
+    activeTab,
+  };
 }
 
 function makeCtx(req, session) {
@@ -65,6 +78,8 @@ export function registerAdminCredentialRequestsRoutes(app) {
       title: `Credential requests · ${customer.razon_social}`,
       customer,
       requests,
+      mainWidth: 'wide',
+      ...customerChrome(customer, 'credential-requests'),
     });
   });
 
@@ -81,6 +96,8 @@ export function registerAdminCredentialRequestsRoutes(app) {
       csrfToken: await reply.generateCsrf(),
       form: null,
       fieldTypes: ALLOWED_FIELD_TYPES,
+      mainWidth: 'content',
+      ...customerChrome(customer, 'credential-requests'),
     });
   });
 
@@ -106,6 +123,8 @@ export function registerAdminCredentialRequestsRoutes(app) {
           form: { provider, fields },
           fieldTypes: ALLOWED_FIELD_TYPES,
           error: err?.message ?? String(err),
+          mainWidth: 'content',
+          ...customerChrome(customer, 'credential-requests'),
         });
       };
 
@@ -137,6 +156,8 @@ export function registerAdminCredentialRequestsRoutes(app) {
       customer,
       request,
       csrfToken: await reply.generateCsrf(),
+      mainWidth: 'content',
+      ...customerChrome(customer, 'credential-requests'),
     });
   });
 
@@ -163,6 +184,8 @@ export function registerAdminCredentialRequestsRoutes(app) {
           request,
           csrfToken: await reply.generateCsrf(),
           error: err.message,
+          mainWidth: 'content',
+          ...customerChrome(customer, 'credential-requests'),
         });
       }
       reply.redirect(`/admin/customers/${cid}/credential-requests/${id}`, 302);

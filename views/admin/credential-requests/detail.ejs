@@ -1,49 +1,66 @@
-<section class="admin-cr-detail">
-  <header class="admin-section-header">
-    <h1>Credential request · <%= request.provider %></h1>
-    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>/credential-requests">Back to requests</a>
-  </header>
+<%
+  function pillFor(s) {
+    var key = s === 'open' ? 'pending' : (s === 'fulfilled' ? 'fulfilled' : (s === 'cancelled' ? 'archived' : (s === 'not_applicable' ? 'void' : 'pending')));
+    return '<span class="status-pill status-pill--' + key + '">' + s + '</span>';
+  }
+%>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'Credential request',
+  subtitle: customer.razon_social + ' · ' + request.provider,
+  actions: pillFor(request.status)
+}) %>
 
-  <% if (typeof error !== 'undefined' && error) { %>
-    <p class="error" role="alert"><%= error %></p>
-  <% } %>
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'credential-requests' }) %>
 
-  <dl class="admin-meta">
-    <dt>Customer</dt><dd><%= customer.razon_social %></dd>
-    <dt>Provider</dt><dd><%= request.provider %></dd>
-    <dt>Status</dt><dd><span class="status status-<%= request.status %>"><%= request.status %></span></dd>
-    <dt>Created</dt><dd><%= euDateTime(request.created_at) %></dd>
-    <dt>Updated</dt><dd><%= euDateTime(request.updated_at) %></dd>
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
+
+<div class="card">
+  <h2 class="card__title">Request</h2>
+  <dl class="kv">
+    <dt>Customer</dt> <dd><%= customer.razon_social %></dd>
+    <dt>Provider</dt> <dd><%= request.provider %></dd>
+    <dt>Status</dt>   <dd><%- pillFor(request.status) %></dd>
+    <dt>Created</dt>  <dd><%= euDateTime(request.created_at) %></dd>
+    <dt>Updated</dt>  <dd><%= euDateTime(request.updated_at) %></dd>
     <% if (request.status === 'fulfilled' && request.fulfilled_credential_id) { %>
-      <dt>Fulfilled credential</dt><dd><code><%= request.fulfilled_credential_id %></code></dd>
+      <dt>Fulfilled credential</dt> <dd><code class="qr-block__secret"><%= request.fulfilled_credential_id %></code></dd>
     <% } %>
     <% if (request.status === 'not_applicable' && request.not_applicable_reason) { %>
-      <dt>Customer reason</dt><dd><%= request.not_applicable_reason %></dd>
+      <dt>Customer reason</dt> <dd><%= request.not_applicable_reason %></dd>
     <% } %>
   </dl>
+</div>
 
-  <h2>Fields the customer was asked to provide</h2>
-  <table class="admin-table">
-    <thead>
-      <tr><th>Name</th><th>Label</th><th>Type</th><th>Required</th></tr>
-    </thead>
-    <tbody>
-      <% request.fields.forEach((f) => { %>
-        <tr>
-          <td><code><%= f.name %></code></td>
-          <td><%= f.label %></td>
-          <td><%= f.type %></td>
-          <td><%= f.required ? 'yes' : 'no' %></td>
-        </tr>
-      <% }); %>
-    </tbody>
-  </table>
+<div class="card">
+  <h2 class="card__title">Fields the customer was asked to provide</h2>
+  <%
+    var fieldRows = (request.fields || []).map(function(f) {
+      return { cells: [ '<code>' + f.name + '</code>', f.label, f.type, f.required ? 'yes' : 'no' ]};
+    });
+  %>
+  <%- include('../../components/_table', {
+    density: 'dense',
+    columns: [
+      { label: 'Name',     align: 'left' },
+      { label: 'Label',    align: 'left' },
+      { label: 'Type',     align: 'left' },
+      { label: 'Required', align: 'left' }
+    ],
+    rows: fieldRows,
+    emptyState: 'No fields specified.'
+  }) %>
+</div>
 
-  <% if (request.status === 'open') { %>
+<% if (request.status === 'open') { %>
+  <section class="status-actions">
     <h2>Cancel</h2>
-    <form method="post" action="/admin/customers/<%= customer.id %>/credential-requests/<%= request.id %>/cancel">
+    <p>Cancelling closes the request. The customer can no longer fulfil it.</p>
+    <form method="post" action="/admin/customers/<%= customer.id %>/credential-requests/<%= request.id %>/cancel" class="form-inline-action">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <button type="submit" class="btn btn-danger">Cancel this request</button>
+      <%- include('../../components/_button', { variant: 'danger', size: 'sm', type: 'submit', label: 'Cancel this request' }) %>
     </form>
-  <% } %>
-</section>
+  </section>
+<% } %>

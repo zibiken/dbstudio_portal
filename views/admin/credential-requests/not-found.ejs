@@ -1,5 +1,10 @@
-<section class="admin-not-found">
-  <h1>Not found</h1>
-  <p>That credential request does not exist or does not belong to this customer.</p>
-  <p><a class="btn btn-secondary" href="/admin/dashboard">Back to dashboard</a></p>
-</section>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN',
+  title: 'Credential request not found'
+}) %>
+
+<%- include('../../components/_alert', { variant: 'warn', body: 'That credential request does not exist or does not belong to this customer.' }) %>
+
+<div class="form-actions">
+  <%- include('../../components/_button', { variant: 'secondary', size: 'md', href: '/admin/customers', label: 'Back to customers' }) %>
+</div>
