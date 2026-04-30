@@ -98,19 +98,47 @@ No domain/, routes/, migrations/ work. M11 is presentation-layer.
 | T14c admin invoices subroute restyled | ✅ | `ba8c041` | |
 | T14d admin projects subroute restyled | ✅ | `775880c` | |
 | T14e admin credential-requests subroute restyled | ✅ | `26644b4` | M7 review M2 indexed-name field array preserved |
-| **VISUAL FIX 3** Eye/eye-off SVG icons for password toggle | ✅ | (this commit) | Operator reported `·` middot — replaced with feather-style SVG icons + JS toggle |
-| T15 /admin/profile (QR) + /admin/audit + export | ⬜ | — | **PAUSED** — see RESUME instructions in handoff doc |
-| T16 lib/customer-summary.js + unit tests | ⬜ | — | |
-| T17 /customer/dashboard restyled (bento + summary) | ⬜ | — | |
-| T18a Customer NDAs/Documents/Invoices/Projects restyled | ⬜ | — | |
-| T18b Customer Credentials/Credential-requests/Activity/Profile restyled | ⬜ | — | |
-| T19 Extend scripts/a11y-check.js with M11 checks | ⬜ | — | |
-| T20 Add probe #10 to scripts/smoke.sh | ⬜ | — | |
-| T21 Author m11-acceptance-dryrun.md | ⬜ | — | |
+| **VISUAL FIX 3** Eye/eye-off SVG icons for password toggle | ✅ | `c952411` | Operator reported `·` middot — replaced with feather-style SVG icons + JS toggle |
+| **AUTH FIX 1** /login/2fa redirects admins to /admin/customers, not / | ✅ | `bc67e04` | server.js GET '/' redirects to /login, so the previous '/' target bounced admins back to the login form post-2FA. Updated 2 integration test assertions in lockstep. |
+| **AUTH FIX 2** Admin /welcome auto-logs-in (mirrors completeCustomerWelcome) | ✅ | `6a06f7c` | Mints session inside the invite-consume tx + stepUp + login_success audit (`via='onboarding'`). Backup-codes "continue" button now → /admin/customers. Auto-applies to /reset (shared handler). |
+| T15 Admin surface polish + English copy + extended search | ⬜ | — | **NEW — INSERTED 2026-04-30 after operator polish review.** Sweeps T13/T14 surfaces against marketing-site bar; codifies the list-surface contract that T17/T18 inherit. Was the unblocker for the T17/T18 customer-facing pass. |
+| T16 lib/customer-summary.js + unit tests | ⬜ | — | Dep for T17. Unchanged scope. |
+| T17 /customer/dashboard restyled (bento + summary) | ⬜ | — | Promoted ahead of admin profile/audit — first customer-perception surface, must inherit T15's contract. |
+| T18a Customer NDAs/Documents/Invoices/Projects restyled | ⬜ | — | Customer-facing list surfaces, polished from day 1 against T15's contract. |
+| T18b Customer Credentials/Credential-requests/Activity/Profile restyled | ⬜ | — | Customer-facing, includes vault-reveal modal contract from M7 — preserved byte-identical. |
+| T19 /admin/profile (QR) + /admin/audit + export | ⬜ | — | **WAS T15.** Demoted: operator-only surface, can ship after the customer-facing pass. |
+| T20 Extend scripts/a11y-check.js with M11 checks | ⬜ | — | **WAS T19.** |
+| T21 Add probe #10 to scripts/smoke.sh | ⬜ | — | **WAS T20.** |
+| T22 Final cross-surface polish sweep + acceptance dry-run + v1.0 tag | ⬜ | — | **WAS T21 (acceptance dryrun only).** Now carries explicit budget for cross-surface drift fixes found during the dry-run walk, not just screenshot capture. |
 
-## Open issues at handoff (must address before resuming T15)
+## Open issues at handoff — RESOLVED 2026-04-30
 
-1. **`/login/2fa` post-success redirect** — bounces back to `/login`. Operator entered a valid TOTP code, expected to land on the admin surface, instead got the login page. Hypothesis: `routes/public/login-2fa.js` redirects to `/` after successful 2FA; the `GET /` handler in `server.js` line ~119 unconditionally redirects to `/login`; admin sessions therefore can never reach an authenticated page. Fix likely: after admin 2FA, redirect to `/admin/customers`. After customer 2FA (does it route through here? customers go through completeCustomerWelcome which mints their session inline — so /login/2fa might be admin-only). Confirm by reading the route + the integration test `tests/integration/auth/login-flow.test.js`. If the test expects redirect to `/`, update both route + test together. **THIS BLOCKS THE OPERATOR FROM ACTUALLY USING THE PORTAL — fix first.**
+Both blockers from the previous handoff are landed and pushed:
+
+1. ~~**`/login/2fa` post-success redirect bounces back to `/login`.**~~ Fixed in `bc67e04`. `routes/public/login-2fa.js` now redirects admins to `/admin/customers` after successful TOTP / backup-code submission. The two integration assertions in `tests/integration/auth/login-flow.test.js` that pinned the broken `/` target were updated in the same commit. Customer flows do not pass through this route (customers are stepped-up inside `completeCustomerWelcome`), so the change is admin-only by construction.
+
+2. ~~**`/welcome/:token` (admin) bounces operator back to `/login` after backup codes.**~~ Fixed in `6a06f7c`. `domain/admins/service.js#completeWelcome` now mints the admin's first session inside the same transaction as the invite consumption (mirrors `completeCustomerWelcome`), `routes/public/welcome.js` calls `setSessionCookie` on success, and `views/public/2fa-enrol.ejs`'s "continue" button now points at `/admin/customers`. The same handler is mounted at `/reset` via `registerResetRoutes` so password resets inherit auto-login automatically — symmetric with the customer flow which has no separate reset path. Tests: 572 green + 3 skipped (baseline unchanged), smoke 9/9.
+
+## Rewired execution sequence (2026-04-30 — operator polish review)
+
+After operator visual sign-off on T13 (`/admin/customers`), they confirmed it "looks fine but isn't on the sweet spot" — concrete deltas: empty-state hugs the search bar with no spacing, Spanish field labels (razón social / NIF / domicilio) need English display copy, search only matches razón social (need email + contact-person too). The bar is "promoting a Studio, not a fast mocked up page" — so polish quality must match the marketing site (`https://dbstudio.one`), not just clear an a11y scanner.
+
+The remaining T15→T21 sequence has been rewired around two principles:
+
+1. **Lock the bar before more list surfaces ship.** The empty-state-no-spacing smell on T13 is a list-surface pattern smell — it would repeat across every T14 list and every T18 list if not captured. Fix the patterns once (now T15) and document the contract; downstream tasks inherit instead of paying cleanup tax.
+
+2. **Polish budget goes where the eyes are.** T17 customer dashboard + T18 customer per-section pages are what every paying customer sees on first login; they are promoted ahead of the operator-only admin profile/audit surfaces (was T15, now T19). Customers see polished surfaces first; the operator sees polished admin pages slightly later — but they're polished by the time v1.0 tags.
+
+| New | Was | Task | Notes |
+|---|---|---|---|
+| T15 | *new* | Admin surface polish + English copy + extended search | Polish-debt sweep on T13/T14. Codifies list-surface contract for T17/T18 to inherit. |
+| T16 | T16 | lib/customer-summary.js (TDD) | Unchanged. Dep for T17. |
+| T17 | T17 | Customer dashboard (bento + summary) | Polished from day 1 against T15's contract. |
+| T18a/b | T18a/b | Customer per-section pages | Polished from day 1. |
+| T19 | T15 | Admin profile + audit + audit-export | Demoted — operator-only. |
+| T20 | T19 | a11y check extension | Renumbered. |
+| T21 | T20 | Smoke probe #10 | Renumbered. |
+| T22 | T21 | Final cross-surface polish sweep + acceptance dry-run + v1.0 tag | Renumbered + scope broadened to include explicit drift-fix budget, not just dryrun authoring. |
 
 ---
 
@@ -578,7 +606,7 @@ sleep 2
 sudo bash /opt/dbstudio_portal/scripts/smoke.sh
 ```
 
-Expected: probes 1–9 still green. Probe #10 doesn't exist yet (T20).
+Expected: probes 1–9 still green. Probe #10 doesn't exist yet (T21).
 
 - [ ] **Step 6: Run the test suite to confirm nothing logical broke**
 
@@ -2070,7 +2098,7 @@ sudo bash /opt/dbstudio_portal/scripts/smoke.sh
 sudo bash /opt/dbstudio_portal/scripts/run-tests.sh
 ```
 
-The partial is not yet referenced by any route (T10 + T11 + T15 + T18b wire it in), so no integration tests should change. If a test happens to render a view that includes `_qr` without `svg`/`secret` locals being set, you'll see an EJS error — but no current view does that.
+The partial is not yet referenced by any route (T10 + T11 + T19 + T18b wire it in), so no integration tests should change. If a test happens to render a view that includes `_qr` without `svg`/`secret` locals being set, you'll see an EJS error — but no current view does that.
 
 - [ ] **Step 4: Commit**
 
@@ -2085,7 +2113,7 @@ as a paste fallback. No client JS, no data: image scheme, CSP-clean.
 
 Routes will compute the SVG via lib/qr.js renderTotpQrSvg() in
 their handler and pass it as locals.svg before rendering. Wired
-into the welcome/regen surfaces in T10/T11/T15/T18b."
+into the welcome/regen surfaces in T10/T11/T19/T18b."
 ```
 
 ---
@@ -3227,7 +3255,303 @@ for lists, content for forms."
 
 ---
 
-## Task 15: /admin/profile (with QR on 2FA-regen) + /admin/audit + audit export
+> **Navigation note (2026-04-30 rewire):** From this point forward, task numbers do NOT follow file position. Execute in numerical order: **T15 → T16 → T17 → T18a → T18b → T19 → T20 → T21 → T22**. T15 (admin surface polish, the new task body below) was inserted on 2026-04-30 between T14 and what is now T19. Tasks 16–18b appear later in this file but execute BEFORE T19. The "Rewired execution sequence" table near the top of this document is the canonical order.
+
+---
+
+## Task 15: Admin surface polish + English copy + extended search
+
+> **NEW (2026-04-30 rewire):** Inserted after operator visual sign-off on T13. Goal is to lock the list-surface bar BEFORE T17/T18 customer-facing surfaces ship, so they inherit the polished pattern instead of paying cleanup tax later. This task does NOT change schema, routes, or any cross-cutting contract — it is presentation-layer + one search-query extension.
+
+**Goal:** Bring T13 (`/admin/customers`) and T14a–e (per-customer subroutes) up to the marketing-site bar, codify the patterns as a one-page "list-surface contract" doc that T17/T18 inherit, replace Spanish display copy with English, and extend the customers search to match email + contact-person in addition to razón social.
+
+**Why this matters:** Operator review of T13 found three concrete deltas: (1) empty-state row hugs the search bar with no spacing, (2) Spanish field labels (razón social / NIF / domicilio) read as developer artefacts to non-Spanish-speaking customers, (3) search only matches razón social, but operators look up customers by contact email or contact name far more often. The first delta is a list-surface pattern smell that would repeat across every list in T14 and T18 if not captured now. Fixing the pattern once + writing it down + applying it to all already-restyled list surfaces is cheaper than discovering the same smell in 9 more lists later.
+
+**Files:**
+- Create: `views/components/_empty-state.ejs` (canonical empty state — single illustration + headline + lead + optional primary CTA)
+- Create: `views/components/_list-toolbar.ejs` (canonical search/filter strip + result-count + optional "New" CTA, used above every list)
+- Create: `views/components/_pagination.ejs` (extract the inline pagination `<nav>` from `views/admin/customers/list.ejs` into a partial; T14 lists currently inline their own copies, T17/T18 will need it too)
+- Create: `views/components/_user-mention.ejs` (small leaf — `name` on top + muted `email` below; reused by every "primary contact" cell. Note: this is NOT the existing `<UserMention>` JSX component from DB Football's CLAUDE.md — that's a separate codebase. The portal is server-rendered EJS and has no JS components.)
+- Note: `status-pill` stays as an inline CSS class (`.status-pill .status-pill--active` etc.) — it's already used inline in T13/T14 markup; a partial would add more lines of `<%- include … %>` than it saves. Leave as-is.
+- Modify: `views/admin/customers/list.ejs` — adopt `_list-toolbar` + `_empty-state` + `_pagination` + `_user-mention`, English column headers, fix spacing
+- Modify: `views/admin/customers/{new,detail,edit,created}.ejs` — English form labels + field copy
+- Modify: `views/admin/customers/not-found.ejs` — adopt `_empty-state`
+- Modify: `views/admin/customers/{ndas,documents,credentials,credential-requests,invoices,projects}/*.ejs` — adopt `_list-toolbar` + `_empty-state` on every list view; English column headers + form labels
+- Modify: `domain/customers/repo.js` `listCustomers()` — extend `q` to OR-match razón social + customer_users.email + customer_users.name (LEFT JOIN customer_users + DISTINCT)
+- Modify: `tests/integration/customers/listCustomers.test.js` (or wherever it lives — find via grep) — add three tests: search hits email-only match, contact-name-only match, and the existing razón-social match (regression)
+- Modify: `public/styles/app.src.css` — add list-surface spacing tokens / classes if existing utilities don't already cover them (likely 1–2 small additions; do not re-vendor anything)
+- Create: `docs/superpowers/m11-list-surface-contract.md` (canonical doc — spacing rhythm, empty-state shape, search-toolbar shape, table chrome, hover/focus states, copy register; T17/T18 link to this)
+
+### Step 1: Walk the marketing-site reference + capture the rhythm
+
+Before touching any code, open `https://dbstudio.one` (Capabilities section + any list/grid surface) at 1280×800 in the browser dev-tools and read the rendered values for:
+- Section vertical rhythm (heading → first row spacing, row → row spacing)
+- Card / row internal padding
+- Hover state (background tint, transform if any)
+- Focus ring (color, width, offset)
+- Empty-state pattern (does marketing have one? if not, look at the "404 / nothing here" archetype across the site)
+- Type rhythm in row content (label vs. value sizing, secondary text colour)
+
+Note these as numbers (px values from the inspector) in scratch — they go into the contract doc in Step 8.
+
+For the portal-side baseline, open `https://portal.dbstudio.one/admin/customers` in a logged-in session (now possible after `bc67e04` + `6a06f7c`) and inspect the same elements. Capture the deltas as a list — these are what Step 2 onward fixes.
+
+### Step 2: Create `views/components/_empty-state.ejs`
+
+A single canonical empty state is used by every list when `rows.length === 0`. Locals: `{ icon?, headline, lead, ctaHref?, ctaLabel? }`. The component renders:
+- A 56×56 outline icon block (default: a plus-in-square or empty-table glyph; pass a different SVG via `icon` for context)
+- An h2 headline (medium weight, ink-900)
+- A lead paragraph (ink-700, max 60ch, centered)
+- An optional primary button (only if both `ctaHref` and `ctaLabel` are set)
+
+Spacing: `--space-12` above (separating from the toolbar) + `--space-8` between icon → headline → lead → CTA. Centered horizontally, 480px max-width content column. NOT inside a card — the empty state replaces the table on lists, it does not nest.
+
+Reference the contract doc (Step 8) for the exact token values; this partial reads them via `var(--space-N)` so retoning the scale propagates automatically.
+
+### Step 3: Create `views/components/_list-toolbar.ejs`
+
+The list-toolbar partial replaces the inline `<form action="/admin/customers" method="get">` blocks currently scattered across list views. Locals: `{ action, q, qLabel, placeholder, totalLabel, ctaHref?, ctaLabel? }`. Renders:
+
+- A flex row, justify-between, with the search form on the left and (if `ctaHref` + `ctaLabel`) a primary "New …" button on the right.
+- Below the row, a small `--c-ink-600` line: `<%= total %> result<%= total === 1 ? '' : 's' %><% if (q) { %> for "<%= q %>"<% } %>`. This is the result-count strip — the operator's silent confirmation that the search did something.
+- The form's `<input>` carries `name="q"`, `value="<%- q %>"` (escape!), `placeholder` from locals, an inline left-side magnifier SVG, and the same eye-style icon system from VISUAL FIX 3 for visual consistency.
+
+Spacing: `--space-6` below the toolbar before the table or empty state — this is the fix for the operator-reported "no spacing between search and the empty-state row" smell. Document this gap in the contract.
+
+### Step 4: Modify `views/admin/customers/list.ejs` — adopt the new partials, fix spacing, English headers
+
+Replace the existing search form + table-or-empty-row block with:
+
+```ejs
+<%- include('../../components/_list-toolbar', {
+  action: '/admin/customers',
+  q,
+  placeholder: 'Search by company name, contact email, or contact name…',
+  total,
+  ctaHref: '/admin/customers/new',
+  ctaLabel: 'New customer',
+}) %>
+
+<% if (rows.length === 0) { %>
+  <%- include('../../components/_empty-state', {
+    headline: q ? 'No customers match this search' : 'No customers yet',
+    lead: q
+      ? 'Try a different search, or clear it to see every customer.'
+      : 'Customers added here can be invited via secure email — they get a one-time link to register their account and 2FA.',
+    ctaHref: q ? null : '/admin/customers/new',
+    ctaLabel: q ? null : 'Add the first customer',
+  }) %>
+<% } else { %>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Company name</th>
+        <th>Tax ID</th>
+        <th>Primary contact</th>
+        <th>Status</th>
+        <th>Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% rows.forEach(function(row) { %>
+        <tr>
+          <td><a href="/admin/customers/<%= row.id %>"><%= row.razon_social %></a></td>
+          <td><%= row.nif || '—' %></td>
+          <td><%- include('../../components/_user-mention', { name: row.primary_contact_name, email: row.primary_contact_email }) %></td>
+          <td><%- include('../../components/_status-pill', { status: row.status }) %></td>
+          <td><time datetime="<%= row.created_at_iso %>"><%= euDate(row.created_at) %></time></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <%- include('../../components/_pagination', { page, totalPages, qs }) %>
+<% } %>
+```
+
+Notes:
+- `_user-mention.ejs` and `_pagination.ejs` are both new partials created in this task. `status-pill` is the existing inline CSS-class pattern from T13 — keep using `<span class="status-pill status-pill--<%= row.status %>">` directly, no partial.
+- Spacing `--space-8` between toolbar and table OR empty state is owned by `_list-toolbar`'s margin-bottom.
+- English headers: Company name / Tax ID / Primary contact / Status / Created.
+
+### Step 5: Apply English copy to T13 + T14 forms and detail views
+
+Canonical mapping (Spanish DB column → English display label):
+
+| DB column | English display |
+|---|---|
+| `razon_social` | Company name |
+| `nif` (or `cif` if so labelled) | Tax ID |
+| `domicilio` | Registered address |
+| `contacto` / `nombre_contacto` | Contact name |
+| `email_contacto` | Contact email |
+| `telefono` | Phone |
+
+Apply this to:
+- `views/admin/customers/new.ejs` form labels
+- `views/admin/customers/edit.ejs` form labels
+- `views/admin/customers/detail.ejs` summary card field labels (left column)
+- `views/admin/customers/created.ejs` confirmation copy
+- Any `views/admin/customers/{ndas,documents,credentials,credential-requests,invoices,projects}/*.ejs` that surfaces customer fields (most won't, but check)
+
+**Storage column names DO NOT change** — only display labels. The schema column is still `razon_social`; we just don't render that string to the operator.
+
+If any `placeholder=`, `aria-label=`, or `<title>` attribute references the Spanish term, update those too.
+
+### Step 6: Apply `_list-toolbar` + `_empty-state` to T14 lists
+
+Walk every T14a–e list view (NDAs / Documents / Credentials / Credential-requests / Invoices / Projects) and apply the same pattern as Step 4. Each gets a contextual empty state — e.g. NDAs: "No NDAs yet", lead "Generate a customer NDA from the customer's overview tab.", CTA "Go to <customer> overview". Documents: "No documents yet" with "Upload a document" CTA. Etc.
+
+This is mechanical but per-surface. Each commits as a sub-step (e.g., `feat(m11-15a): customers list polish`, `feat(m11-15b): NDAs list polish`, …) OR collapses into one big commit if the diff is contained — operator preference noted in `feedback_dbf_workflow.md` is "one PR per logical task" so a single `feat(m11-15)` commit is fine here as long as the message enumerates the surfaces touched.
+
+### Step 7: Extend `domain/customers/repo.js` `listCustomers()` to OR-match email + contact name
+
+Current `listCustomers(db, { q, limit, offset })` likely runs:
+```sql
+SELECT … FROM customers WHERE razon_social ILIKE ${q}% LIMIT … OFFSET …
+```
+
+Extend to:
+```sql
+SELECT DISTINCT c.*
+  FROM customers c
+  LEFT JOIN customer_users cu ON cu.customer_id = c.id
+ WHERE c.razon_social ILIKE ${'%' + q + '%'}
+    OR cu.email ILIKE ${'%' + q + '%'}
+    OR cu.name ILIKE ${'%' + q + '%'}
+ ORDER BY c.created_at DESC
+ LIMIT … OFFSET …
+```
+
+Use `LEFT JOIN` so customers with zero customer_users still appear. `DISTINCT` so a customer with multiple matching users doesn't duplicate. Use leading-and-trailing `%` (`ILIKE '%X%'`) so the operator can search for substrings anywhere in the field — the current "starts with" pattern is too restrictive for the email use case.
+
+**Note on customer-user lifecycle:** `customer_users` has no `archived_at` / `deleted_at` column at v1.0 — rows are deleted via the customers `ON DELETE CASCADE`. If a future migration adds soft-delete on customer_users, add `AND cu.<col> IS NULL` to the JOIN condition; do NOT add it speculatively here.
+
+The `total` count needs the same JOIN/DISTINCT treatment — or use a subquery:
+```sql
+SELECT COUNT(DISTINCT c.id) FROM customers c LEFT JOIN customer_users cu …
+```
+
+Verify performance with EXPLAIN on the staging DB if any customer has > 50 users (unlikely at v1.0, but check). Add a `GIN` trigram index on `customers.razon_social`, `customer_users.email`, `customer_users.name` only if EXPLAIN shows seq scans on a meaningful row count — defer to a follow-up if not.
+
+Update the route handler `routes/admin/customers.js` `app.get('/admin/customers', …)` only if it constructs the query — most likely it just passes `q` through to `listCustomers` and no change is needed.
+
+### Step 8: New tests for the extended search
+
+Find the existing `listCustomers` tests:
+```bash
+grep -rln "listCustomers" /opt/dbstudio_portal/tests/
+```
+
+Add tests for:
+1. Search by razón social substring (regression — was the only previous match key).
+2. Search by customer-user email substring matches the parent customer.
+3. Search by customer-user name substring matches the parent customer.
+4. Search across multiple matching users does not duplicate the customer row in results.
+5. Empty `q` returns all customers (regression).
+
+Use the integration-test pattern (real DB, RUN_DB_TESTS gate). Each test seeds 2–3 customers + 2–3 customer_users, runs `listCustomers({ q })`, asserts the row set.
+
+### Step 9: Author `docs/superpowers/m11-list-surface-contract.md`
+
+A one-page doc that T17/T18 will reference. Sections:
+
+1. **Spacing rhythm** — the exact token values for: page-header → toolbar gap, toolbar → table/empty-state gap, table row → row gap (probably 0 inside a striped table; document the stripe contrast token), table → pagination gap, sidebar gutter.
+2. **Toolbar shape** — search input + result-count line + optional CTA. Reference `_list-toolbar` partial.
+3. **Empty-state shape** — icon + headline + lead + optional CTA. Reference `_empty-state` partial. Copy register: "No X yet" / "X added here can be …" / "Add the first X".
+4. **Table chrome** — headers (small caps? or just medium-weight ink-900), zebra stripes (yes/no — match marketing), hover row treatment, link colours inside cells.
+5. **Hover + focus states** — focus ring colour + width + offset; row hover background tint.
+6. **Copy register** — concise, slightly formal, English. Mapping table for Spanish-stored columns.
+
+This doc is the contract. T17 dashboard's bento cards reference it for empty-card shape; T18 list surfaces reference it for everything. T22 final sweep validates against it.
+
+### Step 10: Build, restart, smoke, tests
+
+```bash
+cd /opt/dbstudio_portal
+sudo -u portal-app PATH=/opt/dbstudio_portal/.node/bin:/usr/bin:/bin /opt/dbstudio_portal/.node/bin/node scripts/build.js
+sudo systemctl restart portal.service && sleep 2
+sudo bash /opt/dbstudio_portal/scripts/smoke.sh
+sudo bash /opt/dbstudio_portal/scripts/run-tests.sh
+```
+
+Expected: smoke 9/9, tests at or above the current baseline (572 + 3 skipped + the 3–5 new search tests added in Step 8).
+
+### Step 11: Operator visual sign-off
+
+Before committing, walk the operator through the polished surfaces at 1280×800 + 390×844:
+- `/admin/customers` (with and without a `?q=…` populated)
+- `/admin/customers/<id>` overview tab
+- `/admin/customers/<id>/ndas` (and the empty-state variant — easy to trigger by creating a fresh customer)
+- Same for `/documents`, `/credentials`, `/credential-requests`, `/invoices`, `/projects`
+
+The operator either signs off ("yes, this is the bar") or points at remaining deltas. If deltas remain, fix inline; do NOT defer to T22. T15's whole purpose is to lock the bar.
+
+### Step 12: Re-apply perms, commit
+
+```bash
+sudo chown root:portal-app views/components/_empty-state.ejs views/components/_list-toolbar.ejs views/components/_pagination.ejs views/components/_user-mention.ejs docs/superpowers/m11-list-surface-contract.md
+sudo chmod 0640 views/components/_empty-state.ejs views/components/_list-toolbar.ejs views/components/_pagination.ejs views/components/_user-mention.ejs docs/superpowers/m11-list-surface-contract.md
+# (other modified files retain their existing root:portal-app 0640 perms)
+
+cd /opt/dbstudio_portal
+sudo -u root git add views/components/_empty-state.ejs views/components/_list-toolbar.ejs \
+  views/components/_pagination.ejs views/components/_user-mention.ejs \
+  views/admin/customers/ \
+  domain/customers/repo.js \
+  tests/integration/customers/ \
+  public/styles/app.src.css \
+  docs/superpowers/m11-list-surface-contract.md
+
+sudo -u root git commit -m "feat(m11-15): admin surface polish, English copy, extended search
+
+Sweeps T13/T14 admin list surfaces against the marketing-site bar
+and codifies the list-surface contract for T17/T18 to inherit.
+
+Adds:
+- views/components/_empty-state.ejs (canonical empty state)
+- views/components/_list-toolbar.ejs (search + result-count + CTA)
+- docs/superpowers/m11-list-surface-contract.md (the contract)
+
+Polishes:
+- /admin/customers list, new, detail, edit, created, not-found
+- /admin/customers/<id>/{ndas,documents,credentials,
+  credential-requests,invoices,projects} list views
+- English display copy throughout (Company name / Tax ID /
+  Registered address / Contact / Phone) — schema columns
+  unchanged
+
+Extends:
+- domain/customers/repo.js#listCustomers — q now OR-matches
+  razon_social + customer_users.email + customer_users.name
+  (LEFT JOIN + DISTINCT). Substring match (ILIKE %X%) instead
+  of the previous starts-with.
+- tests/integration/customers/ — 5 new tests covering email,
+  contact-name, razón-social, dedup, and empty-q regression.
+
+No schema, route-contract, audit, or cross-cutting-contract
+changes. Tests: NNN passed + 3 skipped, smoke 9/9. Operator
+signed off the polished surfaces in person before commit."
+```
+
+If the operator-sign-off step finds deltas during Step 11, fix them and re-run Step 10 before committing. Do NOT commit a partially-polished pass.
+
+### Acceptance criteria
+
+T15 is done when ALL of these are true:
+- Every T13/T14 list surface uses `_list-toolbar` and `_empty-state` partials (no inline search forms or bare empty `<tr>` rows remain).
+- All Spanish display copy is replaced with the English mapping in Step 5 (verify with `grep -RIn "razón\|razon_social\|NIF[:\b]\|domicilio" views/admin/`; storage refs in domain/repo are fine, only display copy must change).
+- `listCustomers` matches email + contact-name + razón-social with substring semantics, dedups via DISTINCT, returns the same total count under both populated `q` and empty `q`.
+- New unit/integration tests pass; existing 572-green baseline holds (or grows).
+- `docs/superpowers/m11-list-surface-contract.md` exists and captures spacing / toolbar / empty-state / table / hover-focus / copy register with concrete token values, not vague references.
+- Operator visual sign-off recorded in the commit message ("Operator signed off the polished surfaces in person before commit").
+
+Once acceptance lands, T16 (customer-summary lib) starts immediately — no review pause needed; T16 is TDD pure-function work that can run in parallel with the operator's lived-experience review of T15-polished admin surfaces.
+
+---
+
+## Task 19: /admin/profile (with QR on 2FA-regen) + /admin/audit + audit export
+
+> **NOTE (2026-04-30 rewire):** Was Task 15 in the original numbering. Demoted to T19 — operator-only surface, no customer perception, can ship after the customer-facing T17/T18 pass.
 
 **Files:**
 - Replace: `views/admin/profile/*.ejs` (Identity / Password / 2FA / Sessions tabs)
@@ -4268,7 +4592,7 @@ The activity-feed allow-list (`SAFE_METADATA_KEYS` from `lib/activity-feed.js`) 
 
 - [ ] **Step 4: Customer profile**
 
-`views/customer/profile/identity.ejs`, `password.ejs`, `2fa.ejs`, `sessions.ejs` — shape is identical to the admin profile from T15, with three differences:
+`views/customer/profile/identity.ejs`, `password.ejs`, `2fa.ejs`, `sessions.ejs` — shape is identical to the admin profile from T19, with three differences:
 
 1. `_profile-tabs` is invoked with `surface: 'customer'`.
 2. Form actions POST to `/customer/profile/...` not `/admin/profile/...`.
@@ -4328,7 +4652,9 @@ sudo -u root git commit -m "feat(m11-18b): customer credentials / credential-req
 
 ---
 
-## Task 19: Extend scripts/a11y-check.js with M11 pattern checks
+## Task 20: Extend scripts/a11y-check.js with M11 pattern checks
+
+> **NOTE (2026-04-30 rewire):** Was Task 19. Renumbered after the new T15 polish task was inserted.
 
 **Files:**
 - Modify: `scripts/a11y-check.js`
@@ -4513,7 +4839,9 @@ Reports 0 offenders post-redesign."
 
 ---
 
-## Task 20: Add probe #10 to scripts/smoke.sh
+## Task 21: Add probe #10 to scripts/smoke.sh
+
+> **NOTE (2026-04-30 rewire):** Was Task 20. Renumbered.
 
 **Files:**
 - Modify: `scripts/smoke.sh`
@@ -4589,7 +4917,9 @@ The smoke script's existing perms convention is `0755 root:root` (it's a system 
 
 ---
 
-## Task 21: Author docs/superpowers/m11-acceptance-dryrun.md
+## Task 22: Final cross-surface polish sweep + acceptance dry-run + v1.0 tag
+
+> **NOTE (2026-04-30 rewire):** Was Task 21 ("Author docs/superpowers/m11-acceptance-dryrun.md"). Scope broadened: this task now carries explicit budget for fixing any cross-surface drift caught during the dry-run walk (T17/T18 may have introduced inconsistencies vs. T15's contract; this is where they get reconciled), in addition to authoring the dryrun doc and capturing the screenshot pairs. The dryrun doc step below stays as written; what's added is a leading "polish sweep" pass that walks the full surface set at 1280×800 + 390×844, catalogues drift, fixes inline (or files a tightly-scoped follow-up commit per surface), and only THEN authors the dryrun template for the operator to fill in. v1.0.0 tag fires only after the dryrun is signed off — unchanged from before.
 
 **Files:**
 - Create: `docs/superpowers/m11-acceptance-dryrun.md`
@@ -4749,7 +5079,7 @@ commits the screenshots + outputs alongside it."
 
 After all 21 commits land, run this pass before declaring M11 done:
 
-1. **Spec coverage:** every Q1–Q10 resolution and every § in the spec ("Decisions taken in the brainstorm", "Surfaces in scope", "Design system source", "Implementation order", "Component partials canonical list", "Server-side SVG QR module", "Customer dashboard summary", "A11y re-audit checks", "Smoke (additions)", "Acceptance criteria", "Operator artefacts to preserve", "Cross-cutting contracts that must NOT change") maps to one or more T1–T21 tasks. Cross-check against the spec verbatim.
+1. **Spec coverage:** every Q1–Q10 resolution and every § in the spec ("Decisions taken in the brainstorm", "Surfaces in scope", "Design system source", "Implementation order", "Component partials canonical list", "Server-side SVG QR module", "Customer dashboard summary", "A11y re-audit checks", "Smoke (additions)", "Acceptance criteria", "Operator artefacts to preserve", "Cross-cutting contracts that must NOT change") maps to one or more T1–T22 tasks. Cross-check against the spec verbatim. The new T15 (admin surface polish, inserted in the 2026-04-30 rewire) does not have a corresponding spec § — it's a polish-debt sweep against the marketing-site bar; its acceptance criteria are documented inline in the task body below.
 
 2. **Placeholder scan:** `grep -RIn 'TODO\|TBD\|FIXME\|placeholder' /opt/dbstudio_portal/views/components/ /opt/dbstudio_portal/views/layouts/ /opt/dbstudio_portal/lib/qr.js /opt/dbstudio_portal/lib/customer-summary.js`. Expected: 0 hits.
 
@@ -4767,7 +5097,7 @@ If any of the above fails, fix inline before declaring M11 ready for v1.0.0 tag.
 
 Plan complete and saved to `docs/superpowers/plans/2026-04-30-m11-visual-redesign-implementation.md`. Two execution options:
 
-**1. Subagent-Driven (recommended)** — I dispatch a fresh subagent per task, review between tasks, fast iteration. Each task in this plan is sized for one subagent commit (~5-15 min of focused work). Two-stage review at the natural seams (after T6 chrome lands; after T12 onboarding-blocker tasks land; after T21 closes).
+**1. Subagent-Driven (recommended)** — I dispatch a fresh subagent per task, review between tasks, fast iteration. Each task in this plan is sized for one subagent commit (~5-15 min of focused work). Three-stage review at the natural seams (after T6 chrome lands; after T12 onboarding-blocker tasks land; after T15 polish contract is locked; after T22 closes).
 
 **2. Inline Execution** — Execute tasks in this session using executing-plans, batch execution with checkpoints for review.
 
