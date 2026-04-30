@@ -438,7 +438,53 @@ sudo -u postgres psql portal_db -c \
 
 ### Backup restore drill
 
-(Filled at M10.)
+Run before go-live (M10 acceptance gate 10-B) and re-run quarterly thereafter, or after any change to backup.sh / age recipients / the master KEK.
+
+The drill proves that:
+- A backup landed on the Storage Box can be pulled back down,
+- It decrypts cleanly with the operator's offline age private key,
+- `pg_restore` lands the dump into a scratch Postgres without errors,
+- The production master KEK still unwraps a real customer DEK,
+- That DEK still decrypts a real credential payload.
+
+```bash
+# 1. From the operator workstation: copy the offline age private key onto the
+#    server *temporarily* (e.g. via scp) — into a path readable by root only.
+#    NEVER place it inside the repo or under /var/lib/portal. Suggested:
+sudo install -d -o root -g root -m 0700 /root/portal-drill
+scp portal-backup-age.key root@<server>:/root/portal-drill/portal-backup-age.key
+sudo chmod 0600 /root/portal-drill/portal-backup-age.key
+
+# 2. Run the drill (interactive — script prompts for the key path):
+sudo bash /opt/dbstudio_portal/scripts/restore-drill.sh
+
+# 3. The script:
+#    - lists every backup run under hetzner-portal:portal/
+#    - picks one at random and reports its timestamp
+#    - prompts for the path to the age private key (input hidden)
+#    - decrypts both .age files, restores the dump into a scratch DB
+#      portal_drill_<TS>, unwraps one customer DEK + decrypts one credential
+#    - drops the scratch DB on exit (success or failure)
+# Expected final line:
+#    OK: 1 customer (<razon_social>) + 1 credential decrypted cleanly (plaintext bytes=<N>)
+
+# 4. Once the script reports OK, shred the temporary key copy:
+sudo shred -u /root/portal-drill/portal-backup-age.key
+sudo rmdir /root/portal-drill
+```
+
+If the drill reports `FAIL` at any step, do NOT proceed to go-live. The likely diagnoses:
+- Cannot list runs → rclone remote `hetzner-portal` not configured for the `portal-app` user (re-run gate 10-A).
+- Decryption fails → wrong age private key, or `.age-recipients` on the server contains the wrong public key.
+- pg_restore complains about extensions → ensure `pgcrypto` + `citext` extensions are present in the scratch DB role's search-path; the dump is custom-format and will recreate them given a superuser-equivalent `--role`.
+- Customer DEK unwrap throws `Unsupported state or unable to authenticate data` → the master KEK on this server has been rotated since the picked backup was taken; pick a more recent backup or run an old-KEK rotation.
+
+#### Drill log
+
+| Date (UTC) | Picked backup | Outcome | Operator |
+|---|---|---|---|
+| _to be filled at M10-B_ | | | |
+
 
 ### Incident response — secret leaked into git history
 
