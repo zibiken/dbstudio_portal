@@ -1,0 +1,35 @@
+<section class="customer-profile">
+  <header class="customer-section-header">
+    <h1>Profile</h1>
+    <p class="subtitle"><%= profile.razon_social %></p>
+  </header>
+
+  <article class="customer-card">
+    <h2>Display name</h2>
+    <p class="muted">Shown when you sign in and on every audit-log entry attributed to you.</p>
+    <% if (typeof nameError !== 'undefined' && nameError) { %>
+      <p class="form-error" role="alert"><%= nameError %></p>
+    <% } %>
+    <form method="post" action="/customer/profile/name" class="customer-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label for="profile-name">Name</label>
+      <input id="profile-name" name="name" type="text" required maxlength="256"
+             value="<%= typeof nameDraft !== 'undefined' ? nameDraft : profile.name %>"
+             autocomplete="name">
+      <button type="submit">Save name</button>
+    </form>
+  </article>
+
+  <article class="customer-card">
+    <h2>Email</h2>
+    <dl class="customer-fields">
+      <dt>Current address</dt><dd><%= profile.email %></dd>
+    </dl>
+    <p class="placeholder-note">Email change with verification ships in this M9 release (next sub-task).</p>
+  </article>
+
+  <article class="customer-card">
+    <h2>Security</h2>
+    <p class="placeholder-note">Password change, two-factor regeneration, backup codes, and active-session management ship in this M9 release.</p>
+  </article>
+</section>
