@@ -1,32 +1,43 @@
-<section class="admin-invoice-detail">
-  <header class="admin-section-header">
-    <h1>Invoice <%= row.invoice_number %></h1>
-    <a class="btn btn-secondary" href="/admin/customers/<%= row.customer_id %>/invoices">Back</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'Invoice ' + row.invoice_number,
+  subtitle: customer.razon_social,
+  actions: '<span class="status-pill status-pill--' + (row.overdue && row.status === 'open' ? 'overdue' : row.status) + '">' + (row.overdue && row.status === 'open' ? 'overdue' : row.status) + '</span>'
+}) %>
 
-  <% if (typeof flash !== 'undefined' && flash) { %>
-    <p class="info" role="status"><%= flash %></p>
-  <% } %>
-  <% if (typeof error !== 'undefined' && error) { %>
-    <p class="error" role="alert"><%= error %></p>
-  <% } %>
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'invoices' }) %>
 
-  <table class="meta-table">
-    <tr><th>Customer</th><td><a href="/admin/customers/<%= row.customer_id %>"><%= customer.razon_social %></a></td></tr>
-    <tr><th>Amount</th><td><%= (Number(row.amount_cents)/100).toFixed(2) %> <%= row.currency %></td></tr>
-    <tr><th>Issued</th><td><%= euDate(row.issued_on) %></td></tr>
-    <tr><th>Due</th><td><%= euDate(row.due_on) %><% if (row.overdue) { %> <span class="badge badge-warning">overdue</span><% } %></td></tr>
-    <tr><th>Status</th><td><%= row.status %></td></tr>
-    <tr><th>Notes</th><td><%= row.notes || '—' %></td></tr>
-    <tr><th>PDF</th><td><a href="/admin/documents/<%= row.document_id %>/download">Download invoice PDF</a></td></tr>
-  </table>
+<% if (typeof flash !== 'undefined' && flash) { %>
+  <%- include('../../components/_alert', { variant: 'info', body: flash }) %>
+<% } %>
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
 
-  <h2>Status</h2>
-  <% for (const next of nextStatuses) { %>
-    <form method="post" action="/admin/invoices/<%= row.id %>/status" class="inline-form">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="hidden" name="status" value="<%= next %>">
-      <button type="submit" class="btn btn-secondary">Mark <%= next %></button>
-    </form>
-  <% } %>
-</section>
+<div class="card">
+  <h2 class="card__title">Invoice details</h2>
+  <dl class="kv">
+    <dt>Customer</dt> <dd><a href="/admin/customers/<%= row.customer_id %>"><%= customer.razon_social %></a></dd>
+    <dt>Amount</dt>   <dd><%= (Number(row.amount_cents)/100).toFixed(2) %> <%= row.currency %></dd>
+    <dt>Issued</dt>   <dd><%= euDate(row.issued_on) %></dd>
+    <dt>Due</dt>      <dd><%= euDate(row.due_on) %></dd>
+    <dt>Status</dt>   <dd><span class="status-pill status-pill--<%= row.overdue && row.status === 'open' ? 'overdue' : row.status %>"><%= row.overdue && row.status === 'open' ? 'overdue' : row.status %></span></dd>
+    <dt>Notes</dt>    <dd><%= row.notes || '—' %></dd>
+    <dt>PDF</dt>      <dd><a href="/admin/documents/<%= row.document_id %>/download">Download invoice PDF</a></dd>
+  </dl>
+</div>
+
+<% if (nextStatuses.length > 0) { %>
+  <section class="status-actions">
+    <h2>Status transitions</h2>
+    <div class="form-actions">
+      <% for (const next of nextStatuses) { %>
+        <form method="post" action="/admin/invoices/<%= row.id %>/status" class="form-inline-action">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="status" value="<%= next %>">
+          <%- include('../../components/_button', { variant: 'secondary', size: 'sm', type: 'submit', label: 'Mark ' + next }) %>
+        </form>
+      <% } %>
+    </div>
+  </section>
+<% } %>

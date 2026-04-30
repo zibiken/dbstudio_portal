@@ -1,35 +1,39 @@
-<section class="admin-invoices">
-  <header class="admin-section-header">
-    <h1>Invoices · <%= customer.razon_social %></h1>
-    <a class="btn btn-primary" href="/admin/customers/<%= customer.id %>/invoices/new">Upload invoice</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'Invoices',
+  subtitle: customer.razon_social,
+  actions: '<a class="btn btn--primary btn--md" href="/admin/customers/' + customer.id + '/invoices/new">+ Upload invoice</a>'
+}) %>
 
-  <% if (rows.length === 0) { %>
-    <p class="muted">No invoices yet.</p>
-  <% } else { %>
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Number</th>
-          <th>Amount</th>
-          <th>Issued</th>
-          <th>Due</th>
-          <th>Status</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <% for (const r of rows) { %>
-          <tr>
-            <td><a href="/admin/invoices/<%= r.id %>"><%= r.invoice_number %></a></td>
-            <td><%= (Number(r.amount_cents)/100).toFixed(2) %> <%= r.currency %></td>
-            <td><%= euDate(r.issued_on) %></td>
-            <td><%= euDate(r.due_on) %><% if (r.overdue) { %> <span class="badge badge-warning">overdue</span><% } %></td>
-            <td><%= r.status %></td>
-            <td><a href="/admin/invoices/<%= r.id %>">Open →</a></td>
-          </tr>
-        <% } %>
-      </tbody>
-    </table>
-  <% } %>
-</section>
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'invoices' }) %>
+
+<%
+  function statusPill(status, overdue) {
+    var label = overdue && status === 'open' ? 'overdue' : status;
+    var key = overdue && status === 'open' ? 'overdue' : status;
+    return '<span class="status-pill status-pill--' + key + '">' + label + '</span>';
+  }
+  var tableRows = (rows || []).map(function(r) {
+    return { cells: [
+      '<a href="/admin/invoices/' + r.id + '">' + r.invoice_number + '</a>',
+      (Number(r.amount_cents) / 100).toFixed(2) + ' ' + r.currency,
+      euDate(r.issued_on),
+      euDate(r.due_on),
+      statusPill(r.status, r.overdue),
+      '<a class="btn btn--ghost btn--sm" href="/admin/invoices/' + r.id + '">Open →</a>'
+    ]};
+  });
+%>
+<%- include('../../components/_table', {
+  density: 'dense',
+  columns: [
+    { label: 'Number', align: 'left'  },
+    { label: 'Amount', align: 'left'  },
+    { label: 'Issued', align: 'left'  },
+    { label: 'Due',    align: 'left'  },
+    { label: 'Status', align: 'left'  },
+    { label: '',       align: 'right' }
+  ],
+  rows: tableRows,
+  emptyState: 'No invoices yet.'
+}) %>

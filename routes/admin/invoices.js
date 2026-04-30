@@ -14,7 +14,20 @@ const NEXT_STATUSES = {
 
 function notFound(req, reply) {
   reply.code(404);
-  return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found' });
+  return renderAdmin(req, reply, 'admin/customers/not-found', {
+    title: 'Not found',
+    activeNav: 'customers',
+    mainWidth: 'content',
+    sectionLabel: 'ADMIN · CUSTOMERS',
+  });
+}
+
+function customerChrome(customer, activeTab) {
+  return {
+    activeNav: 'customers',
+    sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
+    activeTab,
+  };
 }
 
 function ctxFromSession(app, req, session) {
@@ -44,6 +57,8 @@ export function registerAdminInvoicesRoutes(app) {
       title: `Invoices · ${customer.razon_social}`,
       customer,
       rows,
+      mainWidth: 'wide',
+      ...customerChrome(customer, 'invoices'),
     });
   });
 
@@ -61,6 +76,8 @@ export function registerAdminInvoicesRoutes(app) {
       customer,
       csrfToken: await reply.generateCsrf(),
       form: null,
+      mainWidth: 'content',
+      ...customerChrome(customer, 'invoices'),
     });
   });
 
@@ -132,6 +149,8 @@ export function registerAdminInvoicesRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           form: { invoice_number: invoiceNumber, amount_cents: amountCents, currency, issued_on: issuedOn, due_on: dueOn, notes },
           error: err.message,
+          mainWidth: 'content',
+          ...customerChrome(customer, 'invoices'),
         });
       }
 
@@ -145,6 +164,8 @@ export function registerAdminInvoicesRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           form: { invoice_number: invoiceNumber, amount_cents: amountCents, currency, issued_on: issuedOn, due_on: dueOn, notes },
           error: 'No file received.',
+          mainWidth: 'content',
+          ...customerChrome(customer, 'invoices'),
         });
       }
 
@@ -171,6 +192,8 @@ export function registerAdminInvoicesRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           form: { invoice_number: invoiceNumber, amount_cents: amountCents, currency, issued_on: issuedOn, due_on: dueOn, notes },
           error: err.message,
+          mainWidth: 'content',
+          ...customerChrome(customer, 'invoices'),
         });
       }
     },
@@ -195,6 +218,8 @@ export function registerAdminInvoicesRoutes(app) {
       csrfToken: await reply.generateCsrf(),
       nextStatuses: NEXT_STATUSES[row.status] ?? [],
       flash: typeof req.query?.flash === 'string' ? req.query.flash : null,
+      mainWidth: 'content',
+      ...customerChrome(customer, 'invoices'),
     });
   });
 
@@ -229,6 +254,8 @@ export function registerAdminInvoicesRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           nextStatuses: NEXT_STATUSES[row.status] ?? [],
           error: err.message,
+          mainWidth: 'content',
+          ...customerChrome(customer, 'invoices'),
         });
       }
     },

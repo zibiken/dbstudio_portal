@@ -1,83 +1,72 @@
-<section class="admin-invoice-new">
-  <header class="admin-section-header">
-    <h1>Upload invoice</h1>
-    <a class="btn btn-secondary" href="/admin/customers/<%= customer.id %>">Cancel</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'Upload invoice',
+  subtitle: customer.razon_social
+}) %>
 
-  <p>Customer: <strong><%= customer.razon_social %></strong></p>
-  <p class="muted">Invoices are issued in the billing platform. Upload the
-    finished PDF here and record the metadata so the customer can see and
-    download it.</p>
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'invoices' }) %>
 
-  <% if (typeof error !== 'undefined' && error) { %>
-    <p class="error" role="alert"><%= error %></p>
-  <% } %>
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
 
-  <form id="invoice-form"
-        method="post"
-        action="/admin/customers/<%= customer.id %>/invoices"
-        enctype="multipart/form-data"
-        data-csrf="<%= csrfToken %>"
-        autocomplete="off">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+<div class="card">
+  <p>Invoices are issued in the billing platform. Upload the finished PDF here and record the metadata so the customer can see and download it. 50 MB cap per file; total per customer 5 GB.</p>
+</div>
 
-    <label>Invoice number
-      <input type="text" name="invoice_number" required maxlength="64"
-             value="<%= (form && form.invoice_number) || '' %>">
-    </label>
+<form id="invoice-form"
+      method="post"
+      action="/admin/customers/<%= customer.id %>/invoices"
+      enctype="multipart/form-data"
+      data-csrf="<%= csrfToken %>"
+      autocomplete="off"
+      class="form-stack">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-    <label>Amount (cents)
-      <input type="number" name="amount_cents" required min="0" step="1"
-             value="<%= (form && form.amount_cents) || '' %>">
-    </label>
+  <%- include('../../components/_input', { name: 'invoice_number', type: 'text', label: 'Invoice number', required: true, maxlength: 64, value: (form && form.invoice_number) || '' }) %>
+  <%- include('../../components/_input', { name: 'amount_cents',   type: 'number', label: 'Amount (cents)', required: true, value: (form && form.amount_cents) || '' }) %>
+  <%- include('../../components/_input', { name: 'currency',       type: 'text', label: 'Currency', required: true, pattern: '[A-Z]{3}', maxlength: 3, value: (form && form.currency) || 'EUR' }) %>
+  <%- include('../../components/_input', { name: 'issued_on',      type: 'date', label: 'Issued on', required: true, value: (form && form.issued_on) || '' }) %>
+  <%- include('../../components/_input', { name: 'due_on',         type: 'date', label: 'Due on',    required: true, value: (form && form.due_on) || '' }) %>
 
-    <label>Currency
-      <input type="text" name="currency" required pattern="[A-Z]{3}" maxlength="3"
-             value="<%= (form && form.currency) || 'EUR' %>">
-    </label>
+  <div class="input-field">
+    <label class="input-field__label" for="inv_notes">Notes (optional)</label>
+    <div class="input-field__control">
+      <textarea id="inv_notes" name="notes" rows="3"><%= (form && form.notes) || '' %></textarea>
+    </div>
+  </div>
 
-    <label>Issued on
-      <input type="date" name="issued_on" required
-             value="<%= (form && form.issued_on) || '' %>">
-    </label>
+  <div class="input-field">
+    <label class="input-field__label" for="inv_file">Invoice PDF</label>
+    <div class="input-field__control">
+      <input id="inv_file" type="file" name="file" accept="application/pdf" required>
+    </div>
+  </div>
 
-    <label>Due on
-      <input type="date" name="due_on" required
-             value="<%= (form && form.due_on) || '' %>">
-    </label>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Upload invoice' }) %>
+    <%- include('../../components/_button', { variant: 'ghost',   size: 'md', href: '/admin/customers/' + customer.id, label: 'Cancel' }) %>
+  </div>
+</form>
 
-    <label>Notes (optional)
-      <textarea name="notes" rows="3"><%= (form && form.notes) || '' %></textarea>
-    </label>
-
-    <label>Invoice PDF
-      <input type="file" name="file" accept="application/pdf" required>
-    </label>
-
-    <p class="muted">50 MB cap per file; total per customer 5 GB.</p>
-
-    <button type="submit" class="btn btn-primary">Upload invoice</button>
-  </form>
-
-  <script nonce="<%= nonce %>">
-    (function () {
-      var f = document.getElementById('invoice-form');
-      f.addEventListener('submit', function (e) {
-        e.preventDefault();
-        var fd = new FormData(f);
-        fetch(f.action, {
-          method: 'POST',
-          body: fd,
-          headers: { 'x-csrf-token': f.dataset.csrf },
-          credentials: 'same-origin',
-          redirect: 'follow'
-        }).then(function (r) {
-          if (r.redirected) window.location.href = r.url;
-          else r.text().then(function (t) { document.body.innerHTML = t; });
-        }).catch(function () {
-          alert('Upload failed.');
-        });
+<script nonce="<%= nonce %>">
+  (function () {
+    var f = document.getElementById('invoice-form');
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(f);
+      fetch(f.action, {
+        method: 'POST',
+        body: fd,
+        headers: { 'x-csrf-token': f.dataset.csrf },
+        credentials: 'same-origin',
+        redirect: 'follow'
+      }).then(function (r) {
+        if (r.redirected) window.location.href = r.url;
+        else r.text().then(function (t) { document.body.innerHTML = t; });
+      }).catch(function () {
+        alert('Upload failed.');
       });
-    })();
-  </script>
-</section>
+    });
+  })();
+</script>
