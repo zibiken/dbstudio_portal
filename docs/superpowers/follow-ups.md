@@ -209,7 +209,119 @@ on customer_id and there's no service method).
 
 ---
 
-## Password-reset typo silent-success UX (Phase E candidate)
+## Phase D operator feedback batch (2026-05-01)
+
+Four items surfaced after the Phase D plan was written. None block Phase D
+implementation. They are tracked here for Phase E / a small-fixes bundle.
+
+### 1. Customer credential-request form needs a show-password "eye" toggle (UX)
+
+When a customer fills in a credential request, password-style fields are
+masked with no way to verify what was typed. Result: typos go undetected
+and the customer submits a wrong secret. Add a small eye-icon toggle next
+to each `<input type="password">` to flip it to `type="text"` while held
+or until clicked again. This is a 5-min UI fix on
+`views/customer/credential-requests/show.ejs` (or whichever view owns the
+fulfilment form). Defer to Phase E or a quick-fix bundle — no test impact
+beyond a click-handler smoke check.
+
+### 2. NDA box on the customer dashboard sits higher than the other panels (visual)
+
+Investigate the dashboard panel grid in `views/customer/dashboard.ejs`
+and the associated CSS. The NDA panel currently breaks the visual rhythm
+because it has different padding / heading-margin / extra-spacing from
+the other dashboard cards. Goal: every dashboard panel aligns to the
+same baseline grid. Phase E.
+
+### 3. Admin-side credential decryption is not wired up (functional / operationally blocking)
+
+The customer-side copy on `/customer/credentials` reads:
+> "Values are encrypted under your account vault key — DB Studio never
+> sees plaintext on this side. Each credential view leaves an audit
+> row in your Activity log."
+
+This is misleading. The actual situation:
+- The `domain/credentials/service.view` decryption path exists, with
+  `KEK → unwrap DEK → GCM-decrypt payload`, vault-unlock gating, and a
+  trust-contract audit (`credential.viewed` with `visible_to_customer=true`).
+- **No admin route invokes it.** `routes/admin/credentials.js` is
+  metadata-only by design (M7 spec §2.4). Admin sees label / provider /
+  timestamps / "needs update" — never the secret.
+- The customer-side view-with-decrypt UI is also unfinished. `view()`
+  works for admin actors only today (per the existing
+  "Vault view-with-decrypt (M9.X partial)" follow-up).
+
+**Operational impact:** the credential-request workflow shipped on the
+assumption admins can read what customers submit. They can't. Today the
+operator workaround is to ask the customer to paste the secret somewhere
+out-of-band, defeating the vault.
+
+**Fix scope** (Phase E candidate, but real urgency):
+- Wire `GET /admin/customers/:cid/credentials/:id` to call `service.view`
+  with vault-unlock + step-up gating (mirror customer-side flow when it
+  lands).
+- Update the customer-side copy on `/customer/credentials` to be honest:
+  *"Values are encrypted under your account vault key. DB Studio admins
+  can decrypt them when actively viewing; every view leaves a record in
+  your Activity log."* (Replace the misleading "DB Studio never sees
+  plaintext" line.)
+- Decide whether customer-side view-with-decrypt also lands in Phase E
+  or stays deferred.
+
+**Touchpoints** identified:
+- `routes/admin/credentials.js` (currently 52 lines; add view route).
+- New `views/admin/credentials/show.ejs`.
+- `views/customer/credentials/list.ejs` (copy fix).
+- Existing `tests/integration/credentials/*` to extend.
+
+This supersedes the older "Admin credential view UI (M7 deferred minor)"
+and "Vault view-with-decrypt (M9.X partial)" entries above — keep them
+for context but treat this as the active item.
+
+### 4. Login lockout is global to the NPM proxy IP (functional / security-adjacent)
+
+Real incident 2026-05-01 ~12:58 WEST: the operator typed a wrong
+password for `info@brainzr.eu` 2-3 times, reset, then got "Too many
+attempts. Try again later." instantly on the next attempt despite a
+valid password. Diagnosis from `rate_limit_buckets`:
+
+```
+key                       | count | locked_until
+login:ip:212.231.193.53   |   5   | 2026-05-01 14:19:02+02   ← LOCKED
+login:email:info@brainzr.eu|   3   | (unlocked)
+```
+
+`212.231.193.53` is **Nginx Proxy Manager**, the single ingress for all
+portal traffic. `routes/public/login.js` builds `ipBucket(req)` from
+`req.ip`, which under the current Fastify config is the connection IP
+(NPM), not the originating client IP. Result: **every failed login
+across every user, customer, and admin on the entire portal shares the
+same IP bucket.** Five fails total = global lockout for 30 minutes.
+Same bug applies to `login-2fa.js`, `reset.js`, customer-side login
+routes, and any other route using `ipBucket`-style keys.
+
+**Fix scope** (Phase E or a small security-fix bundle, depending on
+how often this is biting):
+- Configure Fastify with `trustProxy: '212.231.193.53'` (or the
+  appropriate CIDR / proxy-list).
+  Then `req.ip` returns the leftmost-trusted X-Forwarded-For value,
+  i.e. the real client IP.
+- Verify `X-Forwarded-For` is being sent correctly by the NPM template.
+- Add an integration test that asserts `req.ip` reflects an
+  X-Forwarded-For header when Fastify is configured to trust a proxy.
+- Audit every `req.ip` callsite (login + login-2fa + reset + profile
+  email/password mutations + signed-URL routes) to make sure none of
+  them are still bucketed against the proxy.
+- Reset existing `login:ip:212.231.193.53` and similar global-IP
+  buckets after the fix lands so the legacy lockouts clear.
+
+**Risk if left unfixed:** denial-of-service against the entire portal
+by a single bad actor (or a noisy bot) hitting `/login` with bogus
+credentials. Higher priority than (1) and (2) above.
+
+---
+
+
 
 `/auth/password-reset` (and the equivalent admin path) returns the
 same success page whether the entered email exists in the system or
