@@ -6,6 +6,7 @@ import { v7 as uuidv7 } from 'uuid';
 import { writeAudit } from '../../lib/audit.js';
 import { listActiveCustomerUsers } from '../../lib/digest-fanout.js';
 import { recordForDigest } from '../../lib/digest.js';
+import { enqueue as enqueueEmail } from '../email-outbox/repo.js';
 import { titleFor } from '../../lib/digest-strings.js';
 import { renderNda, NDA_PLACEHOLDERS } from '../../lib/nda.js';
 import { renderPdf as defaultRenderPdf } from '../../lib/pdf-client.js';
@@ -473,6 +474,23 @@ export async function attachUploadedDocument(db, {
       await sql`UPDATE ndas SET audit_document_id = ${documentId}::uuid WHERE id = ${ndaId}::uuid`.execute(tx);
     }
 
+    // Phase D — NDA gate. The first signed-NDA upload for a customer
+    // stamps customers.nda_signed_at; subsequent signed NDAs (project 2,
+    // project 3, …) are no-ops via the WHERE NULL guard so the unlock
+    // moment is observed exactly once per customer. Done inside the tx so
+    // a rolled-back attach never leaves a half-set gate column.
+    let wasFirstSignedNda = false;
+    if (kind === 'signed') {
+      const stampRes = await sql`
+        UPDATE customers
+           SET nda_signed_at = now()
+         WHERE id = ${nda.customer_id}::uuid
+           AND nda_signed_at IS NULL
+        RETURNING id
+      `.execute(tx);
+      wasFirstSignedNda = stampRes.rows.length > 0;
+    }
+
     const a = baseAudit(ctx);
     await writeAudit(tx, {
       actorType: 'admin',
@@ -512,6 +530,32 @@ export async function attachUploadedDocument(db, {
           linkPath:      '/customer/ndas',
           metadata:      { ndaId, projectId: nda.project_id, documentId },
         });
+      }
+
+      // Phase D — fire transactional `nda-unlocked` to every customer_user
+      // ONLY on the first signed-NDA upload for this customer (subsequent
+      // project NDAs no-op above). Idempotency keyed on customerId+userId
+      // so any retry/race lands on ON CONFLICT DO NOTHING.
+      if (wasFirstSignedNda) {
+        const customerR = await sql`
+          SELECT razon_social FROM customers WHERE id = ${nda.customer_id}::uuid
+        `.execute(tx);
+        const customerName = customerR.rows[0]?.razon_social ?? '';
+        const baseUrl = (ctx?.portalBaseUrl ?? process.env.PORTAL_BASE_URL ?? '').replace(/\/$/, '');
+        const dashboardUrl = `${baseUrl}/customer/dashboard`;
+        for (const u of recipients) {
+          await enqueueEmail(tx, {
+            idempotencyKey: `nda_unlocked:${nda.customer_id}:${u.id}`,
+            toAddress:      u.email,
+            template:       'nda-unlocked',
+            locale:         u.locale ?? 'en',
+            locals: {
+              recipientName: u.name,
+              customerName,
+              dashboardUrl,
+            },
+          });
+        }
       }
     }
 

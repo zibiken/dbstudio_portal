@@ -237,4 +237,90 @@ describe.skipIf(skip)('ndas/service attachUploadedDocument', () => {
       adminId, ndaId, documentId: uuidv7(), kind: 'whatever',
     }, baseCtx())).rejects.toThrow(/unknown kind/);
   });
+
+  // Phase D — NDA gate
+
+  it('stamps customers.nda_signed_at on first signed-NDA upload', async () => {
+    const { customerId } = await makeCustomer('gate1');
+    const projectId = await makeProject(customerId);
+    const ndaId = await seedDraftNda({ customerId, projectId });
+    const docId = await seedDoc({ customerId, projectId, category: 'nda-signed' });
+
+    const before = await sql`SELECT nda_signed_at FROM customers WHERE id = ${customerId}::uuid`.execute(db);
+    expect(before.rows[0].nda_signed_at).toBeNull();
+
+    await ndasService.attachUploadedDocument(db, {
+      adminId, ndaId, documentId: docId, kind: 'signed',
+    }, baseCtx());
+
+    const after = await sql`SELECT nda_signed_at FROM customers WHERE id = ${customerId}::uuid`.execute(db);
+    expect(after.rows[0].nda_signed_at).not.toBeNull();
+  });
+
+  it('does NOT change nda_signed_at on a second project signed NDA for the same customer', async () => {
+    const { customerId } = await makeCustomer('gate2');
+    const projectId1 = await makeProject(customerId);
+    const ndaId1 = await seedDraftNda({ customerId, projectId: projectId1 });
+    const docId1 = await seedDoc({ customerId, projectId: projectId1, category: 'nda-signed' });
+
+    await ndasService.attachUploadedDocument(db, {
+      adminId, ndaId: ndaId1, documentId: docId1, kind: 'signed',
+    }, baseCtx());
+    const first = (await sql`SELECT nda_signed_at FROM customers WHERE id = ${customerId}::uuid`.execute(db)).rows[0].nda_signed_at;
+    expect(first).not.toBeNull();
+
+    // Second project, second NDA — must not move the timestamp.
+    const projectId2 = await makeProject(customerId);
+    const ndaId2 = await seedDraftNda({ customerId, projectId: projectId2 });
+    const docId2 = await seedDoc({ customerId, projectId: projectId2, category: 'nda-signed' });
+
+    await ndasService.attachUploadedDocument(db, {
+      adminId, ndaId: ndaId2, documentId: docId2, kind: 'signed',
+    }, baseCtx());
+
+    const second = (await sql`SELECT nda_signed_at FROM customers WHERE id = ${customerId}::uuid`.execute(db)).rows[0].nda_signed_at;
+    expect(second.toISOString()).toBe(first.toISOString());
+  });
+
+  it('enqueues nda-unlocked email to all customer_users on first signed-NDA upload', async () => {
+    const { customerId } = await makeCustomer('mail1');
+    const projectId = await makeProject(customerId);
+    const ndaId = await seedDraftNda({ customerId, projectId });
+    const docId = await seedDoc({ customerId, projectId, category: 'nda-signed' });
+
+    await ndasService.attachUploadedDocument(db, {
+      adminId, ndaId, documentId: docId, kind: 'signed',
+    }, baseCtx());
+
+    const r = await sql`
+      SELECT to_address, template, locale FROM email_outbox
+      WHERE template = 'nda-unlocked'
+        AND to_address IN (SELECT email FROM customer_users WHERE customer_id = ${customerId}::uuid)
+    `.execute(db);
+    expect(r.rows.length).toBe(1);
+    expect(r.rows[0].template).toBe('nda-unlocked');
+  });
+
+  it('does NOT re-enqueue nda-unlocked on the second project signed NDA', async () => {
+    const { customerId } = await makeCustomer('mail2');
+    const projectId1 = await makeProject(customerId);
+    const ndaId1 = await seedDraftNda({ customerId, projectId: projectId1 });
+    const docId1 = await seedDoc({ customerId, projectId: projectId1, category: 'nda-signed' });
+
+    await ndasService.attachUploadedDocument(db, {
+      adminId, ndaId: ndaId1, documentId: docId1, kind: 'signed',
+    }, baseCtx());
+    const before = (await sql`SELECT COUNT(*)::int AS n FROM email_outbox WHERE template = 'nda-unlocked' AND to_address IN (SELECT email FROM customer_users WHERE customer_id = ${customerId}::uuid)`.execute(db)).rows[0].n;
+    expect(before).toBe(1);
+
+    const projectId2 = await makeProject(customerId);
+    const ndaId2 = await seedDraftNda({ customerId, projectId: projectId2 });
+    const docId2 = await seedDoc({ customerId, projectId: projectId2, category: 'nda-signed' });
+    await ndasService.attachUploadedDocument(db, {
+      adminId, ndaId: ndaId2, documentId: docId2, kind: 'signed',
+    }, baseCtx());
+
+    const after = (await sql`SELECT COUNT(*)::int AS n FROM email_outbox WHERE template = 'nda-unlocked' AND to_address IN (SELECT email FROM customer_users WHERE customer_id = ${customerId}::uuid)`.execute(db)).rows[0].n;
+    expect(after).toBe(1);
+  });
 });
