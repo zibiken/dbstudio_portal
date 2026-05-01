@@ -20,7 +20,7 @@ Phase E (digest copy/layout/grouping rework) is split off into its own future sp
 1. **NDA gate.** Customer cannot reach `/customer/dashboard` or any feature surface until `customers.nda_signed_at` is set. Allowed while waiting: `/customer/profile`, `/customer/waiting`, transactional auth flows. APIs return `403 { error: 'nda_required' }`.
 2. **Type C — short-answer questionnaire.** Company-level (no `project_id`). Plain text, not vault-encrypted. "Skip / I don't know" is first-class. Append-only after answer/skip.
 3. **"Cleaned up" dashboard banner.** Reads existing `credential.deleted` audit rows; dismissal stamped on `customers.last_cleanup_banner_dismissed_at`.
-4. **Test-pollution cleanup.** Extend `tests/helpers/audit.js` teardown to delete `pending_digest_items` and `digest_schedules` rows for tagged fixtures.
+4. **Test-pollution cleanup.** Extend `tests/helpers/audit.js` teardown to delete `pending_digest_items`, `digest_schedules`, **and `email_outbox` rows** for tagged fixtures. Plus a one-time cleanup script for historical pollution already on the live DB.
 
 **Dropped from handoff scope:**
 - **Per-project workspace.** With credentials and questions both company-level, the only project-scoped artifact is the NDA, which already shows on the dashboard NDA list. A separate per-project view would duplicate dashboard content. Skip.
@@ -114,7 +114,7 @@ CREATE INDEX customer_questions_created_at_idx
 | `views/customer/dashboard.ejs` | Render cleanup banner (when applicable) at top + a "Questions" panel listing open questions with deep-links. |
 | `lib/digest-strings.js` | Add titles for `question.created`, `question.answered`, `question.skipped` in `en`, `es`, `nl`. |
 | `domain/digest/worker.js` | Add fan-out handlers for the three new event types. |
-| `tests/helpers/audit.js` (cleanup) | Extend cleanup chain: also `DELETE FROM pending_digest_items WHERE recipient_id IN (<test customer ids> ∪ <test admin ids>)` and same for `digest_schedules`. |
+| `tests/helpers/audit.js` (cleanup) | Extend cleanup chain: also `DELETE FROM pending_digest_items WHERE recipient_id IN (<test customer ids> ∪ <test admin ids>)`, same for `digest_schedules`, **and `DELETE FROM email_outbox WHERE to_address ILIKE '%_e2e@example.com' OR to_address IN (<test fixture emails>)`** to stop welcome / transactional mails for fictional fixtures from being processed by the live outbox worker. (Real incident 2026-04-30: `nda_gen_1777553580843_e2e@example.com` got a `customer-invitation` mail sent that soft-bounced at MailerSend.) |
 
 ### New email template
 
@@ -213,7 +213,19 @@ No new event for cleanup-banner dismissal; silent.
 
 ### Test-pollution cleanup
 
-- If `pending_digest_items.recipient_id` / `digest_schedules.recipient_id` are FK-constrained with `ON DELETE CASCADE` to customers/admins, the explicit `DELETE` becomes a no-op (correct, harmless). Verify in schema before implementing; if it's already CASCADE the issue is elsewhere — investigate before assuming the explicit delete is sufficient.
+This work is justified by two confirmed real-world incidents:
+- 2026-04-30 ~14:53: e2e fixture `nda_gen_1777553580843_e2e@example.com` had a `customer-invitation` welcome mail enqueued in `email_outbox`; MailerSend soft-bounced it on send.
+- (Earlier date in handoff) digest mail to operator contained 23+ lines of `cr_workflow_*` / `cred_autolock_*` fixture rows in `pending_digest_items`.
+
+Both come from the same root cause: tests created customers/admins/digest-events/outbox-mails on the live DB and didn't clean up secondary tables. Customers and admins themselves were deleted, but their queued mail and digest items survived and were processed by the live workers.
+
+**Scope of cleanup** — extend `tests/helpers/audit.js` teardown to also delete:
+1. `pending_digest_items` and `digest_schedules` rows whose `recipient_id` is in the per-test ID set.
+2. `email_outbox` rows whose `to_address` is one of the test fixture emails (per-test set) **OR** matches the e2e pattern `'%_e2e@example.com'` (defense-in-depth fallback).
+
+If `pending_digest_items.recipient_id` / `digest_schedules.recipient_id` turn out to be FK-constrained with `ON DELETE CASCADE` to customers/admins, the explicit `DELETE` becomes a no-op (correct, harmless) but the existing leak proves they aren't — verify in schema before implementing.
+
+**One-time cleanup of historical pollution:** standalone script `scripts/clean-stale-test-rows.js` that runs once on the live `portal_db` before the next deploy to delete any `email_outbox` / `pending_digest_items` / `digest_schedules` rows whose recipient address or `recipient_id` matches the e2e fixture patterns. Manually triggered by operator, not automatic.
 
 ## Testing
 
@@ -253,7 +265,16 @@ Apply `0011_phase_d.sql` to a fresh test DB; assert columns and table exist with
 - Fixture creates customer + admin, generates a digest event, runs teardown.
 - Assert `pending_digest_items WHERE recipient_id IN (...)` returns 0 rows post-teardown.
 - Assert `digest_schedules WHERE recipient_id IN (...)` returns 0 rows post-teardown.
-- After full integration suite run: 0 leftover digest rows from any tagged fixture.
+- Fixture creates customer that triggers a `customer-invitation` outbox row, runs teardown.
+- Assert `email_outbox WHERE to_address = <fixture email>` returns 0 rows post-teardown.
+- Assert `email_outbox WHERE to_address ILIKE '%\_e2e@example.com'` returns 0 rows post-teardown (defense-in-depth pattern).
+- After full integration suite run: 0 leftover digest rows AND 0 leftover outbox rows from any tagged fixture.
+
+### One-time historical cleanup script (`scripts/clean-stale-test-rows.js`)
+
+- Dry-run mode prints counts of `email_outbox` / `pending_digest_items` / `digest_schedules` rows matching e2e patterns; no DELETEs.
+- `--apply` mode performs the deletes inside a single transaction with rollback on error.
+- Logs every row id deleted to stdout for operator audit before commit.
 
 ### Email template tests
 
