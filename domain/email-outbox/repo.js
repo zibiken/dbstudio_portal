@@ -3,10 +3,13 @@ import { v7 as uuidv7 } from 'uuid';
 
 export async function enqueue(
   db,
-  { idempotencyKey, toAddress, template, locale = 'en', locals = {}, sendAfter = null },
+  { idempotencyKey, toAddress, template, locale = 'en', locals = {}, sendAfter = null, subjectOverride = null },
 ) {
   const id = uuidv7();
-  const localsJson = JSON.stringify(locals);
+  const localsForRender = subjectOverride
+    ? { ...locals, __subject_override: subjectOverride }
+    : locals;
+  const localsJson = JSON.stringify(localsForRender);
   const r = await sql`
     INSERT INTO email_outbox (id, idempotency_key, to_address, template, locale, locals, send_after)
     VALUES (

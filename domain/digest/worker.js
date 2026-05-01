@@ -16,6 +16,7 @@
 import { sql } from 'kysely';
 import * as repo from './repo.js';
 import { enqueue as enqueueEmail } from '../email-outbox/repo.js';
+import { digestSubject } from '../../lib/digest-strings.js';
 
 const DEFAULT_TICK_MS = 60_000;
 
@@ -68,9 +69,11 @@ export async function tickOnce({ db, log, batchSize = 25, now = new Date() }) {
         continue;
       }
       const buckets = groupBuckets(items);
-      // The digest template owns its subject (one static string per locale,
-      // parsed at build time from the <%# subject: ... %> front-matter).
-      // We pass the bucketed items in locals; the body renders both.
+      // Phase F: subject is dynamic per recipient based on bucket counts.
+      const subject = digestSubject(recipient.locale ?? 'en', {
+        actionCount: buckets.action.length,
+        fyiCount:    buckets.fyi.length,
+      });
       const idempotencyKey = `digest:${claim.recipient_type}:${claim.recipient_id}:${new Date().toISOString()}`;
       await enqueueEmail(tx, {
         idempotencyKey,
@@ -83,6 +86,7 @@ export async function tickOnce({ db, log, batchSize = 25, now = new Date() }) {
           actionItems: buckets.action,
           fyiItems:    buckets.fyi,
         },
+        subjectOverride: subject,
       });
       await repo.clearSchedule(tx, {
         recipientType: claim.recipient_type,
