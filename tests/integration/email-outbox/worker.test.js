@@ -27,6 +27,12 @@ describe.skipIf(skip)('email-outbox/worker', () => {
 
   beforeAll(async () => {
     db = createDb({ connectionString: process.env.DATABASE_URL });
+    // Worker tests rely on the per-tickOnce SELECT ORDER BY send_after ASC
+    // matching strictly the rows the test enqueued. Any stale queued/failed
+    // row from a prior file's cleanup gap (Phase D + Phase E added enough
+    // outbox surface that the gap is now real) gets claimed first and skews
+    // the assertions. Sweep them defensively so we run on a clean slate.
+    await sql`DELETE FROM email_outbox WHERE status IN ('queued', 'failed')`.execute(db);
   });
 
   afterAll(async () => {
