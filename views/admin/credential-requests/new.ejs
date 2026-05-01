@@ -10,63 +10,171 @@
   <%- include('../../components/_alert', { variant: 'error', body: error }) %>
 <% } %>
 
-<form method="post" action="/admin/customers/<%= customer.id %>/credential-requests" autocomplete="off" class="form-stack">
+<%- include('../../components/_alert', {
+  variant: 'info',
+  body: 'You are asking the customer to share access to a third-party service. Define the fields you need and pick a type per field — the customer will see the right control (masked input for secrets, multi-line for notes, validated URL for URLs). Values are encrypted with the customer\'s vault key when they save; you never see plaintext on this side.'
+}) %>
+
+<%
+  const TYPE_OPTIONS = [
+    { value: 'text',   label: 'Text — single line' },
+    { value: 'secret', label: 'Secret — masked input (passwords, API keys, tokens)' },
+    { value: 'url',    label: 'URL — validated link' },
+    { value: 'note',   label: 'Note — multi-line text (instructions, comments)' }
+  ];
+  const initialRows = (form && form.fields && form.fields.length > 0) ? form.fields : [
+    { name: '', label: '', type: 'text', required: true }
+  ];
+%>
+
+<form method="post" action="/admin/customers/<%= customer.id %>/credential-requests" autocomplete="off" class="form-stack" data-cr-form>
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
   <%- include('../../components/_input', {
     name: 'provider', type: 'text', label: 'Provider', required: true, maxlength: 200,
-    placeholder: 'AWS, Combell, Website admin, M365, ...',
+    placeholder: 'AWS, Combell, M365, the customer\'s WordPress admin, …',
     value: form ? (form.provider || '') : '',
-    helper: 'Free text — type any provider name. Auto-fills from the catalogue when known.'
+    helper: 'Free text. Future iterations will autocomplete from the provider catalogue.'
   }) %>
 
-  <h2>Fields the customer must fill in</h2>
-  <p>Add one row per piece of information. <code>secret</code> values are masked in the customer's UI; <code>note</code> renders as a multi-line textarea.</p>
+  <fieldset class="fieldset-stack">
+    <legend class="eyebrow">Fields the customer must fill in</legend>
+    <p>Add one row per piece of information. Use <strong>Secret</strong> for passwords, API keys, and tokens (masked in the customer's UI); <strong>Note</strong> for multi-line context (delivered as a textarea); <strong>URL</strong> for validated links.</p>
 
-  <%
-    const rows = (form && form.fields && form.fields.length > 0) ? form.fields : [
-      { name: '', label: '', type: 'text', required: true }
-    ];
-  %>
-  <%# M7 review M2: indexed names + explicit field_count, NOT parallel arrays.
-      Unchecked checkboxes don't submit, so a parallel-array shape silently
-      truncates required-flags whenever any row is unchecked. With the index
-      scheme below, parseFieldsFromBody iterates 0..field_count-1 and looks
-      up field_name_<i>/field_label_<i>/field_type_<i>/field_required_<i>. %>
-  <input type="hidden" name="field_count" value="<%= rows.length %>">
-  <div class="table-wrap">
-    <table class="data-table data-table--medium" data-cr-fields-table>
-      <thead>
-        <tr>
-          <th class="data-table__th">Name (machine)</th>
-          <th class="data-table__th">Label (display)</th>
-          <th class="data-table__th">Type</th>
-          <th class="data-table__th">Required</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% rows.forEach((f, i) => { %>
-          <tr>
-            <td class="data-table__td"><input type="text" name="field_name_<%= i %>" value="<%= f.name %>" maxlength="80" required aria-label="field <%= i + 1 %> machine name"></td>
-            <td class="data-table__td"><input type="text" name="field_label_<%= i %>" value="<%= f.label %>" maxlength="200" required aria-label="field <%= i + 1 %> display label"></td>
-            <td class="data-table__td">
-              <select name="field_type_<%= i %>" aria-label="field <%= i + 1 %> type">
-                <% fieldTypes.forEach((t) => { %>
-                  <option value="<%= t %>" <%= f.type === t ? 'selected' : '' %>><%= t %></option>
-                <% }); %>
-              </select>
-            </td>
-            <td class="data-table__td">
-              <input type="checkbox" name="field_required_<%= i %>" value="on" <%= f.required ? 'checked' : '' %> aria-label="field <%= i + 1 %> required">
-            </td>
-          </tr>
-        <% }); %>
-      </tbody>
-    </table>
-  </div>
+    <input type="hidden" name="field_count" value="<%= initialRows.length %>" data-cr-field-count>
+
+    <div class="cr-fields" data-cr-fields>
+      <% initialRows.forEach(function(f, i) { %>
+        <div class="cr-fields__row" data-cr-row data-cr-index="<%= i %>">
+          <div class="cr-fields__cell cr-fields__cell--name">
+            <label class="cr-fields__label" for="cr_name_<%= i %>">Name (machine)</label>
+            <input class="cr-fields__input" id="cr_name_<%= i %>" type="text" name="field_name_<%= i %>" value="<%= f.name %>" maxlength="80" required placeholder="api_key">
+          </div>
+          <div class="cr-fields__cell cr-fields__cell--label">
+            <label class="cr-fields__label" for="cr_label_<%= i %>">Label (display)</label>
+            <input class="cr-fields__input" id="cr_label_<%= i %>" type="text" name="field_label_<%= i %>" value="<%= f.label %>" maxlength="200" required placeholder="API key">
+          </div>
+          <div class="cr-fields__cell cr-fields__cell--type">
+            <label class="cr-fields__label" for="cr_type_<%= i %>">Type</label>
+            <select class="cr-fields__input" id="cr_type_<%= i %>" name="field_type_<%= i %>">
+              <% TYPE_OPTIONS.forEach(function(opt) { %>
+                <option value="<%= opt.value %>" <%= f.type === opt.value ? 'selected' : '' %>><%= opt.label %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="cr-fields__cell cr-fields__cell--required">
+            <label class="cr-fields__check">
+              <input type="checkbox" name="field_required_<%= i %>" value="on" <%= f.required ? 'checked' : '' %>>
+              <span>Required</span>
+            </label>
+          </div>
+          <div class="cr-fields__cell cr-fields__cell--remove">
+            <button type="button" class="btn btn--ghost btn--sm cr-fields__remove" data-cr-remove aria-label="Remove this field">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+              <span>Remove</span>
+            </button>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+
+    <div class="cr-fields__add">
+      <button type="button" class="btn btn--secondary btn--md" data-cr-add>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>Add another field</span>
+      </button>
+    </div>
+  </fieldset>
 
   <div class="form-actions">
     <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Create request' }) %>
     <%- include('../../components/_button', { variant: 'ghost',   size: 'md', href: '/admin/customers/' + customer.id + '/credential-requests', label: 'Cancel' }) %>
   </div>
 </form>
+
+<template data-cr-row-template>
+  <div class="cr-fields__row" data-cr-row data-cr-index="__INDEX__">
+    <div class="cr-fields__cell cr-fields__cell--name">
+      <label class="cr-fields__label" for="cr_name___INDEX__">Name (machine)</label>
+      <input class="cr-fields__input" id="cr_name___INDEX__" type="text" name="field_name___INDEX__" value="" maxlength="80" required placeholder="api_key">
+    </div>
+    <div class="cr-fields__cell cr-fields__cell--label">
+      <label class="cr-fields__label" for="cr_label___INDEX__">Label (display)</label>
+      <input class="cr-fields__input" id="cr_label___INDEX__" type="text" name="field_label___INDEX__" value="" maxlength="200" required placeholder="API key">
+    </div>
+    <div class="cr-fields__cell cr-fields__cell--type">
+      <label class="cr-fields__label" for="cr_type___INDEX__">Type</label>
+      <select class="cr-fields__input" id="cr_type___INDEX__" name="field_type___INDEX__">
+        <option value="text">Text — single line</option>
+        <option value="secret">Secret — masked input (passwords, API keys, tokens)</option>
+        <option value="url">URL — validated link</option>
+        <option value="note">Note — multi-line text (instructions, comments)</option>
+      </select>
+    </div>
+    <div class="cr-fields__cell cr-fields__cell--required">
+      <label class="cr-fields__check">
+        <input type="checkbox" name="field_required___INDEX__" value="on">
+        <span>Required</span>
+      </label>
+    </div>
+    <div class="cr-fields__cell cr-fields__cell--remove">
+      <button type="button" class="btn btn--ghost btn--sm cr-fields__remove" data-cr-remove aria-label="Remove this field">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        <span>Remove</span>
+      </button>
+    </div>
+  </div>
+</template>
+
+<script nonce="<%= nonce %>">
+(function() {
+  var form = document.querySelector('[data-cr-form]');
+  if (!form) return;
+  var rowsEl = form.querySelector('[data-cr-fields]');
+  var countEl = form.querySelector('[data-cr-field-count]');
+  var addBtn = form.querySelector('[data-cr-add]');
+  var template = document.querySelector('[data-cr-row-template]');
+
+  function refreshIndices() {
+    var rows = rowsEl.querySelectorAll('[data-cr-row]');
+    rows.forEach(function(row, idx) {
+      row.setAttribute('data-cr-index', idx);
+      row.querySelectorAll('[name^="field_"], [id^="cr_"], [for^="cr_"]').forEach(function(el) {
+        var attrs = ['name', 'id', 'for'];
+        attrs.forEach(function(a) {
+          var v = el.getAttribute(a);
+          if (!v) return;
+          el.setAttribute(a, v.replace(/_\d+$/, '_' + idx));
+        });
+      });
+    });
+    countEl.value = String(rows.length);
+    rowsEl.querySelectorAll('[data-cr-remove]').forEach(function(btn) {
+      btn.disabled = rows.length <= 1;
+    });
+  }
+
+  addBtn.addEventListener('click', function() {
+    var html = template.innerHTML.replace(/__INDEX__/g, String(rowsEl.children.length));
+    var wrap = document.createElement('div');
+    wrap.innerHTML = html.trim();
+    var newRow = wrap.firstChild;
+    rowsEl.appendChild(newRow);
+    refreshIndices();
+    var firstInput = newRow.querySelector('input[type=text]');
+    if (firstInput) firstInput.focus();
+  });
+
+  rowsEl.addEventListener('click', function(ev) {
+    var btn = ev.target.closest('[data-cr-remove]');
+    if (!btn) return;
+    var rows = rowsEl.querySelectorAll('[data-cr-row]');
+    if (rows.length <= 1) return;
+    var row = btn.closest('[data-cr-row]');
+    if (row) row.remove();
+    refreshIndices();
+  });
+
+  refreshIndices();
+})();
+</script>

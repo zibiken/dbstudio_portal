@@ -733,6 +733,64 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 .status-actions { margin-top: var(--s-12); padding-top: var(--s-6); border-top: 1px solid var(--border-light); }
 .form-inline-action { display: inline-flex; }
 
+/* T15.5 — credential-request "fields the customer must fill in" repeater.
+   Each row stacks four cells (name / label / type / required) plus a
+   remove button. Stacks vertically on mobile so labels stay legible. */
+.cr-fields { display: flex; flex-direction: column; gap: var(--s-4); }
+.cr-fields__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr) auto auto;
+  gap: var(--s-3);
+  align-items: end;
+  padding: var(--s-3);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-card);
+  background: var(--c-ivory);
+}
+.cr-fields__cell { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.cr-fields__cell--remove { justify-content: flex-end; }
+.cr-fields__label {
+  font-size: var(--f-xs);
+  font-family: var(--f-mono);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-upper);
+  color: var(--fg-on-light-muted);
+}
+.cr-fields__input {
+  height: 40px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-input);
+  background: var(--c-ivory);
+  color: var(--fg-on-light);
+  font: inherit;
+  width: 100%;
+  min-width: 0;
+}
+select.cr-fields__input { padding-right: var(--s-2); }
+.cr-fields__input:focus-visible {
+  outline: none;
+  border-color: var(--c-moss);
+  box-shadow: 0 0 0 3px rgba(47, 93, 80, 0.18);
+}
+.cr-fields__check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--f-sm);
+  color: var(--fg-on-light);
+  cursor: pointer;
+  padding-bottom: var(--s-2);
+}
+.cr-fields__check input { width: 16px; height: 16px; accent-color: var(--c-moss); }
+.cr-fields__remove[disabled] { opacity: 0.4; cursor: not-allowed; }
+.cr-fields__add { margin-top: var(--s-3); }
+@media (max-width: 768px) {
+  .cr-fields__row { grid-template-columns: 1fr; gap: var(--s-2); }
+  .cr-fields__cell--remove { justify-content: stretch; }
+  .cr-fields__remove { width: 100%; justify-content: center; }
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
