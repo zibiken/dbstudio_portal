@@ -4,6 +4,9 @@ import { writeAudit } from '../../lib/audit.js';
 import { unwrapDek, encrypt } from '../../lib/crypto/envelope.js';
 import * as repo from './repo.js';
 import * as credentialsRepo from '../credentials/repo.js';
+import { listActiveCustomerUsers, listActiveAdmins } from '../../lib/digest-fanout.js';
+import { recordForDigest } from '../../lib/digest.js';
+import { titleFor } from '../../lib/digest-strings.js';
 
 const ALLOWED_FIELD_TYPES = new Set(['text', 'secret', 'url', 'note']);
 
@@ -166,6 +169,22 @@ export async function createByAdmin(db, {
       userAgentHash: a.userAgentHash,
     });
 
+    // Phase B: customer-FYI → no, this is action_required (the customer
+    // must fulfil the request).
+    const recipients = await listActiveCustomerUsers(tx, customerId);
+    for (const u of recipients) {
+      await recordForDigest(tx, {
+        recipientType: 'customer_user',
+        recipientId:   u.id,
+        customerId,
+        bucket:        'action_required',
+        eventType:     'credential_request.created',
+        title:         titleFor('credential_request.created', u.locale, { provider: providerTrimmed }),
+        linkPath:      `/customer/credential-requests/${id}`,
+        metadata:      { requestId: id, provider: providerTrimmed },
+      });
+    }
+
     return { requestId: id };
   });
 }
@@ -253,6 +272,23 @@ export async function fulfilByCustomer(db, {
       userAgentHash: a.userAgentHash,
     });
 
+    // Phase B: admin FYI fan-out — admins want to know when a customer
+    // satisfied a credential ask.
+    const customerName = customer.razon_social ?? '';
+    const admins = await listActiveAdmins(tx);
+    for (const adm of admins) {
+      await recordForDigest(tx, {
+        recipientType: 'admin',
+        recipientId:   adm.id,
+        customerId:    reqRow.customer_id,
+        bucket:        'fyi',
+        eventType:     'credential_request.fulfilled',
+        title:         titleFor('credential_request.fulfilled', adm.locale, { customerName, provider: reqRow.provider }),
+        linkPath:      `/admin/customers/${reqRow.customer_id}/credential-requests/${requestId}`,
+        metadata:      { requestId, provider: reqRow.provider, customerId: reqRow.customer_id },
+      });
+    }
+
     return { requestId, credentialId };
   });
 }
@@ -292,6 +328,25 @@ export async function markNotApplicableByCustomer(db, {
       ip: a.ip,
       userAgentHash: a.userAgentHash,
     });
+
+    // Phase B: admin FYI — request resolved as not-applicable.
+    const customerNameRow = await sql`
+      SELECT razon_social FROM customers WHERE id = ${reqRow.customer_id}::uuid
+    `.execute(tx);
+    const customerName = customerNameRow.rows[0]?.razon_social ?? '';
+    const admins = await listActiveAdmins(tx);
+    for (const adm of admins) {
+      await recordForDigest(tx, {
+        recipientType: 'admin',
+        recipientId:   adm.id,
+        customerId:    reqRow.customer_id,
+        bucket:        'fyi',
+        eventType:     'credential_request.not_applicable',
+        title:         titleFor('credential_request.not_applicable', adm.locale, { customerName, provider: reqRow.provider }),
+        linkPath:      `/admin/customers/${reqRow.customer_id}/credential-requests/${requestId}`,
+        metadata:      { requestId, provider: reqRow.provider, customerId: reqRow.customer_id },
+      });
+    }
 
     return { requestId };
   });
