@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import { renderCustomer } from '../../lib/render.js';
-import { requireCustomerSession } from '../../lib/auth/middleware.js';
+import { requireCustomerSession, requireNdaSigned } from '../../lib/auth/middleware.js';
 import { listActivityForCustomer } from '../../lib/activity-feed.js';
 
 const PER_PAGE_DEFAULT = 50;
@@ -41,6 +41,7 @@ export function registerCustomerActivityRoutes(app) {
   app.get('/customer/activity', async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
     const userRow = await customerIdFor(app, session);
     if (!userRow) return reply.redirect('/', 302);
 

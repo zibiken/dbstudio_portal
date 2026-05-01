@@ -207,6 +207,12 @@ describe.skipIf(skip)('customer onboarding routes', () => {
     expect(profilePost.statusCode).toBe(302);
     expect(profilePost.headers.location).toBe('/customer/dashboard');
 
+    // Phase D — the NDA gate redirects the dashboard to /customer/waiting
+    // until customers.nda_signed_at is set by attachUploadedDocument(kind:'signed').
+    // Simulate that here so the rest of the assertions exercise the
+    // post-unlock dashboard render.
+    await sql`UPDATE customers SET nda_signed_at = now() WHERE id = ${created.customerId}::uuid`.execute(db);
+
     // Follow the redirect — the dashboard stub is wired up in 5.4 and
     // shows the user's name, the customer's razon_social, and one
     // placeholder card per future milestone (M6 documents, M7
@@ -256,6 +262,12 @@ describe.skipIf(skip)('customer onboarding routes', () => {
     expect(wPost.statusCode).toBe(200);
     mergeCookies(jar, wPost);
     expect(jar.sid).toBeTruthy();
+
+    // Phase D — set nda_signed_at so the gate doesn't redirect us before
+    // the active-status gate gets to run. The original test asserts the
+    // active-customer dashboard returns 200; the NDA gate is a separate
+    // posture and irrelevant to this test's intent.
+    await sql`UPDATE customers SET nda_signed_at = now() WHERE id = ${created.customerId}::uuid`.execute(db);
 
     // Sanity: dashboard reachable while customer is active.
     const okDash = await app.inject({

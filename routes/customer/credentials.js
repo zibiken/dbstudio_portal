@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import { renderCustomer } from '../../lib/render.js';
-import { requireCustomerSession } from '../../lib/auth/middleware.js';
+import { requireCustomerSession, requireNdaSigned } from '../../lib/auth/middleware.js';
 import * as credentialsService from '../../domain/credentials/service.js';
 import { listCredentialsByCustomer, findCredentialById } from '../../domain/credentials/repo.js';
 
@@ -31,6 +31,7 @@ export function registerCustomerCredentialsRoutes(app) {
   app.get('/customer/credentials', async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
     const scope = await customerScopeFor(app, session);
     if (!scope) return reply.redirect('/', 302);
     const credentials = await listCredentialsByCustomer(app.db, scope.customer_id);
@@ -48,6 +49,7 @@ export function registerCustomerCredentialsRoutes(app) {
   app.get('/customer/credentials/new', async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
     const scope = await customerScopeFor(app, session);
     if (!scope) return reply.redirect('/', 302);
     return renderCustomer(req, reply, 'customer/credentials/new', {
@@ -63,6 +65,7 @@ export function registerCustomerCredentialsRoutes(app) {
   app.post('/customer/credentials', { preHandler: app.csrfProtection }, async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
     const scope = await customerScopeFor(app, session);
     if (!scope) return reply.redirect('/', 302);
 
@@ -117,6 +120,7 @@ export function registerCustomerCredentialsRoutes(app) {
   app.post('/customer/credentials/:id/delete', { preHandler: app.csrfProtection }, async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
     const scope = await customerScopeFor(app, session);
     if (!scope) return reply.redirect('/', 302);
     const id = req.params?.id;

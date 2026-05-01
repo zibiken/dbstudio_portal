@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import { renderCustomer } from '../../lib/render.js';
-import { requireCustomerSession } from '../../lib/auth/middleware.js';
+import { requireCustomerSession, requireNdaSigned } from '../../lib/auth/middleware.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { getCustomerDashboardSummary } from '../../lib/customer-summary.js';
 
@@ -8,6 +8,7 @@ export function registerCustomerDashboardRoutes(app) {
   app.get('/customer/dashboard', async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
 
     const userR = await sql`
       SELECT id, email, name, customer_id FROM customer_users WHERE id = ${session.user_id}::uuid

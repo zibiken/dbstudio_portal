@@ -1,5 +1,5 @@
 import { renderCustomer } from '../../lib/render.js';
-import { requireCustomerSession } from '../../lib/auth/middleware.js';
+import { requireCustomerSession, requireNdaSigned } from '../../lib/auth/middleware.js';
 import * as invoicesService from '../../domain/invoices/service.js';
 import * as paymentsService from '../../domain/invoice-payments/service.js';
 import { findCustomerUserById } from '../../domain/customers/repo.js';
@@ -15,6 +15,7 @@ export function registerCustomerInvoicesRoutes(app) {
   app.get('/customer/invoices', async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
 
     const me = await findCustomerUserById(app.db, session.user_id);
     if (!me) return notFound(req, reply);
@@ -32,6 +33,7 @@ export function registerCustomerInvoicesRoutes(app) {
   app.get('/customer/invoices/:id', async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
 
     const id = req.params?.id;
     if (typeof id !== 'string' || !UUID_RE.test(id)) return notFound(req, reply);

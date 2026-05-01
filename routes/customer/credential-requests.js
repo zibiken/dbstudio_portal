@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import { renderCustomer } from '../../lib/render.js';
-import { requireCustomerSession } from '../../lib/auth/middleware.js';
+import { requireCustomerSession, requireNdaSigned } from '../../lib/auth/middleware.js';
 import * as crService from '../../domain/credential-requests/service.js';
 import {
   findCredentialRequestById,
@@ -49,6 +49,7 @@ export function registerCustomerCredentialRequestsRoutes(app) {
   app.get('/customer/credential-requests', async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
     const customerId = await customerIdFor(app, session);
     if (!customerId) return notFound(req, reply);
     const requests = await listForCustomer(app.db, customerId);
@@ -62,6 +63,7 @@ export function registerCustomerCredentialRequestsRoutes(app) {
   app.get('/customer/credential-requests/:id', async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
     const customerId = await customerIdFor(app, session);
     if (!customerId) return notFound(req, reply);
     const id = req.params?.id;

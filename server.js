@@ -34,6 +34,7 @@ import { registerAdminProfileRoutes } from './routes/admin/profile.js';
 import { registerAdminAuditRoutes } from './routes/admin/audit.js';
 import { registerAdminDocumentsRoutes } from './routes/admin/documents.js';
 import { registerCustomerOnboardingRoutes } from './routes/customer/onboarding.js';
+import { registerCustomerWaitingRoutes } from './routes/customer/waiting.js';
 import { registerCustomerDashboardRoutes } from './routes/customer/dashboard.js';
 import { registerCustomerProfileRoutes } from './routes/customer/profile.js';
 import { registerCustomerActivityRoutes } from './routes/customer/activity.js';
@@ -170,6 +171,7 @@ export async function build({
   registerAdminAuditRoutes(app);
   registerAdminDocumentsRoutes(app);
   registerCustomerOnboardingRoutes(app);
+  registerCustomerWaitingRoutes(app);
   registerCustomerDashboardRoutes(app);
   registerCustomerProfileRoutes(app);
   registerCustomerActivityRoutes(app);

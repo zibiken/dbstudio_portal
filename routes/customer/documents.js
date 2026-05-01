@@ -1,5 +1,5 @@
 import { renderCustomer } from '../../lib/render.js';
-import { requireCustomerSession } from '../../lib/auth/middleware.js';
+import { requireCustomerSession, requireNdaSigned } from '../../lib/auth/middleware.js';
 import { findDocumentById, listDocumentsByCustomer } from '../../domain/documents/repo.js';
 import { findCustomerUserById } from '../../domain/customers/repo.js';
 import { signDownloadToken } from '../../lib/files.js';
@@ -17,6 +17,7 @@ export function registerCustomerDocumentsRoutes(app) {
   app.get('/customer/documents', async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
 
     const me = await findCustomerUserById(app.db, session.user_id);
     if (!me) return reply.redirect('/', 302);
@@ -42,6 +43,7 @@ export function registerCustomerDocumentsRoutes(app) {
   app.get('/customer/documents/:id/download', async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
 
     const id = req.params?.id;
     if (typeof id !== 'string' || !UUID_RE.test(id)) {

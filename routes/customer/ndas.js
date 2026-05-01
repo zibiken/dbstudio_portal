@@ -1,5 +1,5 @@
 import { renderCustomer } from '../../lib/render.js';
-import { requireCustomerSession } from '../../lib/auth/middleware.js';
+import { requireCustomerSession, requireNdaSigned } from '../../lib/auth/middleware.js';
 import * as ndasService from '../../domain/ndas/service.js';
 import { findCustomerUserById } from '../../domain/customers/repo.js';
 
@@ -26,6 +26,7 @@ export function registerCustomerNdasRoutes(app) {
   app.get('/customer/ndas', async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
 
     const me = await findCustomerUserById(app.db, session.user_id);
     if (!me) {

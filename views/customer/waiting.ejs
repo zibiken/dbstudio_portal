@@ -1,0 +1,30 @@
+<%- include('../components/_page-header', {
+  eyebrow: customer.razon_social,
+  title: 'Just a moment — we\'re getting things ready',
+  subtitle: 'Your dashboard unlocks automatically once your signed NDA is recorded.'
+}) %>
+
+<%- include('../components/_alert', {
+  variant: 'info',
+  body: 'We received your account details and will email you when DB Studio records your signed NDA. There is nothing for you to do here while you wait.'
+}) %>
+
+<div class="customer-waiting__panel">
+  <h2>Your account</h2>
+  <dl>
+    <dt>Company</dt><dd><%= customer.razon_social %></dd>
+    <dt>Email</dt><dd><%= user.email %></dd>
+    <dt>Account created</dt>
+    <dd><%= euDate(customer.created_at) %></dd>
+  </dl>
+</div>
+
+<p class="customer-waiting__support">
+  Have a question? Email us at
+  <a href="mailto:hello@dbstudio.one">hello@dbstudio.one</a>.
+</p>
+
+<div class="form-actions">
+  <%- include('../components/_button', { variant: 'secondary', size: 'sm', href: '/customer/profile', label: 'Change email or password' }) %>
+  <%- include('../components/_button', { variant: 'tertiary', size: 'sm', href: '/logout', label: 'Sign out' }) %>
+</div>
