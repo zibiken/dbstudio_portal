@@ -3,6 +3,7 @@ import { requireAdminSession } from '../../lib/auth/middleware.js';
 import * as invoicesService from '../../domain/invoices/service.js';
 import * as documentsService from '../../domain/documents/service.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
+import { parseInvoicePdf } from '../../lib/invoice-parser.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -258,6 +259,49 @@ export function registerAdminInvoicesRoutes(app) {
           ...customerChrome(customer, 'invoices'),
         });
       }
+    },
+  );
+
+  // Phase C: parse-and-prefill endpoint for the admin invoice upload form.
+  // Stateless: PDF is streamed into memory, parsed, dropped. No DB writes.
+  app.post(
+    '/admin/invoices/parse-pdf',
+    { preHandler: app.csrfProtection },
+    async (req, reply) => {
+      const session = await requireAdminSession(app, req, reply);
+      if (!session) return;
+
+      const MAX_BYTES = 15 * 1024 * 1024;
+      let received = 0;
+      const chunks = [];
+      let sawFile = false;
+
+      try {
+        for await (const part of req.parts()) {
+          if (part.type !== 'file') continue;
+          sawFile = true;
+          const mime = part.mimetype || '';
+          if (!mime.includes('pdf')) {
+            part.file.resume();
+            return reply.code(415).send({ ok: false, reason: 'mime' });
+          }
+          for await (const chunk of part.file) {
+            received += chunk.length;
+            if (received > MAX_BYTES) {
+              part.file.resume();
+              return reply.code(413).send({ ok: false, reason: 'too_large' });
+            }
+            chunks.push(chunk);
+          }
+        }
+      } catch (err) {
+        return reply.code(400).send({ ok: false, reason: 'multipart', message: err?.message ?? 'unknown' });
+      }
+
+      if (!sawFile) return reply.code(400).send({ ok: false, reason: 'no_file' });
+
+      const result = await parseInvoicePdf(Buffer.concat(chunks));
+      return reply.send(result);
     },
   );
 }
