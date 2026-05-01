@@ -1,16 +1,26 @@
 #!/usr/bin/env node
-// Static a11y audit for EJS views (M9 Task 9.6).
+// Static a11y audit for EJS views (M9 Task 9.6, extended T20 with six
+// M11 pattern checks + a reduced-motion CSS partner check).
 //
 // Catches the common-and-cheap accessibility regressions WITHOUT
 // running a full browser/axe-core (axe-core would be the right tool but
 // requires jsdom + a render harness; a static check is enough to gate
 // CI on the worst regressions and document the rest in follow-ups).
 //
-// Checks:
+// Checks (M9 baseline):
 //   1. <img> without alt= attribute
 //   2. heading-order skip (e.g., h1 → h3 with no h2 between)
 //   3. <input> / <select> / <textarea> without an associated <label for=>
 //      or aria-label / aria-labelledby
+//
+// Checks (M11 additions, T20):
+//   4. <nav> missing aria-label or aria-labelledby
+//   5. .top-bar__hamburger button missing aria-expanded or aria-controls
+//   6. inline <svg role="img"> aria-label leaking the otpauth:// URI
+//   7. .card--modal missing aria-modal="true" + aria-labelledby
+//   8. .sidebar__item--active <a> missing aria-current="page"
+//   9. CSS partner: any file with `transition:` rules must contain at
+//      least one @media (prefers-reduced-motion: reduce) block
 //
 // EJS-aware: ignores `<%= … %>`/`<%- … %>` substitutions when reading
 // attribute values.
@@ -133,11 +143,158 @@ function checkInputLabels(file, src) {
   }
 }
 
+function checkNavAriaLabel(file, src) {
+  const lines = src.split('\n');
+  const re = /<nav\b([^>]*)>/gi;
+  for (let i = 0; i < lines.length; i++) {
+    let m;
+    re.lastIndex = 0;
+    while ((m = re.exec(lines[i]))) {
+      const attrs = m[1];
+      if (!/\baria-label(ledby)?\s*=/.test(attrs)) {
+        flag(file, i + 1, `<nav> missing aria-label or aria-labelledby`);
+      }
+    }
+  }
+}
+
+function checkHamburgerAria(file, src) {
+  const lines = src.split('\n');
+  const re = /<button\b([^>]*\btop-bar__hamburger[^>]*)>/gi;
+  for (let i = 0; i < lines.length; i++) {
+    let m;
+    re.lastIndex = 0;
+    while ((m = re.exec(lines[i]))) {
+      const attrs = m[1];
+      if (!/\baria-expanded\s*=/.test(attrs)) {
+        flag(file, i + 1, `.top-bar__hamburger button missing aria-expanded`);
+      }
+      if (!/\baria-controls\s*=/.test(attrs)) {
+        flag(file, i + 1, `.top-bar__hamburger button missing aria-controls`);
+      }
+    }
+  }
+}
+
+function checkQrAriaLabel(file, src) {
+  // The server-rendered TOTP QR carries role="img" + aria-label. The
+  // aria-label must describe the QR's purpose (e.g. "TOTP enrolment for
+  // <email>") and MUST NOT contain the otpauth:// URI itself —
+  // leaking it to assistive tech defeats the purpose of an out-of-band
+  // factor. lib/qr.js enforces this server-side; this static check is
+  // defence-in-depth for any inline override.
+  const lines = src.split('\n');
+  const re = /<svg\b[^>]*\brole\s*=\s*["']img["'][^>]*\baria-label\s*=\s*["']([^"']*)["']/gi;
+  for (let i = 0; i < lines.length; i++) {
+    let m;
+    re.lastIndex = 0;
+    while ((m = re.exec(lines[i]))) {
+      if (/otpauth:/i.test(m[1])) {
+        flag(file, i + 1, `<svg role="img"> aria-label leaks the otpauth:// URI`);
+      }
+    }
+  }
+}
+
+// Helper: a class= attribute is "dynamic" if its value contains an EJS
+// expression. Conditional classes built via `<%= cond ? 'foo' : '' %>`
+// can't be reliably analysed without an EJS evaluator; the checks
+// below skip dynamic class attributes and rely on the EJS-side `<% if
+// (cond) { %> aria-current=page <% } %>` pattern (which the runtime
+// emits in lockstep with the conditional class).
+function classIsDynamic(classValue) {
+  return /<%[-=#]?[\s\S]*?%>/.test(classValue);
+}
+
+function checkModalAriaModal(file, src) {
+  const lines = src.split('\n');
+  const re = /<(article|div)\b([^>]*\bclass\s*=\s*["']([^"']*)["'][^>]*)>/gi;
+  for (let i = 0; i < lines.length; i++) {
+    let m;
+    re.lastIndex = 0;
+    while ((m = re.exec(lines[i]))) {
+      const attrs = m[2];
+      const classValue = m[3];
+      if (!/\bcard--modal\b/.test(classValue)) continue;
+      if (classIsDynamic(classValue)) continue;
+      if (!/\baria-modal\s*=\s*["']true["']/.test(attrs)) {
+        flag(file, i + 1, `.card--modal missing aria-modal="true"`);
+      }
+      if (!/\baria-labelledby\s*=/.test(attrs)) {
+        flag(file, i + 1, `.card--modal missing aria-labelledby`);
+      }
+    }
+  }
+}
+
+function checkSidebarActiveAriaCurrent(file, src) {
+  // Walk every <li ... class="..."> open tag. If the class attribute is
+  // a static string containing `sidebar__item--active`, the inner <a>
+  // must carry aria-current="page". Conditional / EJS-driven class
+  // attributes are skipped because the runtime emits the
+  // aria-current="page" attribute via a parallel <% if (...) { %>
+  // block — that branch's output is not derivable from the source
+  // alone, so this static check cannot fairly assert on it.
+  const liRe = /<li\b([^>]*)>([\s\S]*?)<\/li>/gi;
+  let m;
+  liRe.lastIndex = 0;
+  while ((m = liRe.exec(src))) {
+    const liAttrs = m[1];
+    const classMatch = /\bclass\s*=\s*["']([^"']*)["']/.exec(liAttrs);
+    if (!classMatch) continue;
+    const classValue = classMatch[1];
+    if (!/\bsidebar__item--active\b/.test(classValue)) continue;
+    if (classIsDynamic(classValue)) continue;
+    const inner = m[2];
+    const aMatch = /<a\b([^>]*)>/.exec(inner);
+    if (!aMatch) continue;
+    if (!/\baria-current\s*=\s*["']page["']/.test(aMatch[1])) {
+      const lineNum = src.slice(0, m.index).split('\n').length;
+      flag(file, lineNum, `.sidebar__item--active <a> missing aria-current="page"`);
+    }
+  }
+}
+
+function checkReducedMotionPartner(file, src) {
+  // CSS-only check. If a file declares any `transition:` rule, it must
+  // also carry at least one @media (prefers-reduced-motion: reduce)
+  // block. We don't enforce that the partner disables the same
+  // selector — a CSS parser is overkill for this; the file-level
+  // presence catches the common regression of forgetting the partner
+  // block entirely.
+  if (!/transition\s*:/.test(src)) return;
+  if (!/@media\s*\([^)]*prefers-reduced-motion\s*:\s*reduce/.test(src)) {
+    flag(file, 1, `CSS uses transition: but lacks any @media (prefers-reduced-motion: reduce) block`);
+  }
+}
+
 for (const file of walk(VIEWS)) {
   const src = readFileSync(file, 'utf8');
   checkImgAlt(file, src);
   checkHeadingOrder(file, src);
   checkInputLabels(file, src);
+  checkNavAriaLabel(file, src);
+  checkHamburgerAria(file, src);
+  checkQrAriaLabel(file, src);
+  checkModalAriaModal(file, src);
+  checkSidebarActiveAriaCurrent(file, src);
+}
+
+// CSS-side partner check.
+const STYLES_DIR = join(ROOT, 'public', 'styles');
+function* walkCss(dir) {
+  for (const ent of readdirSync(dir)) {
+    const full = join(dir, ent);
+    const st = statSync(full);
+    if (st.isDirectory()) yield* walkCss(full);
+    else if (full.endsWith('.css')) yield full;
+  }
+}
+for (const cssFile of walkCss(STYLES_DIR)) {
+  // Skip the generated app.css output (the source is app.src.css).
+  if (cssFile.endsWith('app.css')) continue;
+  const src = readFileSync(cssFile, 'utf8');
+  checkReducedMotionPartner(cssFile, src);
 }
 
 const byFile = new Map();
