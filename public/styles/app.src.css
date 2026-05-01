@@ -937,9 +937,9 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 /* Polished data-table tweaks — applied in T15 polish sweep:
    row hover affordance, focus-visible row outline for keyboard users. */
 .data-table tbody tr:hover td { background: var(--bg-light-alt) !important; }
-.data-table a { color: var(--c-obsidian); text-decoration: none; }
-.data-table a:hover { color: var(--c-moss); text-decoration: underline; text-underline-offset: 3px; }
-.data-table a:focus-visible {
+.data-table a:not(.btn) { color: var(--c-obsidian); text-decoration: none; }
+.data-table a:not(.btn):hover { color: var(--c-moss); text-decoration: underline; text-underline-offset: 3px; }
+.data-table a:not(.btn):focus-visible {
   outline: 2px solid var(--c-moss);
   outline-offset: 2px;
   border-radius: 2px;
