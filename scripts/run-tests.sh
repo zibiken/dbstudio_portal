@@ -61,3 +61,7 @@ sudo -u portal-app -E env \
   PATH="$ROOT/.node/bin:/usr/bin:/bin" \
   RUN_DB_TESTS=1 \
   "$VITEST" run "$@"
+
+# Phase F: advisory layout-pattern check (non-blocking, exit code 0).
+sudo -u portal-app -E env PATH="$ROOT/.node/bin:/usr/bin:/bin" \
+  "$NODE" "$ROOT/scripts/check-detail-pattern.js" || true
