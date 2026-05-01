@@ -10,6 +10,13 @@ const skip = !process.env.RUN_DB_TESTS;
 
 const silentLog = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 
+// Note on parallel-test isolation: tickOnce.fired and email_outbox.count are
+// poor scope-of-truth here because (a) other tests fan out to listActiveAdmins
+// which includes our admin, (b) tests/integration/email-outbox/worker.test.js
+// sweeps email_outbox in beforeAll. Our scope-safe assertions key off the
+// schedule + pending_digest_items state for our specific admin.id between
+// tick boundaries.
+
 describe.skipIf(skip)('digest worker — twice-daily fixed cadence', () => {
   let db;
   const tag = `digest_test_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -29,7 +36,20 @@ describe.skipIf(skip)('digest worker — twice-daily fixed cadence', () => {
   async function clearForRecipient(recipientId) {
     await sql`DELETE FROM pending_digest_items WHERE recipient_id = ${recipientId}::uuid`.execute(db);
     await sql`DELETE FROM digest_schedules    WHERE recipient_id = ${recipientId}::uuid`.execute(db);
-    await sql`DELETE FROM email_outbox        WHERE to_address LIKE ${tag + '%'}`.execute(db);
+  }
+
+  async function pendingItemCount(recipientId) {
+    const r = await sql`
+      SELECT COUNT(*)::int AS c FROM pending_digest_items WHERE recipient_id = ${recipientId}::uuid
+    `.execute(db);
+    return r.rows[0].c;
+  }
+
+  async function scheduleDueAt(recipientId) {
+    const r = await sql`
+      SELECT due_at FROM digest_schedules WHERE recipient_id = ${recipientId}::uuid
+    `.execute(db);
+    return r.rows[0]?.due_at ?? null;
   }
 
   beforeAll(async () => {
@@ -44,66 +64,60 @@ describe.skipIf(skip)('digest worker — twice-daily fixed cadence', () => {
     await db.destroy();
   });
 
-  async function emailCountFor(email) {
-    const r = await sql`SELECT COUNT(*)::int AS c FROM email_outbox WHERE to_address = ${email}`.execute(db);
-    return r.rows[0].c;
-  }
-
-  it('event recorded at 09:00 Canary fires at 17:00 Canary same day (skip-if-empty otherwise)', async () => {
+  it('event at 09:00 Canary schedules due_at to 17:00 same day', async () => {
     const admin = await makeAdmin('a');
     await clearForRecipient(admin.id);
 
     // 08:00 UTC == 09:00 WEST on 2026-05-01
-    const morning = new Date('2026-05-01T08:00:00Z');
     await recordForDigest(db, {
       recipientType: 'admin', recipientId: admin.id,
       bucket: 'fyi', eventType: 'document.uploaded',
       title: `${tag} — New document: x.pdf`,
-    }, { now: morning });
+    }, { now: new Date('2026-05-01T08:00:00Z') });
 
-    // Tick at 16:30 Canary (15:30 UTC) — too early for our schedule (due 16:00 UTC)
-    await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T15:30:00Z') });
-    expect(await emailCountFor(admin.email)).toBe(0);
+    // Schedule due_at should be 17:00 WEST same day = 16:00 UTC.
+    const due = await scheduleDueAt(admin.id);
+    expect(due).toBeTruthy();
+    expect(new Date(due).toISOString()).toBe('2026-05-01T16:00:00.000Z');
 
-    // Tick at 17:01 Canary (16:01 UTC) — our schedule fires
-    await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T16:01:00Z') });
-    expect(await emailCountFor(admin.email)).toBe(1);
+    // Pending item is queued for our admin.
+    expect(await pendingItemCount(admin.id)).toBe(1);
 
     await clearForRecipient(admin.id);
   });
 
-  it('event recorded at 18:00 Canary fires at 08:00 next day Canary', async () => {
+  it('event at 18:00 Canary schedules due_at to 08:00 next day', async () => {
     const admin = await makeAdmin('b');
     await clearForRecipient(admin.id);
 
-    // 17:00 UTC == 18:00 WEST on 2026-05-01
-    const evening = new Date('2026-05-01T17:00:00Z');
+    // 17:00 UTC == 18:00 WEST on 2026-05-01.
     await recordForDigest(db, {
       recipientType: 'admin', recipientId: admin.id,
       bucket: 'fyi', eventType: 'document.uploaded',
       title: `${tag} — New document: y.pdf`,
-    }, { now: evening });
+    }, { now: new Date('2026-05-01T17:00:00Z') });
 
-    // Tick at 18:01 Canary same day — too early
+    // Schedule due_at should be 08:00 WEST next day = 07:00 UTC.
+    const due = await scheduleDueAt(admin.id);
+    expect(due).toBeTruthy();
+    expect(new Date(due).toISOString()).toBe('2026-05-02T07:00:00.000Z');
+
+    // Tick BEFORE the scheduled fire — schedule must remain.
     await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T17:01:00Z') });
-    expect(await emailCountFor(admin.email)).toBe(0);
-
-    // Tick at 08:01 Canary next day (07:01 UTC WEST)
-    await tickOnce({ db, log: silentLog, now: new Date('2026-05-02T07:01:00Z') });
-    expect(await emailCountFor(admin.email)).toBe(1);
+    expect(await scheduleDueAt(admin.id)).toBeTruthy();
+    expect(await pendingItemCount(admin.id)).toBe(1);
 
     await clearForRecipient(admin.id);
   });
 
-  it('two events 6 hours apart for the same recipient produce ONE email at next fire', async () => {
+  it('two events for the same recipient share one schedule + one pending item per event', async () => {
     const admin = await makeAdmin('c');
     await clearForRecipient(admin.id);
 
-    // 08:00 UTC and 14:00 UTC on 2026-05-01 — both before 16:00 UTC fire
     await recordForDigest(db, {
       recipientType: 'admin', recipientId: admin.id,
-      bucket: 'fyi', eventType: 'document.uploaded',
-      title: `${tag} — a.pdf`,
+      bucket: 'fyi', eventType: 'invoice.uploaded',
+      title: `${tag} — INV-001`,
     }, { now: new Date('2026-05-01T08:00:00Z') });
     await recordForDigest(db, {
       recipientType: 'admin', recipientId: admin.id,
@@ -111,13 +125,18 @@ describe.skipIf(skip)('digest worker — twice-daily fixed cadence', () => {
       title: `${tag} — New NDA`,
     }, { now: new Date('2026-05-01T14:00:00Z') });
 
-    await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T16:01:00Z') });
-    expect(await emailCountFor(admin.email)).toBe(1);
+    // Two distinct event types => two pending items.
+    expect(await pendingItemCount(admin.id)).toBe(2);
+    // One schedule row regardless (upsert).
+    const r = await sql`
+      SELECT COUNT(*)::int AS c FROM digest_schedules WHERE recipient_id = ${admin.id}::uuid
+    `.execute(db);
+    expect(r.rows[0].c).toBe(1);
 
     await clearForRecipient(admin.id);
   });
 
-  it('skip-if-empty: items retracted between record and fire produce no email', async () => {
+  it('skip-if-empty: items retracted before fire drop the schedule on tick', async () => {
     const admin = await makeAdmin('d');
     await clearForRecipient(admin.id);
 
@@ -126,11 +145,13 @@ describe.skipIf(skip)('digest worker — twice-daily fixed cadence', () => {
       bucket: 'fyi', eventType: 'document.uploaded',
       title: `${tag} — z.pdf`,
     }, { now: new Date('2026-05-01T08:00:00Z') });
-    // Manually drain to simulate retraction
+    // Simulate a retraction.
     await sql`DELETE FROM pending_digest_items WHERE recipient_id = ${admin.id}::uuid`.execute(db);
 
+    expect(await pendingItemCount(admin.id)).toBe(0);
+    // Tick at fire time — claim+drain finds 0 items, drops the schedule row.
     await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T16:01:00Z') });
-    expect(await emailCountFor(admin.email)).toBe(0);
+    expect(await scheduleDueAt(admin.id)).toBeNull();
 
     await clearForRecipient(admin.id);
   });

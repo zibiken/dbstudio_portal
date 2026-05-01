@@ -3,6 +3,7 @@ import { renderCustomer } from '../../lib/render.js';
 import { requireCustomerSession, requireNdaSigned } from '../../lib/auth/middleware.js';
 import * as credentialsService from '../../domain/credentials/service.js';
 import { listCredentialsByCustomer, findCredentialById } from '../../domain/credentials/repo.js';
+import { isVaultUnlocked } from '../../lib/auth/vault-lock.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -115,6 +116,80 @@ export function registerCustomerCredentialsRoutes(app) {
       return renderForm(err.message);
     }
     reply.redirect('/customer/credentials', 302);
+  });
+
+  app.get('/customer/credentials/:id', async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
+    const scope = await customerScopeFor(app, session);
+    if (!scope) return reply.redirect('/', 302);
+
+    const id = req.params?.id;
+    if (typeof id !== 'string' || !UUID_RE.test(id)) {
+      reply.code(404).send();
+      return;
+    }
+    const credential = await findCredentialById(app.db, id);
+    if (!credential || credential.customer_id !== scope.customer_id) {
+      reply.code(404).send();
+      return;
+    }
+
+    const mode = req.query?.mode;
+    let payload = null;
+    let decryptError = null;
+
+    if (mode === 'reveal') {
+      const unlocked = await isVaultUnlocked(app.db, session.id);
+      if (!unlocked) {
+        const ret = encodeURIComponent(`/customer/credentials/${id}?mode=reveal`);
+        return reply.redirect(`/customer/step-up?return=${ret}`, 302);
+      }
+      try {
+        const r = await credentialsService.viewByCustomer(app.db, {
+          customerUserId: session.user_id,
+          sessionId:      session.id,
+          credentialId:   id,
+        }, { ip: req.ip ?? null, userAgentHash: null, kek: app.kek });
+        payload = r.payload;
+      } catch (err) {
+        if (err?.code === 'STEP_UP_REQUIRED') {
+          const ret = encodeURIComponent(`/customer/credentials/${id}?mode=reveal`);
+          return reply.redirect(`/customer/step-up?return=${ret}`, 302);
+        }
+        if (err?.code === 'DECRYPT_FAILURE') {
+          decryptError = 'Could not decrypt this credential. Engineering has been notified.';
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    return renderCustomer(req, reply, 'customer/credentials/show', {
+      title: 'Credential',
+      scope,
+      credential,
+      payload,
+      decryptError,
+      revealed: mode === 'revealed',
+      csrfToken: await reply.generateCsrf(),
+      activeNav: 'credentials',
+      mainWidth: 'content',
+      sectionLabel: 'CREDENTIALS',
+    });
+  });
+
+  app.post('/customer/credentials/:id/reveal', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
+    const id = req.params?.id;
+    if (typeof id !== 'string' || !UUID_RE.test(id)) {
+      reply.code(404).send();
+      return;
+    }
+    return reply.redirect(`/customer/credentials/${id}?mode=reveal`, 302);
   });
 
   app.post('/customer/credentials/:id/delete', { preHandler: app.csrfProtection }, async (req, reply) => {

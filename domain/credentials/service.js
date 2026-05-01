@@ -457,6 +457,147 @@ export async function view(db, {
   }
 }
 
+// Phase F: customer-actor mirror of `view`. The customer reads their own
+// stored secret with re-2FA gating (vault-lock identical to admin path).
+// Audit row is actor_type='customer'/visible_to_customer=true; Phase B
+// fan-out goes to ADMINS (not the customer; they did the action). Same
+// DEK-unwrap path; same DecryptFailureError forensic-audit handling.
+export async function viewByCustomer(db, {
+  customerUserId,
+  sessionId,
+  credentialId,
+}, ctx = {}) {
+  const kek = requireKek(ctx, 'credentials.viewByCustomer');
+
+  if (!(await isVaultUnlocked(db, sessionId))) {
+    throw new StepUpRequiredError();
+  }
+
+  try {
+    return await db.transaction().execute(async (tx) => {
+      const cred = await repo.findCredentialById(tx, credentialId);
+      if (!cred) throw new CredentialNotFoundError(credentialId);
+
+      // Cross-customer guard: the customer_user must own the customer.
+      await assertCustomerUserBelongsTo(tx, customerUserId, cred.customer_id);
+
+      const customer = await loadCustomerDekRow(tx, cred.customer_id);
+      if (customer.status !== 'active') {
+        throw new Error(
+          `cannot view credential for customer in status '${customer.status}' — must be 'active'`,
+        );
+      }
+      const dek = unwrapDek({
+        ciphertext: customer.dek_ciphertext,
+        iv: customer.dek_iv,
+        tag: customer.dek_tag,
+      }, kek);
+
+      let plaintext, payload;
+      try {
+        plaintext = decrypt({
+          ciphertext: cred.payload_ciphertext,
+          iv: cred.payload_iv,
+          tag: cred.payload_tag,
+        }, dek);
+        payload = JSON.parse(plaintext.toString('utf8'));
+      } catch (err) {
+        const dfe = new DecryptFailureError();
+        dfe._forensic = {
+          credentialId,
+          customerId: cred.customer_id,
+          provider: cred.provider,
+          label: cred.label,
+          cause: err.message,
+        };
+        throw dfe;
+      }
+
+      const a = baseAudit(ctx);
+      await writeAudit(tx, {
+        actorType: 'customer',
+        actorId: customerUserId,
+        action: 'credential.viewed',
+        targetType: 'credential',
+        targetId: credentialId,
+        metadata: {
+          ...a.metadata,
+          customerId: cred.customer_id,
+          provider: cred.provider,
+          label: cred.label,
+        },
+        visibleToCustomer: true,
+        ip: a.ip,
+        userAgentHash: a.userAgentHash,
+      });
+
+      // Phase B fan-out: customer-actor view notifies admins (not the
+      // customer themselves — they performed the action).
+      const cnameRow = await sql`
+        SELECT razon_social FROM customers WHERE id = ${cred.customer_id}::uuid
+      `.execute(tx);
+      const customerName = cnameRow.rows[0]?.razon_social ?? '';
+      const admins = await listActiveAdmins(tx);
+      for (const adm of admins) {
+        const vars = { recipient: 'admin', customerName, count: 1 };
+        await recordForDigest(tx, {
+          recipientType: 'admin',
+          recipientId:   adm.id,
+          customerId:    cred.customer_id,
+          bucket:        'fyi',
+          eventType:     'credential.viewed',
+          title:         titleFor('credential.viewed', adm.locale, vars),
+          linkPath:      `/admin/customers/${cred.customer_id}/credentials`,
+          metadata:      { credentialId, provider: cred.provider, label: cred.label },
+          vars,
+          locale:        adm.locale,
+        });
+      }
+
+      await unlockVault(tx, sessionId);
+
+      return {
+        credentialId,
+        customerId: cred.customer_id,
+        provider: cred.provider,
+        label: cred.label,
+        needsUpdate: cred.needs_update,
+        payload,
+      };
+    });
+  } catch (err) {
+    if (err instanceof DecryptFailureError && err._forensic) {
+      const a = baseAudit(ctx);
+      try {
+        await writeAudit(db, {
+          actorType: 'customer',
+          actorId: customerUserId,
+          action: 'credential.decrypt_failure',
+          targetType: 'credential',
+          targetId: credentialId,
+          metadata: {
+            ...a.metadata,
+            customerId: err._forensic.customerId,
+            provider: err._forensic.provider,
+            label: err._forensic.label,
+            cause: err._forensic.cause,
+          },
+          visibleToCustomer: false,
+          ip: a.ip,
+          userAgentHash: a.userAgentHash,
+        });
+      } catch (auditErr) {
+        if (typeof ctx?.log?.error === 'function') {
+          ctx.log.error({ err: auditErr, credentialId },
+            'failed to write credential.decrypt_failure (customer) audit');
+        }
+      }
+      delete err._forensic;
+    }
+    throw err;
+  }
+}
+
 export async function markNeedsUpdate(db, {
   adminId,
   credentialId,
