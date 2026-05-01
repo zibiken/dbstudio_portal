@@ -56,7 +56,7 @@ async function renderIndex(req, reply, app, session, extra = {}) {
     inflight,
     csrfToken: await reply.generateCsrf(),
     activeNav: 'profile',
-    mainWidth: 'content',
+    mainWidth: 'wide',
     sectionLabel: 'ADMIN · PROFILE',
     ...extra,
   });

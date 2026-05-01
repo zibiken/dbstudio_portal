@@ -68,7 +68,7 @@ export function registerAdminDocumentsRoutes(app) {
       title: 'Upload document',
       customer,
       csrfToken: await reply.generateCsrf(),
-      mainWidth: 'content',
+      mainWidth: 'wide',
       ...customerChrome(customer, 'documents'),
     });
   });
@@ -135,7 +135,7 @@ export function registerAdminDocumentsRoutes(app) {
           customer,
           csrfToken: await reply.generateCsrf(),
           error: err.message,
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'documents'),
         });
       }
@@ -149,7 +149,7 @@ export function registerAdminDocumentsRoutes(app) {
           customer,
           csrfToken: await reply.generateCsrf(),
           error: 'No file received.',
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'documents'),
         });
       }

@@ -76,7 +76,7 @@ export function registerAdminInvoicesRoutes(app) {
       customer,
       csrfToken: await reply.generateCsrf(),
       form: null,
-      mainWidth: 'content',
+      mainWidth: 'wide',
       ...customerChrome(customer, 'invoices'),
     });
   });
@@ -149,7 +149,7 @@ export function registerAdminInvoicesRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           form: { invoice_number: invoiceNumber, amount_cents: amountCents, currency, issued_on: issuedOn, due_on: dueOn, notes },
           error: err.message,
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'invoices'),
         });
       }
@@ -164,7 +164,7 @@ export function registerAdminInvoicesRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           form: { invoice_number: invoiceNumber, amount_cents: amountCents, currency, issued_on: issuedOn, due_on: dueOn, notes },
           error: 'No file received.',
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'invoices'),
         });
       }
@@ -192,7 +192,7 @@ export function registerAdminInvoicesRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           form: { invoice_number: invoiceNumber, amount_cents: amountCents, currency, issued_on: issuedOn, due_on: dueOn, notes },
           error: err.message,
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'invoices'),
         });
       }
@@ -218,7 +218,7 @@ export function registerAdminInvoicesRoutes(app) {
       csrfToken: await reply.generateCsrf(),
       nextStatuses: NEXT_STATUSES[row.status] ?? [],
       flash: typeof req.query?.flash === 'string' ? req.query.flash : null,
-      mainWidth: 'content',
+      mainWidth: 'wide',
       ...customerChrome(customer, 'invoices'),
     });
   });
@@ -254,7 +254,7 @@ export function registerAdminInvoicesRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           nextStatuses: NEXT_STATUSES[row.status] ?? [],
           error: err.message,
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'invoices'),
         });
       }

@@ -55,7 +55,7 @@ export function registerCustomerCredentialsRoutes(app) {
       scope,
       csrfToken: await reply.generateCsrf(),
       activeNav: 'credentials',
-      mainWidth: 'content',
+      mainWidth: 'wide',
       sectionLabel: 'CREDENTIALS',
     });
   });

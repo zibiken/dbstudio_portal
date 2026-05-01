@@ -67,7 +67,7 @@ export function registerAdminProjectsRoutes(app) {
       customer,
       csrfToken: await reply.generateCsrf(),
       form: null,
-      mainWidth: 'content',
+      mainWidth: 'wide',
       ...customerChrome(customer, 'projects'),
     });
   });
@@ -93,7 +93,7 @@ export function registerAdminProjectsRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           form: { name, objeto_proyecto: objetoProyecto },
           error: 'Name and objeto del proyecto are required.',
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'projects'),
         });
       }
@@ -112,7 +112,7 @@ export function registerAdminProjectsRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           form: { name, objeto_proyecto: objetoProyecto },
           error: err.message,
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'projects'),
         });
       }
@@ -132,7 +132,7 @@ export function registerAdminProjectsRoutes(app) {
       customer,
       project,
       csrfToken: await reply.generateCsrf(),
-      mainWidth: 'content',
+      mainWidth: 'wide',
       ...customerChrome(customer, 'projects'),
     });
   });
@@ -159,7 +159,7 @@ export function registerAdminProjectsRoutes(app) {
           project,
           csrfToken: await reply.generateCsrf(),
           error: 'At least one of name or objeto del proyecto must change.',
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'projects'),
         });
       }
@@ -177,7 +177,7 @@ export function registerAdminProjectsRoutes(app) {
           project,
           csrfToken: await reply.generateCsrf(),
           error: err.message,
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'projects'),
         });
       }
@@ -208,7 +208,7 @@ export function registerAdminProjectsRoutes(app) {
           project,
           csrfToken: await reply.generateCsrf(),
           error: err.message,
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'projects'),
         });
       }

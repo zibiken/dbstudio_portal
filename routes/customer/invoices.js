@@ -45,7 +45,7 @@ export function registerCustomerInvoicesRoutes(app) {
       title: `Invoice ${row.invoice_number}`,
       row,
       activeNav: 'invoices',
-      mainWidth: 'content',
+      mainWidth: 'wide',
       sectionLabel: 'INVOICES',
     });
   });

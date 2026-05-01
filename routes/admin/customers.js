@@ -65,7 +65,7 @@ export function registerAdminCustomerRoutes(app) {
       csrfToken: await reply.generateCsrf(),
       form: null,
       activeNav: 'customers',
-      mainWidth: 'content',
+      mainWidth: 'wide',
       sectionLabel: 'ADMIN · CUSTOMERS',
     });
   });
@@ -100,7 +100,7 @@ export function registerAdminCustomerRoutes(app) {
         form: { razon_social: razonSocial, nif, domicilio, primary_user_name: primaryName, primary_user_email: primaryEmail },
         error: errors.join(' '),
         activeNav: 'customers',
-        mainWidth: 'content',
+        mainWidth: 'wide',
         sectionLabel: 'ADMIN · CUSTOMERS',
       });
     }
@@ -135,7 +135,7 @@ export function registerAdminCustomerRoutes(app) {
           ? 'A customer or user with these details already exists.'
           : 'Could not create customer. Try again.',
         activeNav: 'customers',
-        mainWidth: 'content',
+        mainWidth: 'wide',
         sectionLabel: 'ADMIN · CUSTOMERS',
       });
     }
@@ -151,7 +151,7 @@ export function registerAdminCustomerRoutes(app) {
         expiresAt: new Date(Date.now() + customersService.INVITE_TTL_MS).toISOString(),
       },
       activeNav: 'customers',
-      mainWidth: 'content',
+      mainWidth: 'wide',
       sectionLabel: 'ADMIN · CUSTOMERS',
     });
   });
@@ -179,7 +179,7 @@ export function registerAdminCustomerRoutes(app) {
       users,
       csrfToken: await reply.generateCsrf(),
       activeNav: 'customers',
-      mainWidth: 'content',
+      mainWidth: 'wide',
       sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
       activeTab: 'detail',
     });
@@ -207,7 +207,7 @@ export function registerAdminCustomerRoutes(app) {
       form: null,
       error: null,
       activeNav: 'customers',
-      mainWidth: 'content',
+      mainWidth: 'wide',
       sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
       activeTab: 'edit',
     });
@@ -252,7 +252,7 @@ export function registerAdminCustomerRoutes(app) {
         form: body,
         error: err.message,
         activeNav: 'customers',
-        mainWidth: 'content',
+        mainWidth: 'wide',
         sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
         activeTab: 'edit',
       });
@@ -304,7 +304,7 @@ export function registerAdminCustomerRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           error: err.message,
           activeNav: 'customers',
-          mainWidth: 'content',
+          mainWidth: 'wide',
           sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
           activeTab: 'detail',
         });

@@ -96,7 +96,7 @@ export function registerAdminCredentialRequestsRoutes(app) {
       csrfToken: await reply.generateCsrf(),
       form: null,
       fieldTypes: ALLOWED_FIELD_TYPES,
-      mainWidth: 'content',
+      mainWidth: 'wide',
       ...customerChrome(customer, 'credential-requests'),
     });
   });
@@ -123,7 +123,7 @@ export function registerAdminCredentialRequestsRoutes(app) {
           form: { provider, fields },
           fieldTypes: ALLOWED_FIELD_TYPES,
           error: err?.message ?? String(err),
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'credential-requests'),
         });
       };
@@ -156,7 +156,7 @@ export function registerAdminCredentialRequestsRoutes(app) {
       customer,
       request,
       csrfToken: await reply.generateCsrf(),
-      mainWidth: 'content',
+      mainWidth: 'wide',
       ...customerChrome(customer, 'credential-requests'),
     });
   });
@@ -184,7 +184,7 @@ export function registerAdminCredentialRequestsRoutes(app) {
           request,
           csrfToken: await reply.generateCsrf(),
           error: err.message,
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'credential-requests'),
         });
       }

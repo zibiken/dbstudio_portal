@@ -75,7 +75,7 @@ export function registerAdminNdasRoutes(app) {
       missingFields,
       csrfToken: await reply.generateCsrf(),
       error: null,
-      mainWidth: 'content',
+      mainWidth: 'wide',
       ...customerChrome(customer, 'ndas'),
     });
   });
@@ -105,7 +105,7 @@ export function registerAdminNdasRoutes(app) {
           missingFields: computeMissingNdaFields(customer),
           csrfToken: await reply.generateCsrf(),
           error: 'Pick a project.',
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'ndas'),
         });
       }
@@ -129,7 +129,7 @@ export function registerAdminNdasRoutes(app) {
           missingFields: computeMissingNdaFields(customer),
           csrfToken: await reply.generateCsrf(),
           error: err.message,
-          mainWidth: 'content',
+          mainWidth: 'wide',
           ...customerChrome(customer, 'ndas'),
         });
       }
@@ -228,7 +228,7 @@ export function registerAdminNdasRoutes(app) {
       nda,
       customer,
       csrfToken: await reply.generateCsrf(),
-      mainWidth: 'content',
+      mainWidth: 'wide',
       ...customerChrome(customer, 'ndas'),
     });
   });
@@ -246,7 +246,7 @@ async function renderDetailWithError(req, reply, app, ndaId, error) {
     customer,
     csrfToken: await reply.generateCsrf(),
     error,
-    mainWidth: 'content',
+    mainWidth: 'wide',
     ...customerChrome(customer, 'ndas'),
   });
 }
