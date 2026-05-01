@@ -10,6 +10,9 @@ import { generateBackupCodes, verifyAndConsume } from '../../lib/auth/backup-cod
 import { verify as verifyTotp } from '../../lib/auth/totp.js';
 import { createSession, stepUp } from '../../lib/auth/session.js';
 import { enqueue as enqueueEmail } from '../email-outbox/repo.js';
+import { listActiveCustomerUsers } from '../../lib/digest-fanout.js';
+import { recordForDigest } from '../../lib/digest.js';
+import { titleFor } from '../../lib/digest-strings.js';
 import { insertCustomer, insertCustomerUser, updateCustomer as repoUpdateCustomer } from './repo.js';
 
 export const INVITE_TTL_MS = 7 * 24 * 3_600_000;
@@ -253,6 +256,25 @@ export async function reactivateCustomer(db, { customerId }, ctx = {}) {
     // Old sessions stay revoked — reactivation requires the customer to
     // log in fresh.
     await customerAudit(tx, ctx, 'customer.reactivated', customerId, { visibleToCustomer: true });
+
+    // Phase B: customer FYI fan-out — the customer is back to 'active' so
+    // listActiveCustomerUsers will find them. Suspend / archive cannot
+    // fan-out because the customer-user query would return zero rows
+    // post-flip; those state changes are handled out-of-band by the
+    // operator via direct contact, not by the portal email pipeline.
+    const recipients = await listActiveCustomerUsers(tx, customerId);
+    for (const u of recipients) {
+      await recordForDigest(tx, {
+        recipientType: 'customer_user',
+        recipientId:   u.id,
+        customerId,
+        bucket:        'fyi',
+        eventType:     'customer.reactivated',
+        title:         titleFor('customer.reactivated', u.locale, {}),
+        linkPath:      '/customer/dashboard',
+      });
+    }
+
     return { customerId, status: 'active' };
   });
 }
