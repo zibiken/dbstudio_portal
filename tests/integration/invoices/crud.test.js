@@ -127,16 +127,23 @@ describe.skipIf(skip)('invoices/service crud', () => {
       expect(Number(audit.rows[0].metadata.amountCents)).toBe(123456);
       expect(audit.rows[0].metadata.currency).toBe('EUR');
 
+      // Phase B: 'new-invoice' immediate enqueue retired in favour of
+      // digest fan-out. Assert that no immediate per-invoice email was
+      // enqueued, and that an invoice.uploaded digest item exists per
+      // active customer_user.
       const outbox = await sql`
-        SELECT to_address, template, idempotency_key, locals
-          FROM email_outbox
-         WHERE to_address LIKE ${tag + '%'}
-           AND template = 'new-invoice'
+        SELECT template FROM email_outbox WHERE to_address LIKE ${tag + '%'} AND template = 'new-invoice'
       `.execute(db);
-      expect(outbox.rows.length).toBe(1);
-      expect(outbox.rows[0].idempotency_key).toBe(`invoice_created:${r.invoiceId}`);
-      expect(outbox.rows[0].locals.invoiceNumber).toBe('INV-2026-001');
-      expect(outbox.rows[0].locals.invoiceUrl).toMatch(`/customer/invoices/${r.invoiceId}`);
+      expect(outbox.rows.length).toBe(0);
+
+      const digestItems = await sql`
+        SELECT event_type, title FROM pending_digest_items
+         WHERE recipient_type = 'customer_user'
+           AND customer_id = ${customerId}::uuid
+           AND event_type = 'invoice.uploaded'
+      `.execute(db);
+      expect(digestItems.rows.length).toBeGreaterThan(0);
+      expect(digestItems.rows[0].title).toMatch(/INV-2026-001/);
     });
 
     it('refuses when the customer is not active', async () => {

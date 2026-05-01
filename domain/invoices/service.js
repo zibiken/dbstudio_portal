@@ -3,6 +3,9 @@ import { sql } from 'kysely';
 import { writeAudit } from '../../lib/audit.js';
 import { enqueue as enqueueEmail } from '../email-outbox/repo.js';
 import * as repo from './repo.js';
+import { listActiveCustomerUsers } from '../../lib/digest-fanout.js';
+import { recordForDigest } from '../../lib/digest.js';
+import { titleFor } from '../../lib/digest-strings.js';
 
 // Invoice domain (M8 Task 8.1).
 //
@@ -233,19 +236,22 @@ export async function create(db, {
       userAgentHash: a.userAgentHash,
     });
 
-    const recipient = await loadPrimaryUserForCustomer(tx, customerId);
-    if (recipient) {
-      await enqueueEmail(tx, {
-        idempotencyKey: `invoice_created:${id}`,
-        toAddress: recipient.email,
-        template: 'new-invoice',
-        locals: {
-          recipientName: recipient.name,
-          invoiceNumber: number,
-          amount: formatAmount(amt, cur),
-          dueDate: due,
-          invoiceUrl: `${baseUrl}/customer/invoices/${id}`,
-        },
+    // Phase B: digest fan-out (replaces the immediate 'new-invoice'
+    // template enqueue). Each active customer_user receives an FYI item
+    // with locale-correct title and a deep-link to the customer invoice
+    // detail. The legacy enqueue is retired — see CHANGELOG / spec.
+    const recipients = await listActiveCustomerUsers(tx, customerId);
+    const amount = formatAmount(amt, cur);
+    for (const u of recipients) {
+      await recordForDigest(tx, {
+        recipientType: 'customer_user',
+        recipientId:   u.id,
+        customerId,
+        bucket:        'fyi',
+        eventType:     'invoice.uploaded',
+        title:         titleFor('invoice.uploaded', u.locale, { invoiceNumber: number, amount }),
+        linkPath:      `/customer/invoices/${id}`,
+        metadata:      { invoiceId: id, invoiceNumber: number, amountCents: amt },
       });
     }
 
