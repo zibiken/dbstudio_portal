@@ -14,6 +14,7 @@ const EXPECTED_SLUGS = [
   'credential-request-created',
   'customer-invitation',
   'customer-pw-reset',
+  'digest',
   'email-change-notification-old',
   'email-change-verification',
   'email-otp-code',
@@ -181,7 +182,7 @@ const SAMPLES = {
 };
 
 describe('email templates', () => {
-  it('lists exactly the 16 expected slugs', () => {
+  it('lists exactly the 17 expected slugs', () => {
     expect(listTemplates()).toEqual(EXPECTED_SLUGS);
   });
 
