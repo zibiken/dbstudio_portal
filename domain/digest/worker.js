@@ -21,17 +21,22 @@ const DEFAULT_TICK_MS = 60_000;
 
 async function loadRecipient(tx, { recipient_type, recipient_id }) {
   if (recipient_type === 'customer_user') {
+    // customer_users has no status column; activeness is the parent
+    // customer's status. Suspended/archived customers' users still get
+    // their pending items drained (via the empty-drop path) but no email
+    // is emitted because we filter on customers.status = 'active' here.
     const r = await sql`
-      SELECT id::text AS id, name, email, locale
-        FROM customer_users
-       WHERE id = ${recipient_id}::uuid AND status = 'active'
+      SELECT cu.id::text AS id, cu.name, cu.email, cu.locale
+        FROM customer_users cu
+        JOIN customers c ON c.id = cu.customer_id
+       WHERE cu.id = ${recipient_id}::uuid AND c.status = 'active'
     `.execute(tx);
     return r.rows[0] ?? null;
   }
   const r = await sql`
     SELECT id::text AS id, name, email, locale
       FROM admins
-     WHERE id = ${recipient_id}::uuid AND status = 'active'
+     WHERE id = ${recipient_id}::uuid
   `.execute(tx);
   return r.rows[0] ?? null;
 }
