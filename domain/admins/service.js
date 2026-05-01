@@ -327,6 +327,110 @@ export async function noticeLoginDevice(
   return { isNew: true };
 }
 
+// Completes a password reset on an existing admin. Distinct from
+// completeWelcome: this flow is for someone who already has TOTP +
+// backup codes and just wants to set a new password. We REQUIRE proof
+// of existing-authenticator possession (a current TOTP code or an
+// unconsumed backup code) so a leaked email link alone cannot reset
+// the account — the email-link factor + the authenticator factor must
+// be present together.
+//
+// Refuses if:
+// - the token is unknown / expired / consumed
+// - the admin has no totp_secret_enc yet (they must use /welcome — this
+//   is a reset, not a first-time setup)
+// - neither totpCode nor backupCode is provided / valid
+//
+// On success: hashes the new password, marks the invite token consumed
+// (one-shot), mints a session + step-up + audits
+// admin.password_reset_completed and admin.login_success (via='reset').
+// totp_secret_enc / totp_iv / totp_tag / backup_codes ARE PRESERVED —
+// the user's authenticator entry continues to work and their unused
+// backup codes remain valid.
+export async function completePasswordReset(
+  db,
+  { token, newPassword, totpCode, backupCode, kek, sessionIp = null, sessionDeviceFingerprint = null },
+  ctx = {},
+) {
+  const hibpFn = ctx.hibpHasBeenPwned ?? defaultHibp;
+  if (await hibpFn(newPassword)) {
+    throw new Error('password compromised in a known breach');
+  }
+
+  const tokenHash = hashToken(token);
+  const passwordHash = await hashPassword(newPassword);
+
+  return await db.transaction().execute(async (tx) => {
+    const r = await sql`
+      SELECT id, totp_secret_enc, totp_iv, totp_tag, backup_codes,
+             invite_consumed_at, invite_expires_at
+        FROM admins
+       WHERE invite_token_hash = ${tokenHash}
+         FOR UPDATE
+    `.execute(tx);
+    const row = r.rows[0];
+    if (!row) throw new Error('invalid reset token');
+    if (row.invite_consumed_at) throw new Error('reset link already used');
+    if (new Date(row.invite_expires_at).getTime() <= Date.now()) {
+      throw new Error('reset link expired');
+    }
+    if (!row.totp_secret_enc) {
+      throw new Error('TOTP not yet enrolled — use the welcome link to finish first-time setup');
+    }
+
+    // Verify TOTP OR backup code. Mirrors /login/2fa's accept-either
+    // pattern. The backup-code path consumes the matched code.
+    let ok = false;
+    let usedMethod = null;
+    let updatedBackupCodes = null;
+    if (typeof totpCode === 'string' && totpCode.length > 0) {
+      const secret = decrypt(
+        { ciphertext: row.totp_secret_enc, iv: row.totp_iv, tag: row.totp_tag },
+        kek,
+      ).toString('utf8');
+      ok = verifyTotp(secret, totpCode);
+      if (ok) usedMethod = 'totp';
+    }
+    if (!ok && typeof backupCode === 'string' && backupCode.length > 0) {
+      const stored = row.backup_codes ?? [];
+      const r2 = await verifyAndConsume(stored, backupCode.trim());
+      if (r2.ok) {
+        ok = true;
+        usedMethod = 'backup';
+        updatedBackupCodes = r2.stored;
+      }
+    }
+    if (!ok) throw new Error('TOTP code or backup code did not match');
+
+    await sql`
+      UPDATE admins
+         SET password_hash = ${passwordHash},
+             invite_consumed_at = now()
+             ${updatedBackupCodes ? sql`, backup_codes = ${JSON.stringify(updatedBackupCodes)}::jsonb` : sql``}
+       WHERE id = ${row.id}::uuid
+    `.execute(tx);
+
+    await audit(tx, ctx, 'admin.password_reset_completed', {
+      adminId: row.id,
+      metadata: { method: usedMethod },
+    });
+
+    const sid = await createSession(tx, {
+      userType: 'admin',
+      userId: row.id,
+      ip: sessionIp,
+      deviceFingerprint: sessionDeviceFingerprint,
+    });
+    await stepUp(tx, sid);
+    await audit(tx, ctx, 'admin.login_success', {
+      adminId: row.id,
+      metadata: { method: usedMethod, via: 'reset' },
+    });
+
+    return { adminId: row.id, sid };
+  });
+}
+
 export async function consumeBackupCode(db, { adminId, code }, ctx = {}) {
   return await db.transaction().execute(async (tx) => {
     const admin = await findById(tx, adminId);

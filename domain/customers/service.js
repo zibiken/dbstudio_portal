@@ -3,10 +3,11 @@ import { sql } from 'kysely';
 import { v7 as uuidv7 } from 'uuid';
 import { writeAudit } from '../../lib/audit.js';
 import {
-  generateDek, wrapDek, unwrapDek, encrypt,
+  generateDek, wrapDek, unwrapDek, encrypt, decrypt,
 } from '../../lib/crypto/envelope.js';
 import { hashPassword, hibpHasBeenPwned as defaultHibp } from '../../lib/crypto/hash.js';
-import { generateBackupCodes } from '../../lib/auth/backup-codes.js';
+import { generateBackupCodes, verifyAndConsume } from '../../lib/auth/backup-codes.js';
+import { verify as verifyTotp } from '../../lib/auth/totp.js';
 import { createSession, stepUp } from '../../lib/auth/session.js';
 import { enqueue as enqueueEmail } from '../email-outbox/repo.js';
 import { insertCustomer, insertCustomerUser, updateCustomer as repoUpdateCustomer } from './repo.js';
@@ -186,7 +187,7 @@ export async function requestCustomerPasswordReset(db, { email }, ctx = {}) {
       template: 'customer-pw-reset',
       locals: {
         recipientName: row.name,
-        resetUrl: `${baseUrl}/customer/welcome/${inviteToken}`,
+        resetUrl: `${baseUrl}/customer/reset/${inviteToken}`,
         expiresAt: inviteExpiresAt.toISOString(),
       },
     });
@@ -474,6 +475,137 @@ export async function completeCustomerWelcome(
       customerId: row.customer_id,
       razonSocial: row.razon_social,
       codes,
+      sid,
+    };
+  });
+}
+
+// Mirror of admins.completePasswordReset for customers. Same posture:
+// reset requires both factors at once — possession of the email reset
+// link AND a valid current TOTP code (or unconsumed backup code) from
+// the existing authenticator. totp_secret_enc / backup_codes are NOT
+// rewritten — the user's authenticator entry continues to work.
+//
+// Refuses if:
+// - the token is unknown / expired / consumed
+// - the customer status is not active
+// - the customer_user has no totp_secret_enc yet (must use
+//   /customer/welcome — this is a reset, not first-time setup)
+// - neither totpCode nor backupCode is provided / valid
+//
+// On success: hashes the new password, marks invite_token consumed
+// (one-shot), mints a session + step-up + audits
+// customer.password_reset_completed and customer.login_success
+// (via='reset'). The customer DEK is unwrapped only to verify the
+// existing TOTP secret; it falls out of scope when the tx returns.
+export async function completePasswordReset(
+  db,
+  { token, newPassword, totpCode, backupCode, kek, sessionIp = null, sessionDeviceFingerprint = null },
+  ctx = {},
+) {
+  if (!Buffer.isBuffer(kek) || kek.length !== 32) {
+    throw new Error('customers.completePasswordReset requires a 32-byte kek');
+  }
+  const hibpFn = ctx.hibpHasBeenPwned ?? defaultHibp;
+  if (await hibpFn(newPassword)) {
+    throw new Error('password compromised in a known breach');
+  }
+
+  const tokenHash = hashToken(token);
+  const passwordHash = await hashPassword(newPassword);
+
+  return await db.transaction().execute(async (tx) => {
+    const r = await sql`
+      SELECT cu.id AS user_id, cu.customer_id, cu.totp_secret_enc, cu.totp_iv,
+             cu.totp_tag, cu.backup_codes, cu.invite_consumed_at, cu.invite_expires_at,
+             c.status AS customer_status,
+             c.dek_ciphertext, c.dek_iv, c.dek_tag
+        FROM customer_users cu
+        JOIN customers c ON c.id = cu.customer_id
+       WHERE cu.invite_token_hash = ${tokenHash}
+         FOR UPDATE OF cu
+    `.execute(tx);
+    const row = r.rows[0];
+    if (!row) throw new Error('invalid reset token');
+    if (row.invite_consumed_at) throw new Error('reset link already used');
+    if (new Date(row.invite_expires_at).getTime() <= Date.now()) {
+      throw new Error('reset link expired');
+    }
+    if (row.customer_status !== 'active') {
+      throw new Error('customer account is not active');
+    }
+    if (!row.totp_secret_enc) {
+      throw new Error('TOTP not yet enrolled — use the welcome link to finish first-time setup');
+    }
+
+    let ok = false;
+    let usedMethod = null;
+    let updatedBackupCodes = null;
+
+    if (typeof totpCode === 'string' && totpCode.length > 0) {
+      const dek = unwrapDek(
+        { ciphertext: row.dek_ciphertext, iv: row.dek_iv, tag: row.dek_tag },
+        kek,
+      );
+      const secret = decrypt(
+        { ciphertext: row.totp_secret_enc, iv: row.totp_iv, tag: row.totp_tag },
+        dek,
+      ).toString('utf8');
+      ok = verifyTotp(secret, totpCode);
+      if (ok) usedMethod = 'totp';
+    }
+    if (!ok && typeof backupCode === 'string' && backupCode.length > 0) {
+      const stored = row.backup_codes ?? [];
+      const r2 = await verifyAndConsume(stored, backupCode.trim());
+      if (r2.ok) {
+        ok = true;
+        usedMethod = 'backup';
+        updatedBackupCodes = r2.stored;
+      }
+    }
+    if (!ok) throw new Error('TOTP code or backup code did not match');
+
+    await sql`
+      UPDATE customer_users
+         SET password_hash = ${passwordHash},
+             invite_consumed_at = now()
+             ${updatedBackupCodes ? sql`, backup_codes = ${JSON.stringify(updatedBackupCodes)}::jsonb` : sql``}
+       WHERE id = ${row.user_id}::uuid
+    `.execute(tx);
+
+    await writeAudit(tx, {
+      actorType: 'customer',
+      actorId: row.user_id,
+      action: 'customer.password_reset_completed',
+      targetType: 'customer_user',
+      targetId: row.user_id,
+      metadata: { method: usedMethod, ...(ctx?.audit ?? {}) },
+      visibleToCustomer: true,
+      ip: ctx?.ip ?? null,
+      userAgentHash: ctx?.userAgentHash ?? null,
+    });
+
+    const sid = await createSession(tx, {
+      userType: 'customer',
+      userId: row.user_id,
+      ip: sessionIp,
+      deviceFingerprint: sessionDeviceFingerprint,
+    });
+    await stepUp(tx, sid);
+    await writeAudit(tx, {
+      actorType: 'customer',
+      actorId: row.user_id,
+      action: 'customer.login_success',
+      targetType: 'customer_user',
+      targetId: row.user_id,
+      metadata: { method: usedMethod, via: 'reset', ...(ctx?.audit ?? {}) },
+      ip: ctx?.ip ?? null,
+      userAgentHash: ctx?.userAgentHash ?? null,
+    });
+
+    return {
+      customerUserId: row.user_id,
+      customerId: row.customer_id,
       sid,
     };
   });

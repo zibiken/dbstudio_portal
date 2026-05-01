@@ -398,23 +398,38 @@ describe.skipIf(skip)('public auth route flow', () => {
     expect(cleared.value).toBe('');
   });
 
-  it('reset/:token mirrors welcome flow for forgotten password', async () => {
+  it('reset/:token sets new password without re-enrolling TOTP — existing authenticator continues to work', async () => {
     const created = await service.create(
       db,
       { email: tagEmail('rs'), name: 'Reset' },
       { actorType: 'system', audit: { tag } },
     );
-    // Establish a baseline password first.
-    await service.consumeInvite(
+    // Walk the welcome flow so the admin has password + TOTP enrolled.
+    const enrolSecret = deriveEnrolSecret(created.inviteToken, env.SESSION_SIGNING_SECRET);
+    await service.completeWelcome(
       db,
-      { token: created.inviteToken, newPassword: 'first-baseline-pw-29384' },
+      {
+        token: created.inviteToken,
+        newPassword: 'first-baseline-pw-29384',
+        totpSecret: enrolSecret,
+        kek: app.kek,
+      },
       { audit: { tag }, hibpHasBeenPwned: okHibp },
     );
-    const reset = await service.requestPasswordReset(db, { email: tagEmail('rs') }, { audit: { tag } });
+
+    // Capture the original TOTP ciphertext so we can prove it doesn't
+    // change across the reset.
+    const before = await sql`SELECT totp_secret_enc FROM admins WHERE email = ${tagEmail('rs')}`.execute(db);
+    const totpEncBefore = before.rows[0].totp_secret_enc;
+
+    // Request a fresh reset token.
+    const reset = await service.requestPasswordReset(db, { email: tagEmail('rs') }, { audit: { tag }, portalBaseUrl: env.PORTAL_BASE_URL });
     expect(reset.inviteToken).toBeTruthy();
 
-    const enrolSecret = deriveEnrolSecret(reset.inviteToken, env.SESSION_SIGNING_SECRET);
     const newPassword = 'reset-flow-passphrase-99481';
+    // The reset form uses the ORIGINAL authenticator secret (the one
+    // enrolled at /welcome) — NOT a secret derived from the reset
+    // token. That's the whole point: reset doesn't re-enrol.
     const totp = generateToken(enrolSecret);
 
     const jar = {};
@@ -422,6 +437,7 @@ describe.skipIf(skip)('public auth route flow', () => {
     expect(get.statusCode).toBe(200);
     expect(get.body).toContain('name="password"');
     expect(get.body).toContain('name="totp_code"');
+    expect(get.body).not.toContain('otpauth://'); // no QR — this is reset, not first-time
     mergeCookies(jar, get);
     const csrf = extractInputValue(get.body, '_csrf');
 
@@ -431,7 +447,24 @@ describe.skipIf(skip)('public auth route flow', () => {
       headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
       payload: `password=${encodeURIComponent(newPassword)}&totp_code=${totp}&_csrf=${encodeURIComponent(csrf)}`,
     });
-    expect(post.statusCode).toBe(200);
-    expect(post.body).toMatch(/[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}/);
+    // Reset auto-logs-in: 302 to /admin/customers + sid cookie.
+    expect(post.statusCode).toBe(302);
+    expect(post.headers.location).toBe('/admin/customers');
+    const sid = parseSetCookies(post).find((c) => c.name === 'sid');
+    expect(sid).toBeTruthy();
+
+    // The TOTP secret ciphertext did NOT change — same authenticator
+    // entry on the user's phone continues to work.
+    const after = await sql`SELECT totp_secret_enc, password_hash FROM admins WHERE email = ${tagEmail('rs')}`.execute(db);
+    expect(Buffer.compare(after.rows[0].totp_secret_enc, totpEncBefore)).toBe(0);
+    // Password hash DID change.
+    expect(after.rows[0].password_hash).not.toBeNull();
+    // Audit row for password_reset_completed exists.
+    const audit = await sql`
+      SELECT 1 FROM audit_log
+       WHERE action = 'admin.password_reset_completed'
+         AND target_id = (SELECT id FROM admins WHERE email = ${tagEmail('rs')})
+    `.execute(db);
+    expect(audit.rows).toHaveLength(1);
   });
 });
