@@ -1,6 +1,9 @@
 import { v7 as uuidv7 } from 'uuid';
 import { sql } from 'kysely';
 import { writeAudit } from '../../lib/audit.js';
+import { listActiveCustomerUsers, listActiveAdmins } from '../../lib/digest-fanout.js';
+import { recordForDigest } from '../../lib/digest.js';
+import { titleFor } from '../../lib/digest-strings.js';
 import { unwrapDek, encrypt, decrypt } from '../../lib/crypto/envelope.js';
 import { isStepped } from '../../lib/auth/session.js';
 import { isVaultUnlocked, unlockVault } from '../../lib/auth/vault-lock.js';
@@ -169,6 +172,24 @@ export async function createByCustomer(db, {
       ip: a.ip,
       userAgentHash: a.userAgentHash,
     });
+
+    // Phase B: admin FYI fan-out (coalescing — multiple customer-added
+    // credentials in one digest window collapse into one line).
+    const cnameRow = await sql`SELECT razon_social FROM customers WHERE id = ${customerId}::uuid`.execute(tx);
+    const customerName = cnameRow.rows[0]?.razon_social ?? '';
+    const admins = await listActiveAdmins(tx);
+    for (const adm of admins) {
+      await recordForDigest(tx, {
+        recipientType: 'admin',
+        recipientId:   adm.id,
+        customerId,
+        bucket:        'fyi',
+        eventType:     'credential.created',
+        title:         titleFor('credential.created', adm.locale, { customerName }),
+        linkPath:      `/admin/customers/${customerId}/credentials`,
+        metadata:      { credentialId: id, customerId },
+      });
+    }
 
     return { credentialId: id };
   });
@@ -365,6 +386,23 @@ export async function view(db, {
         ip: a.ip,
         userAgentHash: a.userAgentHash,
       });
+
+      // Phase B: customer FYI fan-out (coalescing — admin browsing N
+      // credentials in one digest window collapses into one line).
+      // Trust contract: every admin view is surfaced to the customer.
+      const recipients = await listActiveCustomerUsers(tx, cred.customer_id);
+      for (const u of recipients) {
+        await recordForDigest(tx, {
+          recipientType: 'customer_user',
+          recipientId:   u.id,
+          customerId:    cred.customer_id,
+          bucket:        'fyi',
+          eventType:     'credential.viewed',
+          title:         titleFor('credential.viewed', u.locale, {}),
+          linkPath:      '/customer/credentials',
+          metadata:      { credentialId, provider: cred.provider, label: cred.label },
+        });
+      }
 
       // Slide the vault-lock window forward inside the same tx. If anything
       // above this point throws, the timer is left untouched (rollback).
