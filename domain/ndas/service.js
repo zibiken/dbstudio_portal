@@ -4,6 +4,9 @@ import * as fsp from 'node:fs/promises';
 import { sql } from 'kysely';
 import { v7 as uuidv7 } from 'uuid';
 import { writeAudit } from '../../lib/audit.js';
+import { listActiveCustomerUsers } from '../../lib/digest-fanout.js';
+import { recordForDigest } from '../../lib/digest.js';
+import { titleFor } from '../../lib/digest-strings.js';
 import { renderNda, NDA_PLACEHOLDERS } from '../../lib/nda.js';
 import { renderPdf as defaultRenderPdf } from '../../lib/pdf-client.js';
 import { euDate } from '../../lib/dates.js';
@@ -488,6 +491,29 @@ export async function attachUploadedDocument(db, {
       ip: a.ip,
       userAgentHash: a.userAgentHash,
     });
+
+    // Phase B: customer-FYI digest only for the signed-attach milestone
+    // (the moment the NDA becomes visible on the customer surface). Audit
+    // copies (kind='audit') stay admin-internal.
+    if (kind === 'signed') {
+      const projRow = await sql`
+        SELECT name FROM projects WHERE id = ${nda.project_id}::uuid
+      `.execute(tx);
+      const projectName = projRow.rows[0]?.name ?? '';
+      const recipients = await listActiveCustomerUsers(tx, nda.customer_id);
+      for (const u of recipients) {
+        await recordForDigest(tx, {
+          recipientType: 'customer_user',
+          recipientId:   u.id,
+          customerId:    nda.customer_id,
+          bucket:        'fyi',
+          eventType:     'nda.signed',
+          title:         titleFor('nda.signed', u.locale, { customerName: '', ndaTitle: projectName || 'NDA' }),
+          linkPath:      '/customer/ndas',
+          metadata:      { ndaId, projectId: nda.project_id, documentId },
+        });
+      }
+    }
 
     return { ndaId, slot: KIND_TO_SLOT_COL[kind], documentId };
   });

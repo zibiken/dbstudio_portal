@@ -1,6 +1,9 @@
 import { sql } from 'kysely';
 import { v7 as uuidv7 } from 'uuid';
 import { writeAudit } from '../../lib/audit.js';
+import { listActiveCustomerUsers } from '../../lib/digest-fanout.js';
+import { recordForDigest } from '../../lib/digest.js';
+import { titleFor } from '../../lib/digest-strings.js';
 import {
   insertProject,
   findProjectById,
@@ -49,6 +52,21 @@ export async function create(db, { customerId, name, objetoProyecto }, ctx = {})
     await projectAudit(tx, ctx, 'project.created', projectId, {
       metadata: { customerId, name: name.trim() },
     });
+
+    // Phase B: customer FYI fan-out — new project created on their account.
+    const recipients = await listActiveCustomerUsers(tx, customerId);
+    for (const u of recipients) {
+      await recordForDigest(tx, {
+        recipientType: 'customer_user',
+        recipientId:   u.id,
+        customerId,
+        bucket:        'fyi',
+        eventType:     'project.created',
+        title:         titleFor('project.created', u.locale, { projectName: name.trim() }),
+        linkPath:      '/customer/projects',
+        metadata:      { projectId, projectName: name.trim() },
+      });
+    }
   });
   return { projectId };
 }
@@ -93,5 +111,20 @@ export async function updateStatus(db, { projectId, status }, ctx = {}) {
     await projectAudit(tx, ctx, 'project.status_changed', projectId, {
       metadata: { previousStatus: row.status, newStatus: status },
     });
+
+    // Phase B: customer FYI fan-out — project status flipped.
+    const recipients = await listActiveCustomerUsers(tx, row.customer_id);
+    for (const u of recipients) {
+      await recordForDigest(tx, {
+        recipientType: 'customer_user',
+        recipientId:   u.id,
+        customerId:    row.customer_id,
+        bucket:        'fyi',
+        eventType:     'project.status_changed',
+        title:         titleFor('project.status_changed', u.locale, { projectName: row.name, status }),
+        linkPath:      '/customer/projects',
+        metadata:      { projectId, status, previousStatus: row.status },
+      });
+    }
   });
 }
