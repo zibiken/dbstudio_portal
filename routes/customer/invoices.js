@@ -1,6 +1,7 @@
 import { renderCustomer } from '../../lib/render.js';
 import { requireCustomerSession } from '../../lib/auth/middleware.js';
 import * as invoicesService from '../../domain/invoices/service.js';
+import * as paymentsService from '../../domain/invoice-payments/service.js';
 import { findCustomerUserById } from '../../domain/customers/repo.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -41,9 +42,14 @@ export function registerCustomerInvoicesRoutes(app) {
     const me = await findCustomerUserById(app.db, session.user_id);
     if (!me || row.customer_id !== me.customer_id) return notFound(req, reply);
 
+    const payments = await paymentsService.listForInvoice(app.db, id);
+    const paidCents = payments.reduce((s, p) => s + Number(p.amount_cents), 0);
+
     return renderCustomer(req, reply, 'customer/invoices/detail', {
       title: `Invoice ${row.invoice_number}`,
       row,
+      payments,
+      paidCents,
       activeNav: 'invoices',
       mainWidth: 'wide',
       sectionLabel: 'INVOICES',

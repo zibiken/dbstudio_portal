@@ -27,6 +27,30 @@
   </dl>
 </div>
 
+<div class="card">
+  <h2 class="card__title">Payments</h2>
+  <% if (payments && payments.length) { %>
+    <ul style="list-style: none; padding-left: 0; margin: 0 0 12px;">
+      <% payments.forEach(function(p) { %>
+        <li style="padding: 6px 0; border-bottom: 1px solid var(--border-light);">
+          <strong>€<%= (Number(p.amount_cents)/100).toFixed(2) %></strong>
+          on <%= euDate(p.paid_on) %>
+          <% if (p.note) { %><span class="muted"> — <%= p.note %></span><% } %>
+        </li>
+      <% }) %>
+    </ul>
+    <p>
+      Paid <strong>€<%= (Number(paidCents)/100).toFixed(2) %></strong>
+      of €<%= (Number(row.amount_cents)/100).toFixed(2) %>
+      <% if (Number(paidCents) < Number(row.amount_cents)) { %>
+        &middot; <span class="muted">outstanding €<%= ((Number(row.amount_cents) - Number(paidCents))/100).toFixed(2) %></span>
+      <% } %>
+    </p>
+  <% } else { %>
+    <p class="muted">No payments recorded yet.</p>
+  <% } %>
+</div>
+
 <div class="form-actions">
   <%- include('../../components/_button', { variant: 'ghost', size: 'md', href: '/customer/invoices', label: 'Back to invoices' }) %>
 </div>
