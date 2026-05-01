@@ -7,6 +7,65 @@ live and which can ship as v1.0 + post-launch work.
 
 ---
 
+## ROADMAP STATUS (2026-05-01)
+
+### ✅ Shipped in Phase D
+
+- NDA gate (`customers.nda_signed_at` + `/customer/waiting`) — `8a03fb0`, `9bfa1c0`
+- Type C short-answer questionnaire (`customer_questions` table + admin/customer surfaces + 3 digest events) — `513167a`, `c474bfc`, `e7c7a80`
+- "Cleaned up" dashboard banner (admin credential.deleted → customer banner with dismissal) — `0a60777`
+- Test-pollution cleanup (shared helper + global teardown + one-time script) — `d810703`, `46df916`, `c6995af`
+
+### ✅ Shipped in Phase E
+
+- **Customer credential-eye toggle** — `70c0d0e` (Phase D batch item 1)
+- **Bento card alignment on customer dashboard** — `4b7ef81` (Phase D batch item 2)
+- **Admin credential decryption** + step-up route + customer/admin copy honesty — `4473d36`, `70f7429`, `461bbc0`, `ad9e1b9` (Phase D batch item 3)
+- **Reset-success-page typo softening** — `ad9e1b9` (Phase D batch item 4)
+- **verifyLogin → first-attempt sign-in regression test** + 2FA bucket-isolation annotation — `ad9e1b9` (Phase D batch item 5)
+
+That fully closes the "Phase D operator feedback batch (2026-05-01)" section below (all 5 items) + the "Admin credential view UI (M7 deferred minor)" section. Those entries are kept below as historical record but should NOT be re-actioned.
+
+### 🟡 Next on the roadmap (Phase F)
+
+**Digest email copy / layout / grouping rework.** Originates from the operator's original Phase D handoff (`docs/superpowers/2026-05-01-phase-d-handoff.md`, "Independent issue surfaced 2026-05-01"). The operator received a real digest email containing 23+ lines of test-fixture-flavoured noise; the test pollution itself was fixed in Phase D, but the underlying readability problems with the live digest emails are a separate ship.
+
+Concrete items the operator flagged at the time (verbatim):
+
+- *"`<companyName> added 1 credential` → '<companyName> uploaded a new credential to their vault' reads better"*
+- *"the current admin digest has no visual grouping per customer when multiple customers were active"*
+- *"no timestamps on items — a date or 'today / yesterday' hint would help context"*
+- *"the 'subject' is generic ('Activity update from DB Studio Portal') — ranges like '5 things to action, 12 FYI' would tell the reader what's inside before they open"*
+- *"'Sign in to see the full timeline' is fine but the link target is generic — could deep-link to the activity feed"*
+- *"visual hierarchy: today, items are a flat bulleted list; for admin digests with 20+ lines this is overwhelming"*
+
+Specific copy/format reworks the operator suggested:
+
+- Drop the visible internal IDs (test pollution leaked these — but real customer names like "Solbizz Canarias S.L.U." are also long; consider truncation or boldening).
+- Group admin digest items by customer with a small sub-heading.
+- Show counts per customer in the header ("Acme Corp — 4 items").
+- Use natural-language verbs: "uploaded", "viewed", "marked …", "fully paid".
+- Date stamps on each line (or "Today", "Yesterday", "2 days ago" using the recipient's locale).
+- Subject line should reflect content: "1 action required, 4 updates from DB Studio Portal".
+- Render time: test on Gmail, Apple Mail, Outlook web — current email is dark-themed; some clients normalise to light mode and the lists may break.
+
+**Files to look at first when picking up:**
+- `lib/digest-strings.js` — title strings per locale + event type. Soft-target for the copy rewrite.
+- `domain/digest/worker.js` — locals fan-out. Adding timestamps/grouping means the worker passes more locals.
+- `emails/{en,nl,es}/digest.ejs` — rendered HTML structure. Per-customer grouping for admin digests goes here.
+
+**Suggested next step:** brainstorm Phase F via `superpowers:brainstorming`. Likely splits into sub-decisions: (a) subject-line content scheme, (b) per-customer grouping shape for admin digest, (c) date/locale label scheme, (d) light-mode mail-client compatibility audit, (e) deep-link strategy.
+
+### 🟡 Other queued items (not Phase F-blocking)
+
+- **Customer-side view-with-decrypt UI** ("Vault view-with-decrypt (M9.X partial)" below) — the customer reading their own stored secret with re-2FA. Same `service.view` path with an `actor_type='customer'` branch. Smaller follow-up; can fold into Phase F brainstorm or stand alone.
+- **Admin credential-edit UI** (M7 deferred minor) — admins can already create/fulfil via credential-requests; "edit existing credential" is a nice-to-have.
+- **i18n localisation grind** (~620 strings) — see section below.
+- **Accessibility pass** (axe-core + skip-link + heading-order) — see section below.
+- M3 / M5 / M6 / M7 / M8 / M9 / M10 review-deferred items below.
+
+---
+
 ## i18n localisation (spec §2.11 / plan Task 9.5)
 
 `scripts/i18n-audit.js` reports **620 candidate offenders across 79 files**
@@ -90,7 +149,9 @@ forensic-trail material in v1.
 
 ---
 
-## Admin credential view UI (M7 deferred minor)
+## ~~Admin credential view UI (M7 deferred minor)~~ — SHIPPED in Phase E
+
+> **Status: SHIPPED 2026-05-01** at commits `4473d36` (step-up route), `70f7429` (POST + lockout), `461bbc0` (admin detail page). Customer-visible audit + Phase B `credential.viewed` digest fan-out fire on every reveal.
 
 `domain/credentials/service.view` exists with the trust-contract audit,
 but no admin route renders it. Admin credential-management today is
@@ -209,7 +270,9 @@ on customer_id and there's no service method).
 
 ---
 
-## Phase D operator feedback batch (2026-05-01)
+## ~~Phase D operator feedback batch (2026-05-01)~~ — ALL ITEMS SHIPPED IN PHASE E
+
+> **Status: SHIPPED 2026-05-01.** All 5 items below closed by the Phase E ship. Section retained as historical record. See the "ROADMAP STATUS" block at the top of this file for commit references.
 
 Four items surfaced after the Phase D plan was written. None block Phase D
 implementation. They are tracked here for Phase E / a small-fixes bundle.
