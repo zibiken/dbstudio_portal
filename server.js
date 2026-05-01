@@ -21,6 +21,7 @@ import { loadKek } from './lib/crypto/kek.js';
 import { hibpHasBeenPwned as defaultHibp } from './lib/crypto/hash.js';
 import { makeMailer } from './lib/email.js';
 import { startWorker as startOutboxWorker } from './domain/email-outbox/worker.js';
+import { startWorker as startDigestWorker } from './domain/digest/worker.js';
 import secureHeaders from './lib/secure-headers.js';
 import { registerWelcomeRoutes } from './routes/public/welcome.js';
 import { registerLoginRoutes } from './routes/public/login.js';
@@ -202,7 +203,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     log: app.log,
   });
   const stopOutboxWorker = startOutboxWorker({ db: app.db, mailer, log: app.log });
-  app.addHook('onClose', async () => { stopOutboxWorker(); });
+  const stopDigestWorker = startDigestWorker({ db: app.db, log: app.log, intervalMs: 60_000 });
+  app.addHook('onClose', async () => { stopOutboxWorker(); stopDigestWorker(); });
 
   await app.listen({ port: env.PORT, host: env.HOST });
 }
