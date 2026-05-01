@@ -10,16 +10,11 @@
   <%- include('../../components/_alert', { variant: 'error', body: error }) %>
 <% } %>
 
-<div class="detail-status-strip">
-  <span class="detail-status-strip__label">Status</span>
-  <span class="status-pill status-pill--<%= customer.status %>"><%= customer.status %></span>
-  <% if (customer.status !== 'archived') { %>
-    <a class="btn btn--ghost btn--sm detail-status-strip__edit" href="/admin/customers/<%= customer.id %>/edit">Edit details</a>
-  <% } %>
-</div>
-
 <div class="card">
-  <h2 class="card__title">Company details</h2>
+  <div class="card__title-row">
+    <h2 class="card__title">Company details</h2>
+    <span class="status-pill status-pill--<%= customer.status %>"><%= customer.status %></span>
+  </div>
   <dl class="kv">
     <dt>Tax ID</dt>            <dd><%= customer.nif || '—' %></dd>
     <dt>Registered address</dt><dd><%= customer.domicilio || '—' %></dd>
@@ -29,6 +24,11 @@
     <dt>Created</dt>           <dd><%= euDateTime(customer.created_at) %></dd>
     <dt>Updated</dt>           <dd><%= euDateTime(customer.updated_at) %></dd>
   </dl>
+  <% if (customer.status !== 'archived') { %>
+    <div class="form-actions">
+      <%- include('../../components/_button', { variant: 'secondary', size: 'sm', href: '/admin/customers/' + customer.id + '/edit', label: 'Edit details' }) %>
+    </div>
+  <% } %>
 </div>
 
 <div class="card">

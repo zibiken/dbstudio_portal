@@ -11,9 +11,11 @@
   totalLabel: 'customer',
   placeholder: 'Search by company name, NIF, contact email, or contact name…',
   ctaHref: '/admin/customers/new',
-  ctaLabel: 'New customer'
+  ctaLabel: 'New customer',
+  live: true
 }) %>
 
+<section data-list-results>
 <% if (rows && rows.length) { %>
   <div class="table-wrap">
     <table class="data-table data-table--medium">
@@ -65,3 +67,4 @@
     ctaLabel: 'Add the first customer'
   }) %>
 <% } %>
+</section>

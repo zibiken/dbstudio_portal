@@ -1,0 +1,16 @@
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
+
+<form method="post" action="/reset" autocomplete="off" class="form-stack">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <%- include('../components/_input', {
+    name: 'email', type: 'email', label: 'Email address',
+    required: true, maxlength: 320, autocomplete: 'email',
+    placeholder: 'admin@your-company.com'
+  }) %>
+  <div class="form-actions">
+    <%- include('../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Send me a reset link' }) %>
+    <%- include('../components/_button', { variant: 'ghost',   size: 'md', href: '/login', label: 'Back to sign in' }) %>
+  </div>
+</form>

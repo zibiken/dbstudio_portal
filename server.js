@@ -79,7 +79,15 @@ export async function build({
 
   const kek = kekOverride ?? loadKek(env.MASTER_KEY_PATH);
 
-  const app = Fastify({ loggerInstance: log, trustProxy: '127.0.0.1', disableRequestLogging: false });
+  // Trust the loopback proxy (systemd-side health probes hit 127.0.0.1
+   // directly) AND the Nginx Proxy Manager box at 212.231.193.53 (every
+   // public request lands on the portal via NPM, which appends the real
+   // client IP to X-Forwarded-For). Without 212.231.193.53 in the list,
+   // Fastify discards the XFF header and req.ip falls back to NPM's IP
+   // for every audited action — operator caught this on the audit log
+   // post-T22.
+   const TRUSTED_PROXIES = ['127.0.0.1', '212.231.193.53'];
+   const app = Fastify({ loggerInstance: log, trustProxy: TRUSTED_PROXIES, disableRequestLogging: false });
   app.decorate('db', db);
   app.decorate('env', env);
   app.decorate('kek', kek);

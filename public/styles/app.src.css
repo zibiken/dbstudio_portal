@@ -292,6 +292,23 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
   .detail-status-strip__edit { margin-left: 0; }
 }
 
+/* Card title row — used when a card carries a header AND an inline
+   trailing badge (e.g. status-pill on customer overview / edit). The
+   badge floats to the right; .card__subtitle stays directly under the
+   title with its own margin contract. Keeps every restyled detail tab
+   visually consistent with the list tabs above (they render
+   `_list-toolbar` directly under the sub-tabs strip; detail tabs
+   render `.card__title-row` directly under the sub-tabs strip — same
+   horizontal rhythm and roughly the same height). */
+.card__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+.card__title-row .card__title { margin: 0; }
+
 /* Customer dashboard bento grid (T17). Six cards — three across on
    desktop, two across at tablet widths, single column on phones. The
    .card partial owns its own internal rhythm; .bento only owns gap
@@ -546,9 +563,27 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 .top-bar__user { font-size: var(--f-sm); color: var(--fg-on-dark-muted); }
 .top-bar__signout { color: var(--c-ivory); text-decoration: underline; }
 
-/* surface-shell + sidebar + surface */
+/* surface-shell + sidebar + surface. The desktop layout uses a
+   linear-gradient background on .surface-shell to paint the full
+   240px-wide left column obsidian-dark from top to bottom. The
+   sidebar inside that column is sticky, so when content scrolls past
+   the sticky element's bottom edge the column behind it stays dark
+   instead of revealing the surface's ivory. Keeps the rail visually
+   solid across long-content pages without forcing the sidebar to
+   match content height. */
 .surface-shell { display: grid; grid-template-columns: 1fr; min-height: calc(100vh - 64px - 1px); }
-@media (min-width: 1024px) { .surface-shell { grid-template-columns: 240px 1fr; } }
+@media (min-width: 1024px) {
+  .surface-shell {
+    grid-template-columns: 240px 1fr;
+    background: linear-gradient(
+      to right,
+      var(--bg-dark) 0,
+      var(--bg-dark) 240px,
+      var(--bg-light) 240px,
+      var(--bg-light) 100%
+    );
+  }
+}
 
 .sidebar {
   background: var(--bg-dark);

@@ -16,7 +16,10 @@
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
   <div class="card">
-    <h2 class="card__title">Identity</h2>
+    <div class="card__title-row">
+      <h2 class="card__title">Identity</h2>
+      <span class="status-pill status-pill--<%= customer.status %>"><%= customer.status %></span>
+    </div>
     <p class="card__subtitle">The legal name and tax details on file. These appear on invoices and the NDA.</p>
     <fieldset class="fieldset-stack">
       <%- include('../../components/_input', { name: 'razon_social', type: 'text', label: 'Company name', helper: 'Razón social — the legal name on file.', required: true, maxlength: 200, value: v('razon_social', customer.razon_social) }) %>

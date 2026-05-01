@@ -1,0 +1,9 @@
+<div class="form-stack">
+  <%- include('../components/_alert', {
+    variant: 'success',
+    body: 'Check your inbox. The reset link is single-use and expires in 7 days. If you don\'t see it within a few minutes, check spam — and confirm you used the email on file.'
+  }) %>
+  <div class="form-actions">
+    <%- include('../components/_button', { variant: 'ghost', size: 'md', href: '/login', label: 'Back to sign in' }) %>
+  </div>
+</div>

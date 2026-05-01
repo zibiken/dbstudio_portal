@@ -1,10 +1,11 @@
-<%# List toolbar. Locals: action, q, placeholder, total (number), totalLabel (singular), ctaHref (optional), ctaLabel (optional). Renders search form + result-count line + optional primary CTA. %>
+<%# List toolbar. Locals: action, q, placeholder, total (number), totalLabel (singular), ctaHref (optional), ctaLabel (optional), live (optional bool — opt into search-as-you-type that fetches `action` with the typed q every 200ms idle and swaps a sibling [data-list-results] block in-place; falls back to Enter-to-submit when JS is off). Renders search form + result-count line + optional primary CTA. %>
 <%
   var totalNum = (typeof total === 'number') ? total : 0;
   var noun = (typeof totalLabel === 'string' && totalLabel) ? totalLabel : 'result';
   var nounPlural = noun.replace(/y$/, 'ies');
   var hasQ = typeof q === 'string' && q !== '';
   var hasCta = (typeof ctaHref !== 'undefined' && ctaHref) && (typeof ctaLabel !== 'undefined' && ctaLabel);
+  var liveMode = (typeof live !== 'undefined') && live;
   var resultCopy;
   if (totalNum === 0) {
     resultCopy = hasQ ? ('No ' + nounPlural + ' match "' + q + '".') : ('No ' + nounPlural + ' yet.');
@@ -15,7 +16,7 @@
   }
 %>
 <div class="list-toolbar">
-  <form method="get" action="<%= action %>" class="list-toolbar__search" role="search">
+  <form method="get" action="<%= action %>" class="list-toolbar__search" role="search"<% if (liveMode) { %> data-list-toolbar-live<% } %>>
     <label class="list-toolbar__field">
       <span class="list-toolbar__label">Search</span>
       <span class="list-toolbar__input-wrap">
@@ -34,4 +35,76 @@
     </div>
   <% } %>
 </div>
-<p class="list-toolbar__count"><%= resultCopy %></p>
+<p class="list-toolbar__count" data-list-toolbar-count><%= resultCopy %></p>
+
+<% if (liveMode) { %>
+<script nonce="<%= nonce %>">
+(function() {
+  var form = document.querySelector('form[data-list-toolbar-live]');
+  if (!form) return;
+  var input = form.querySelector('input[name="q"]');
+  var countEl = document.querySelector('[data-list-toolbar-count]');
+  var resultsEl = document.querySelector('[data-list-results]');
+  if (!input || !resultsEl) return;
+
+  // Debounced fetch — fires on idle, never on every keystroke. 220ms
+  // matches the marketing-site search latency and keeps focus
+  // uninterrupted during normal typing speed.
+  var timer = null;
+  var inFlight = null;
+  var lastSent = input.value;
+
+  function update() {
+    var q = input.value;
+    if (q === lastSent) return;
+    lastSent = q;
+
+    // Abort the previous request; only the latest q matters.
+    if (inFlight && typeof inFlight.abort === 'function') {
+      try { inFlight.abort(); } catch (e) { /* fastify aborts */ }
+    }
+    var ctrl = new AbortController();
+    inFlight = ctrl;
+
+    var url = new URL(form.action, window.location.origin);
+    url.searchParams.set('q', q);
+
+    // Reflect the new q in the address bar without scrolling — keeps
+    // back-button behaviour sane and lets the user share/refresh the
+    // current view.
+    window.history.replaceState(null, '', url.toString());
+
+    fetch(url.toString(), { credentials: 'same-origin', signal: ctrl.signal, headers: { 'accept': 'text/html' } })
+      .then(function(r) { return r.ok ? r.text() : null; })
+      .then(function(html) {
+        if (html == null) return;
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var newResults = doc.querySelector('[data-list-results]');
+        var newCount = doc.querySelector('[data-list-toolbar-count]');
+        if (newResults) resultsEl.replaceWith(newResults);
+        if (newCount && countEl) countEl.replaceWith(newCount);
+        // Re-bind the live-toolbar's references after the swap so a
+        // subsequent edit hits the new nodes. The form/input itself
+        // is preserved by the partial re-render (we only swap the
+        // results section and the count line).
+        countEl = document.querySelector('[data-list-toolbar-count]');
+        resultsEl = document.querySelector('[data-list-results]');
+      })
+      .catch(function(err) {
+        // AbortError is expected when typing fast; ignore. Anything
+        // else falls back silently to the next debounce tick.
+        if (err && err.name !== 'AbortError') {
+          // No-op — never break typing for a transient fetch error.
+        }
+      });
+  }
+
+  input.addEventListener('input', function() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(update, 220);
+  });
+  // Enter still works as the canonical submit (full page reload as
+  // fallback). The debounced update keeps the live experience.
+})();
+</script>
+<% } %>
