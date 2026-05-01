@@ -92,5 +92,30 @@ if sudo systemd-run --quiet --pipe --wait --uid=portal-app --gid=portal-app \
       } finally { await db.destroy(); }
     ' >/dev/null 2>&1; then echo OK; else echo FAIL; fail=1; fi
 
+# ---- M11 additions ------------------------------------------------------
+
+# Probe 10 — TOTP enrol page renders QR (gated). Default OFF so production
+# smoke runs (1-9) don't generate throwaway tokens against the live DB.
+# To exercise: mint a one-shot welcome token, then run:
+#   sudo RUN_M11_SMOKE=1 M11_SMOKE_WELCOME_TOKEN=<token> bash scripts/smoke.sh
+if [[ "${RUN_M11_SMOKE:-}" == "1" ]]; then
+  echo -n "[10/10] TOTP enrol page renders inline SVG QR: "
+  TOKEN="${M11_SMOKE_WELCOME_TOKEN:-}"
+  if [[ -z "$TOKEN" ]]; then
+    echo "FAIL (RUN_M11_SMOKE=1 but M11_SMOKE_WELCOME_TOKEN is empty — set it to a seeded admin or customer welcome token)"
+    fail=1
+  else
+    BODY=$(curl -sS -m 5 "http://127.0.0.1:$PORT/welcome/$TOKEN" || true)
+    if echo "$BODY" | grep -q '<svg[^>]*role="img"[^>]*aria-label="[^"]*TOTP'; then
+      echo OK
+    else
+      echo FAIL
+      fail=1
+    fi
+  fi
+else
+  echo "[10/10] TOTP enrol QR (skipped: set RUN_M11_SMOKE=1 + M11_SMOKE_WELCOME_TOKEN to exercise)"
+fi
+
 if [[ $fail -eq 0 ]]; then echo "SMOKE: OK"; else echo "SMOKE: FAILED"; fi
 exit $fail
