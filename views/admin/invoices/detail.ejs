@@ -41,3 +41,56 @@
     </div>
   </section>
 <% } %>
+
+<%# Phase B — payments ledger panel. Read-only listing on top, record-form below. %>
+<div class="card">
+  <h2 class="card__title">Payments</h2>
+  <% if (payments && payments.length) { %>
+    <div class="table-wrap">
+      <table class="data-table data-table--medium">
+        <thead>
+          <tr>
+            <th class="data-table__th data-table__th--left">Date</th>
+            <th class="data-table__th data-table__th--right">Amount</th>
+            <th class="data-table__th data-table__th--left">Note</th>
+            <th class="data-table__th data-table__th--right"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% payments.forEach(function(p) { %>
+            <tr>
+              <td class="data-table__td data-table__td--left"><%= euDate(p.paid_on) %></td>
+              <td class="data-table__td data-table__td--right">€<%= (Number(p.amount_cents)/100).toFixed(2) %></td>
+              <td class="data-table__td data-table__td--left"><%= p.note || '' %></td>
+              <td class="data-table__td data-table__td--right">
+                <form method="post" action="/admin/invoices/<%= row.id %>/payments/<%= p.id %>/delete" class="form-inline-action">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <%- include('../../components/_button', { variant: 'ghost', size: 'sm', type: 'submit', label: 'Delete' }) %>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <p>Paid €<%= (Number(paidCents)/100).toFixed(2) %> of €<%= (Number(row.amount_cents)/100).toFixed(2) %><% if (Number(paidCents) < Number(row.amount_cents)) { %> &middot; outstanding €<%= ((Number(row.amount_cents) - Number(paidCents))/100).toFixed(2) %><% } %>.</p>
+  <% } else { %>
+    <p class="muted">No payments recorded yet.</p>
+  <% } %>
+
+  <% if (Number(paidCents) < Number(row.amount_cents)) { %>
+    <h3>Record a payment</h3>
+    <form method="post" action="/admin/invoices/<%= row.id %>/payments" class="form-stack">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <%- include('../../components/_input', { name: 'amount_cents', type: 'number', label: 'Amount (cents)', required: true, value: '' }) %>
+      <%- include('../../components/_input', { name: 'paid_on',      type: 'date',   label: 'Paid on',        required: true, value: '' }) %>
+      <div class="input-field">
+        <label class="input-field__label" for="pay_note">Note (optional)</label>
+        <div class="input-field__control"><textarea id="pay_note" name="note" rows="2"></textarea></div>
+      </div>
+      <div class="form-actions">
+        <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Record payment' }) %>
+      </div>
+    </form>
+  <% } %>
+</div>

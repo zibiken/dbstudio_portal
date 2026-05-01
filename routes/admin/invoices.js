@@ -4,6 +4,7 @@ import * as invoicesService from '../../domain/invoices/service.js';
 import * as documentsService from '../../domain/documents/service.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { parseInvoicePdf } from '../../lib/invoice-parser.js';
+import * as paymentsService from '../../domain/invoice-payments/service.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -211,11 +212,15 @@ export function registerAdminInvoicesRoutes(app) {
     if (!row) return notFound(req, reply);
     const customer = await findCustomerById(app.db, row.customer_id);
     if (!customer) return notFound(req, reply);
+    const payments = await paymentsService.listForInvoice(app.db, id);
+    const paidCents = payments.reduce((s, p) => s + Number(p.amount_cents), 0);
 
     return renderAdmin(req, reply, 'admin/invoices/detail', {
       title: `Invoice ${row.invoice_number}`,
       row,
       customer,
+      payments,
+      paidCents,
       csrfToken: await reply.generateCsrf(),
       nextStatuses: NEXT_STATUSES[row.status] ?? [],
       flash: typeof req.query?.flash === 'string' ? req.query.flash : null,
@@ -223,6 +228,49 @@ export function registerAdminInvoicesRoutes(app) {
       ...customerChrome(customer, 'invoices'),
     });
   });
+
+  // Phase B: invoice payment ledger admin actions.
+  app.post(
+    '/admin/invoices/:id/payments',
+    { preHandler: app.csrfProtection },
+    async (req, reply) => {
+      const session = await requireAdminSession(app, req, reply);
+      if (!session) return;
+      const id = req.params?.id;
+      if (!UUID_RE.test(id)) return notFound(req, reply);
+      const body = req.body ?? {};
+      const amountCents = Number(body.amount_cents);
+      const paidOn = String(body.paid_on || '');
+      const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim() : null;
+      try {
+        await paymentsService.record(app.db, {
+          adminId: session.user_id, invoiceId: id, amountCents, paidOn, note,
+        }, ctxFromSession(app, req, session));
+      } catch (err) {
+        return reply.code(422).send({ error: err.message });
+      }
+      return reply.redirect(`/admin/invoices/${id}?flash=Payment%20recorded`, 302);
+    },
+  );
+
+  app.post(
+    '/admin/invoices/:id/payments/:paymentId/delete',
+    { preHandler: app.csrfProtection },
+    async (req, reply) => {
+      const session = await requireAdminSession(app, req, reply);
+      if (!session) return;
+      const { id, paymentId } = req.params ?? {};
+      if (!UUID_RE.test(id) || !UUID_RE.test(paymentId)) return notFound(req, reply);
+      try {
+        await paymentsService.deletePayment(app.db, {
+          adminId: session.user_id, paymentId, invoiceId: id,
+        }, ctxFromSession(app, req, session));
+      } catch (err) {
+        return reply.code(422).send({ error: err.message });
+      }
+      return reply.redirect(`/admin/invoices/${id}?flash=Payment%20deleted`, 302);
+    },
+  );
 
   app.post(
     '/admin/invoices/:id/status',
