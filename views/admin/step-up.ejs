@@ -1,0 +1,27 @@
+<%- include('../components/_page-header', {
+  eyebrow: 'ADMIN · STEP-UP',
+  title: 'Confirm it\'s you',
+  subtitle: 'Enter your authenticator code to continue.'
+}) %>
+
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
+
+<form method="post" action="/admin/step-up" class="card form-stack" autocomplete="off">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="return" value="<%= returnTo %>">
+
+  <div class="input-field">
+    <label for="totp_code" class="input-field__label">Authenticator code</label>
+    <div class="input-field__control">
+      <input id="totp_code" name="totp_code" type="text" inputmode="numeric" pattern="[0-9]*"
+             maxlength="6" autocomplete="one-time-code" autofocus required>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <%- include('../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Continue' }) %>
+    <%- include('../components/_button', { variant: 'ghost', size: 'md', href: '/admin/', label: 'Cancel' }) %>
+  </div>
+</form>

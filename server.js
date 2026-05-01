@@ -38,6 +38,7 @@ import { registerCustomerWaitingRoutes } from './routes/customer/waiting.js';
 import { registerCustomerDashboardRoutes } from './routes/customer/dashboard.js';
 import { registerAdminCustomerQuestionRoutes } from './routes/admin/customer-questions.js';
 import { registerCustomerQuestionsRoutes } from './routes/customer/questions.js';
+import { registerAdminStepUpRoutes } from './routes/admin/step-up.js';
 import { registerCustomerProfileRoutes } from './routes/customer/profile.js';
 import { registerCustomerActivityRoutes } from './routes/customer/activity.js';
 import { registerCustomerCredentialsRoutes } from './routes/customer/credentials.js';
@@ -190,6 +191,7 @@ export async function build({
   registerCustomerNdasRoutes(app);
   registerAdminCustomerQuestionRoutes(app);
   registerCustomerQuestionsRoutes(app);
+  registerAdminStepUpRoutes(app);
   registerPublicFilesRoutes(app);
 
   app.addHook('onClose', async () => { await db.destroy(); });
