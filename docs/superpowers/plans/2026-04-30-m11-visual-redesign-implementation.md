@@ -111,7 +111,10 @@ No domain/, routes/, migrations/ work. M11 is presentation-layer.
 | T19 /admin/profile (QR) + /admin/audit + export | ✅ | `7c3626c` | Operator-only. Same skeleton as customer/profile from T18b. Audit-export CSV streaming preserved. |
 | T20 Extend scripts/a11y-check.js with M11 checks | ✅ | `3de8078` | 5 EJS-side + 1 CSS-partner check. Sidebar conditional-class false positives fixed via classIsDynamic() helper. |
 | T21 Add probe #10 to scripts/smoke.sh | ✅ | `5fc6312` | Gated on RUN_M11_SMOKE=1 + M11_SMOKE_WELCOME_TOKEN. Default off — production smoke runs 1-9 unchanged. |
-| T22 Final cross-surface polish sweep + acceptance dry-run | ✅ | `(this commit)` | Restyled the 10 deep profile sub-pages (admin + customer × totp-regen / backup-codes-regen / -show / email-verify / sessions). Drift scan returns zero legacy class names. Authored docs/superpowers/m11-acceptance-dryrun.md. v1.0.0 tag fires on operator sign-off in dryrun §9. |
+| T22 Final cross-surface polish sweep + acceptance dry-run | ✅ | `c07cb2c` | Restyled the 10 deep profile sub-pages (admin + customer × totp-regen / backup-codes-regen / -show / email-verify / sessions). Drift scan returns zero legacy class names. Authored docs/superpowers/m11-acceptance-dryrun.md. v1.0.0 tag fires on operator sign-off in dryrun §9. |
+| **T22.1** post-T22 operator deltas: /reset entry, sidebar full-black, sub-tab heights, search-as-you-type, NPM IP (initial attempt) | ✅ | `e34bad9` | Five fixes from the post-T22 walk: missing GET /reset (404), inter-tab height jump (sticky sidebar + `.page-header` min-height), sub-tabs not wrapping on mobile, sidebar revealing un-styled background on long pages, search box interrupting typing. NPM trustProxy was added with the WRONG IP in this commit (corrected in T22.2). |
+| **T22.2** /reset for customers, NPM IP corrected, CF-Connecting-IP plumbed | ✅ | `a2fbab6` | T22.1 had `212.231.193.53` listed as a proxy (that is the operator's own client IP). Corrected to `94.72.96.105` (NPM's real IP). Added an onRequest hook that overrides `req.ip` with `cf-connecting-ip` whenever the socket peer is a trusted proxy — handles Cloudflare-in-front-of-NPM without hardcoding CF ranges. POST /reset now also calls customersService.requestCustomerPasswordReset (new domain function) so customer emails (e.g. info@brainzr.eu) actually trigger a reset email. |
+| **T22.3** Password reset preserves TOTP — admin and customer paths separated from welcome | ✅ | `07477d0` | Architectural fix. Welcome (first-time, enrols TOTP) and reset (password-only, verifies existing TOTP) are now distinct. New `adminsService.completePasswordReset` + `customersService.completePasswordReset`. New `/reset/:token` (admin, dedicated handler) + `/customer/reset/:token` (customer, new) — both render `views/public/reset-set.ejs` (password + TOTP-or-backup, no QR). `totp_secret_enc` and `backup_codes` are preserved across reset; the user's existing authenticator entry continues to work. Login-flow integration test rewritten to assert byte-identical TOTP ciphertext before/after reset + presence of `admin.password_reset_completed` audit row. |
 
 ## Open issues at handoff — RESOLVED 2026-04-30
 
@@ -142,6 +145,9 @@ The remaining T15→T21 sequence has been rewired around two principles:
 | T20 | T19 | a11y check extension | Renumbered. |
 | T21 | T20 | Smoke probe #10 | Renumbered. |
 | T22 | T21 | Final cross-surface polish sweep + acceptance dry-run + v1.0 tag | Renumbered + scope broadened to include explicit drift-fix budget, not just dryrun authoring. |
+| T22.1 | *new* | Post-T22 operator deltas (presentation + auth-entry) | Five fixes from the post-T22 walk; see progress table for the per-line breakdown. |
+| T22.2 | *new* | NPM IP correction + Cloudflare CF-Connecting-IP plumbing + customer reset wiring | Corrected the trustProxy hop (NPM is `94.72.96.105`, not the operator's IP) and routed CF's real-client header through an `onRequest` hook. Wired POST /reset to customer service so customer emails actually fire. |
+| T22.3 | *new* | Password reset preserves TOTP — welcome and reset architecturally separated | Reset no longer re-enrols TOTP — verifies existing authenticator (or backup code) and changes only the password. Distinct routes: `/reset/:token` (admin) + `/customer/reset/:token` (customer). |
 
 ---
 
