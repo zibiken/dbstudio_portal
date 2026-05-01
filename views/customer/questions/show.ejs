@@ -34,9 +34,9 @@
     </div>
   </form>
 
-  <form method="post" action="/customer/questions/<%= question.id %>/skip" class="form-inline-action customer-question__skip">
+  <form method="post" action="/customer/questions/<%= question.id %>/skip" class="form-actions">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <%- include('../../components/_button', { variant: 'tertiary', size: 'sm', type: 'submit', label: 'Skip / I don\'t know' }) %>
+    <%- include('../../components/_button', { variant: 'tertiary', size: 'md', type: 'submit', label: 'Skip / I don\'t know' }) %>
   </form>
 <% } else { %>
   <%- include('../../components/_alert', { variant: 'info', body: 'This question has been ' + question.status + '.' }) %>

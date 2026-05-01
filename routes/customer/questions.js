@@ -66,7 +66,7 @@ export function registerCustomerQuestionsRoutes(app) {
       question: q,
       csrfToken: await reply.generateCsrf(),
       activeNav: 'dashboard',
-      mainWidth: 'content',
+      mainWidth: 'wide',
     });
   });
 
@@ -90,7 +90,7 @@ export function registerCustomerQuestionsRoutes(app) {
           : `Answer is too long (max ${MAX_ANSWER_LEN} characters).`,
         prefill: answerText,
         activeNav: 'dashboard',
-        mainWidth: 'content',
+        mainWidth: 'wide',
       });
     }
 
@@ -108,7 +108,7 @@ export function registerCustomerQuestionsRoutes(app) {
         csrfToken: await reply.generateCsrf(),
         noLongerOpen: true,
         activeNav: 'dashboard',
-        mainWidth: 'content',
+        mainWidth: 'wide',
       });
     }
     return reply.redirect('/customer/dashboard', 302);
@@ -135,7 +135,7 @@ export function registerCustomerQuestionsRoutes(app) {
         csrfToken: await reply.generateCsrf(),
         noLongerOpen: true,
         activeNav: 'dashboard',
-        mainWidth: 'content',
+        mainWidth: 'wide',
       });
     }
     return reply.redirect('/customer/dashboard', 302);

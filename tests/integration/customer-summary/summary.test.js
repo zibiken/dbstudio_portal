@@ -193,7 +193,7 @@ describe.skipIf(skip)('lib/customer-summary — getCustomerDashboardSummary', ()
 
     const r = await getCustomerDashboardSummary(db, { customerId });
     expect(r.projects.count).toBe(4); // 2 standalone + 2 created via insertNda
-    expect(r.documents.count).toBe(1); // generic only — nda-draft / nda-signed / invoice excluded
+    expect(r.documents.count).toBe(4); // all except nda-draft: generic + nda-signed + 2×invoice
     expect(r.credentials.count).toBe(2);
     expect(r.credentialRequests.count).toBe(2);
     expect(r.invoices.count).toBe(2);

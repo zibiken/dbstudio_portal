@@ -56,6 +56,7 @@ export function registerCustomerCredentialsRoutes(app) {
     return renderCustomer(req, reply, 'customer/credentials/new', {
       title: 'Add a credential',
       scope,
+      form: null,
       csrfToken: await reply.generateCsrf(),
       activeNav: 'credentials',
       mainWidth: 'wide',
@@ -175,7 +176,7 @@ export function registerCustomerCredentialsRoutes(app) {
       revealed: mode === 'revealed',
       csrfToken: await reply.generateCsrf(),
       activeNav: 'credentials',
-      mainWidth: 'content',
+      mainWidth: 'wide',
       sectionLabel: 'CREDENTIALS',
     });
   });

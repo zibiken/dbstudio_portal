@@ -993,6 +993,119 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 .status-actions { margin-top: var(--s-12); padding-top: var(--s-6); border-top: 1px solid var(--border-light); }
 .form-inline-action { display: inline-flex; }
 
+/* Bare form primitives used outside of _input partials (e.g. raw
+   <textarea> in ask-a-question and answer-a-question views). */
+.form-label {
+  display: block;
+  font-size: var(--f-sm);
+  font-weight: 600;
+  color: var(--fg-on-light);
+  margin-bottom: var(--s-2);
+}
+.form-hint {
+  font-size: var(--f-xs);
+  color: var(--fg-on-light-muted);
+  margin-top: var(--s-2);
+}
+.form-textarea {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--c-stone);
+  border-radius: var(--radius-btn);
+  background: var(--c-white);
+  color: var(--fg-on-light);
+  font-family: var(--f-body);
+  font-size: var(--f-md);
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 140px;
+  transition: border var(--dur-micro) var(--ease-expo);
+  margin-bottom: var(--s-4);
+}
+.form-textarea:focus { outline: none; border-color: var(--c-moss); }
+.form-textarea:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* Customer waiting page */
+.customer-waiting__panel {
+  background: var(--c-ivory);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-card);
+  padding: var(--s-6);
+  margin-block: var(--s-6);
+}
+.customer-waiting__panel h2 {
+  font-size: var(--f-md);
+  font-weight: 600;
+  color: var(--fg-on-light-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-upper);
+  margin: 0 0 var(--s-4);
+}
+.customer-waiting__panel dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--s-2) var(--s-6);
+  margin: 0;
+}
+.customer-waiting__panel dt {
+  font-size: var(--f-sm);
+  font-weight: 600;
+  color: var(--fg-on-light-muted);
+}
+.customer-waiting__panel dd {
+  font-size: var(--f-sm);
+  color: var(--fg-on-light);
+  margin: 0;
+  overflow-wrap: break-word;
+}
+.customer-waiting__support {
+  font-size: var(--f-sm);
+  color: var(--fg-on-light-muted);
+  margin-block: var(--s-6);
+}
+.customer-waiting__support a { color: var(--c-moss); }
+
+/* card--action: used for "Questions for you" banner on dashboard.
+   Makes the whole card feel interactive with a visible call-to-action
+   affordance — stronger border + hover lift signal. */
+.card--action {
+  border: 2px solid var(--c-moss);
+  position: relative;
+}
+.card--action .card__title { color: var(--c-moss); }
+.customer-questions--dashboard {
+  list-style: none;
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.customer-questions__item--open {
+  background: var(--c-white);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-btn);
+  transition: border-color var(--dur-micro) var(--ease-expo), box-shadow var(--dur-micro) var(--ease-expo);
+}
+.customer-questions__item--open:hover {
+  border-color: var(--c-moss);
+  box-shadow: 0 2px 8px rgba(47, 93, 80, 0.12);
+}
+.customer-questions__link {
+  display: block;
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--f-sm);
+  color: var(--fg-on-light);
+  text-decoration: none;
+  font-weight: 500;
+}
+.customer-questions__link::after {
+  content: ' →';
+  color: var(--c-moss);
+  font-weight: 600;
+}
+
 /* T15.5 — credential-request "fields the customer must fill in" repeater.
    Each row stacks four cells (name / label / type / required) plus a
    remove button. Stacks vertically on mobile so labels stay legible. */

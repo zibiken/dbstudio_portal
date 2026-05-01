@@ -5,7 +5,7 @@ import { writeAudit } from '../../lib/audit.js';
 import {
   generateDek, wrapDek, unwrapDek, encrypt, decrypt,
 } from '../../lib/crypto/envelope.js';
-import { hashPassword, hibpHasBeenPwned as defaultHibp } from '../../lib/crypto/hash.js';
+import { hashPassword, verifyPassword, hibpHasBeenPwned as defaultHibp, SENTINEL_HASH } from '../../lib/crypto/hash.js';
 import { generateBackupCodes, verifyAndConsume } from '../../lib/auth/backup-codes.js';
 import { verify as verifyTotp } from '../../lib/auth/totp.js';
 import { createSession, stepUp } from '../../lib/auth/session.js';
@@ -517,6 +517,28 @@ export async function completeCustomerWelcome(
 //
 // On success: hashes the new password, marks invite_token consumed
 // (one-shot), mints a session + step-up + audits
+// Verifies email + password for a customer_user. Returns the row on
+// success (includes totp_secret_enc/iv/tag + backup_codes needed by the
+// 2FA gate), null on failure. Always runs argon2 so timing is constant
+// regardless of whether the email exists.
+export async function verifyLogin(db, { email, password }) {
+  // Single JOIN prevents a race between reading the user row and checking
+  // customer.status: a concurrent suspendCustomer cannot sneak between the two.
+  const r = typeof email === 'string'
+    ? await sql`
+        SELECT cu.*, c.status AS customer_status
+          FROM customer_users cu
+          JOIN customers c ON c.id = cu.customer_id
+         WHERE cu.email = ${email}::citext
+      `.execute(db)
+    : { rows: [] };
+  const user = r.rows[0] ?? null;
+  const ok = await verifyPassword(user?.password_hash ?? SENTINEL_HASH, password ?? '');
+  if (!ok || !user?.password_hash) return null;
+  if (user.customer_status !== 'active') return null;
+  return user;
+}
+
 // customer.password_reset_completed and customer.login_success
 // (via='reset'). The customer DEK is unwrapped only to verify the
 // existing TOTP secret; it falls out of scope when the tx returns.

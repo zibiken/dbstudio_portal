@@ -54,7 +54,7 @@ export function registerAdminCustomerQuestionRoutes(app) {
       customer,
       csrfToken: await reply.generateCsrf(),
       activeNav: 'customers',
-      mainWidth: 'content',
+      mainWidth: 'wide',
       sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
       activeTab: 'customer-questions',
     });
@@ -78,7 +78,7 @@ export function registerAdminCustomerQuestionRoutes(app) {
       customer,
       question,
       activeNav: 'customers',
-      mainWidth: 'content',
+      mainWidth: 'wide',
       sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
       activeTab: 'customer-questions',
     });
@@ -105,7 +105,7 @@ export function registerAdminCustomerQuestionRoutes(app) {
           : `Question is too long (max ${MAX_QUESTION_LEN} characters).`,
         prefill: question,
         activeNav: 'customers',
-        mainWidth: 'content',
+        mainWidth: 'wide',
         sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
         activeTab: 'customer-questions',
       });

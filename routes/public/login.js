@@ -3,6 +3,7 @@ import { checkLockout, recordFail, reset as resetBucket } from '../../lib/auth/r
 import { createSession, computeDeviceFingerprint } from '../../lib/auth/session.js';
 import { setSessionCookie } from '../../lib/auth/middleware.js';
 import * as adminsService from '../../domain/admins/service.js';
+import * as customersService from '../../domain/customers/service.js';
 import { writeAudit } from '../../lib/audit.js';
 
 const LIMIT = 5;
@@ -33,9 +34,7 @@ export function registerLoginRoutes(app) {
     const ipKey = ipBucket(req);
     const emailKey = emailBucket(email);
 
-    // Lock if EITHER bucket is over: ip-only protects against single-source
-    // brute force; email-only protects the account from distributed attacks
-    // through rotating IPs.
+    // Lock if EITHER bucket is over.
     const [ipLock, emailLock] = await Promise.all([
       checkLockout(app.db, ipKey),
       checkLockout(app.db, emailKey),
@@ -50,18 +49,31 @@ export function registerLoginRoutes(app) {
       });
     }
 
-    const admin = typeof email === 'string' && typeof password === 'string'
-      ? await adminsService.verifyLogin(app.db, { email, password })
-      : null;
+    const hasCredentials = typeof email === 'string' && typeof password === 'string';
 
-    if (!admin) {
+    // Run both lookups in parallel so timing is constant regardless of
+    // which table matches. Each service always runs argon2 (SENTINEL_HASH
+    // on miss), so neither branch is measurably faster than the other.
+    const [admin, customerCandidate] = hasCredentials
+      ? await Promise.all([
+          adminsService.verifyLogin(app.db, { email, password }),
+          customersService.verifyLogin(app.db, { email, password }),
+        ])
+      : [null, null];
+
+    // Admin takes precedence if both somehow match (email collision would
+    // require the same address to exist in both tables, which the schema
+    // does not prevent but operations policy forbids).
+    const customer = !admin ? customerCandidate : null;
+
+    if (!admin && !customer) {
       await Promise.all([
         recordFail(app.db, ipKey, { limit: LIMIT, windowMs: WINDOW_MS, lockoutMs: LOCKOUT_MS }),
         recordFail(app.db, emailKey, { limit: LIMIT, windowMs: WINDOW_MS, lockoutMs: LOCKOUT_MS }),
       ]);
       await writeAudit(app.db, {
         actorType: 'system',
-        action: 'admin.login_failed',
+        action: 'login_failed',
         metadata: { email: typeof email === 'string' ? email : null },
         ip: req.ip ?? null,
       });
@@ -76,21 +88,40 @@ export function registerLoginRoutes(app) {
 
     await Promise.all([resetBucket(app.db, ipKey), resetBucket(app.db, emailKey)]);
     const fingerprint = computeDeviceFingerprint(req.headers['user-agent'], req.ip);
+
+    if (admin) {
+      const sid = await createSession(app.db, {
+        userType: 'admin',
+        userId: admin.id,
+        ip: req.ip ?? null,
+        deviceFingerprint: fingerprint,
+      });
+      setSessionCookie(reply, sid, app.env);
+      await writeAudit(app.db, {
+        actorType: 'admin',
+        actorId: admin.id,
+        action: 'admin.login_password_verified',
+        metadata: {},
+        ip: req.ip ?? null,
+      });
+      return reply.redirect('/login/2fa', 302);
+    }
+
+    // Customer path — same half-auth session, same 2FA gate.
     const sid = await createSession(app.db, {
-      userType: 'admin',
-      userId: admin.id,
+      userType: 'customer',
+      userId: customer.id,
       ip: req.ip ?? null,
       deviceFingerprint: fingerprint,
     });
     setSessionCookie(reply, sid, app.env);
     await writeAudit(app.db, {
-      actorType: 'admin',
-      actorId: admin.id,
-      action: 'admin.login_password_verified',
+      actorType: 'customer',
+      actorId: customer.id,
+      action: 'customer.login_password_verified',
       metadata: {},
       ip: req.ip ?? null,
     });
-
-    reply.redirect('/login/2fa', 302);
+    return reply.redirect('/login/2fa', 302);
   });
 }
