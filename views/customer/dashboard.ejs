@@ -4,6 +4,22 @@
   subtitle: 'Your projects, NDAs, credentials and invoices in one place.'
 }) %>
 
+<% if (openQuestions && openQuestions.length > 0) { %>
+  <div class="card card--action">
+    <h2 class="card__title">Questions for you</h2>
+    <p class="card__subtitle">DB Studio is waiting on a short answer from you.</p>
+    <ul class="customer-questions customer-questions--dashboard">
+      <% openQuestions.forEach(function(q) { %>
+        <li class="customer-questions__item customer-questions__item--open">
+          <a href="/customer/questions/<%= q.id %>" class="customer-questions__link">
+            <%= q.question.length > 120 ? q.question.slice(0, 120) + '…' : q.question %>
+          </a>
+        </li>
+      <% }) %>
+    </ul>
+  </div>
+<% } %>
+
 <%
   function fmtLatest(latestAt) {
     if (!latestAt) return null;

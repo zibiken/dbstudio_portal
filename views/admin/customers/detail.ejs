@@ -61,6 +61,37 @@
   }) %>
 </div>
 
+<% var qs = (typeof questions !== 'undefined' && questions) ? questions : []; %>
+<div class="card">
+  <div class="card__title-row">
+    <h2 class="card__title">Questions</h2>
+    <%- include('../../components/_button', { variant: 'secondary', size: 'sm', href: '/admin/customers/' + customer.id + '/questions/new', label: '+ Ask a question' }) %>
+  </div>
+  <% if (qs.length === 0) { %>
+    <p class="card__subtitle">No questions yet.</p>
+  <% } else { %>
+    <ul class="customer-questions">
+      <% qs.forEach(function(q) { %>
+        <li class="customer-questions__item customer-questions__item--<%= q.status %>">
+          <div class="customer-questions__head">
+            <span class="status-pill status-pill--<%= q.status %>"><%= q.status %></span>
+            <span class="customer-questions__date"><%= euDateTime(q.created_at) %></span>
+            <% if (q.created_by_email) { %>
+              <span class="customer-questions__author">asked by <%= q.created_by_email %></span>
+            <% } %>
+          </div>
+          <p class="customer-questions__question"><%= q.question %></p>
+          <% if (q.status === 'answered') { %>
+            <p class="customer-questions__answer"><strong>Answer (<%= q.answered_by_email %>, <%= euDateTime(q.answered_at) %>):</strong> <%= q.answer_text %></p>
+          <% } else if (q.status === 'skipped') { %>
+            <p class="customer-questions__answer"><em>Skipped by <%= q.answered_by_email %> on <%= euDateTime(q.answered_at) %>.</em></p>
+          <% } %>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
 <% if (customer.status !== 'archived') { %>
   <div class="card card--danger">
     <h2 class="card__title">Customer status</h2>

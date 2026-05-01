@@ -6,6 +6,7 @@ import {
   listCustomers,
   listCustomerUsersByCustomer,
 } from '../../domain/customers/repo.js';
+import * as cqRepo from '../../domain/customer-questions/repo.js';
 
 const PER_PAGE_DEFAULT = 25;
 const PER_PAGE_MAX = 100;
@@ -173,10 +174,12 @@ export function registerAdminCustomerRoutes(app) {
     }
 
     const users = await listCustomerUsersByCustomer(app.db, customer.id);
+    const questions = await cqRepo.listAllForCustomer(app.db, customer.id);
     return renderAdmin(req, reply, 'admin/customers/detail', {
       title: customer.razon_social,
       customer,
       users,
+      questions,
       csrfToken: await reply.generateCsrf(),
       activeNav: 'customers',
       mainWidth: 'wide',

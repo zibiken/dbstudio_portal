@@ -3,6 +3,7 @@ import { renderCustomer } from '../../lib/render.js';
 import { requireCustomerSession, requireNdaSigned } from '../../lib/auth/middleware.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { getCustomerDashboardSummary } from '../../lib/customer-summary.js';
+import * as cqRepo from '../../domain/customer-questions/repo.js';
 
 export function registerCustomerDashboardRoutes(app) {
   app.get('/customer/dashboard', async (req, reply) => {
@@ -18,6 +19,7 @@ export function registerCustomerDashboardRoutes(app) {
 
     const customer = await findCustomerById(app.db, user.customer_id);
     const summary = await getCustomerDashboardSummary(app.db, { customerId: user.customer_id });
+    const openQuestions = await cqRepo.listOpenForCustomer(app.db, user.customer_id);
 
     // Dashboard is per-user data — never shared. 15s is short enough to
     // feel live (typing on a sibling tab and switching back), long
@@ -29,6 +31,7 @@ export function registerCustomerDashboardRoutes(app) {
       user,
       customer,
       summary,
+      openQuestions,
       activeNav: 'dashboard',
       mainWidth: 'wide',
       sectionLabel: customer.razon_social.toUpperCase(),

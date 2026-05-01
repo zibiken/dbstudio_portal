@@ -1,0 +1,37 @@
+<%- include('../../components/_page-header', {
+  eyebrow: 'A question from DB Studio',
+  title: 'Help us with one short question',
+  subtitle: 'Answer in a few words, or click "Skip" if you don\'t know.'
+}) %>
+
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
+
+<% if (typeof noLongerOpen !== 'undefined' && noLongerOpen) { %>
+  <%- include('../../components/_alert', { variant: 'info', body: 'This question is no longer open. A teammate may have just answered or skipped it.' }) %>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'primary', size: 'md', href: '/customer/dashboard', label: 'Back to dashboard' }) %>
+  </div>
+<% } else if (question.status === 'open') { %>
+  <blockquote class="customer-question__prompt"><%= question.question %></blockquote>
+
+  <form method="post" action="/customer/questions/<%= question.id %>/answer" class="card">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label for="answer" class="form-label">Your answer</label>
+    <textarea id="answer" name="answer" rows="6" maxlength="8000" class="form-textarea"><%= typeof prefill !== 'undefined' ? prefill : '' %></textarea>
+    <div class="form-actions">
+      <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Submit answer' }) %>
+    </div>
+  </form>
+
+  <form method="post" action="/customer/questions/<%= question.id %>/skip" class="form-inline-action customer-question__skip">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <%- include('../../components/_button', { variant: 'tertiary', size: 'sm', type: 'submit', label: 'Skip / I don\'t know' }) %>
+  </form>
+<% } else { %>
+  <%- include('../../components/_alert', { variant: 'info', body: 'This question has been ' + question.status + '.' }) %>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'primary', size: 'md', href: '/customer/dashboard', label: 'Back to dashboard' }) %>
+  </div>
+<% } %>

@@ -1,0 +1,22 @@
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · ' + customer.razon_social,
+  title: 'Ask a question',
+  subtitle: 'The customer will see this on their dashboard and can answer or skip it.'
+}) %>
+
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
+
+<form method="post" action="/admin/customers/<%= customer.id %>/questions" class="card">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+  <label for="question" class="form-label">Question</label>
+  <textarea id="question" name="question" rows="6" required maxlength="4000" class="form-textarea"><%= typeof prefill !== 'undefined' ? prefill : '' %></textarea>
+  <p class="form-hint">Keep it specific. The customer can answer or click "Skip / I don't know".</p>
+
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Send to customer' }) %>
+    <%- include('../../components/_button', { variant: 'secondary', size: 'md', href: '/admin/customers/' + customer.id, label: 'Cancel' }) %>
+  </div>
+</form>
