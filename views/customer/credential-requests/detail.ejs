@@ -9,6 +9,7 @@
                 request.status === 'fulfilled' ? 'fulfilled' :
                 request.status === 'cancelled' ? 'archived' :
                 request.status === 'not_applicable' ? 'void' : 'pending';
+  var f = (typeof form !== 'undefined' && form) ? form : {};
 %>
 
 <div class="detail-status-strip">
@@ -46,26 +47,26 @@
         <div class="input-field__control">
           <input id="cred_label" type="text" name="label" maxlength="200"
                  placeholder="<%= request.provider %>"
-                 value="<%= form?.label ?? '' %>">
+                 value="<%= f.label ?? '' %>">
         </div>
         <p class="input-field__helper">Optional. Defaults to the provider name.</p>
       </div>
 
-      <% request.fields.forEach(function(f) { %>
+      <% request.fields.forEach(function(field) { %>
         <div class="input-field">
-          <label class="input-field__label" for="cred_field_<%= f.name %>"><%= f.label %><%= f.required ? ' *' : '' %></label>
+          <label class="input-field__label" for="cred_field_<%= field.name %>"><%= field.label %><%= field.required ? ' *' : '' %></label>
           <div class="input-field__control">
-            <% if (f.type === 'note') { %>
-              <textarea id="cred_field_<%= f.name %>" name="field__<%= f.name %>" rows="4" <%= f.required ? 'required' : '' %>><%= form?.payload?.[f.name] ?? '' %></textarea>
-            <% } else if (f.type === 'secret') { %>
-              <input id="cred_field_<%= f.name %>" type="password" name="field__<%= f.name %>" <%= f.required ? 'required' : '' %>
-                     autocomplete="new-password" value="<%= form?.payload?.[f.name] ?? '' %>">
-            <% } else if (f.type === 'url') { %>
-              <input id="cred_field_<%= f.name %>" type="url" name="field__<%= f.name %>" <%= f.required ? 'required' : '' %>
-                     value="<%= form?.payload?.[f.name] ?? '' %>">
+            <% if (field.type === 'note') { %>
+              <textarea id="cred_field_<%= field.name %>" name="field__<%= field.name %>" rows="4" <%= field.required ? 'required' : '' %>><%= (f.payload && f.payload[field.name]) || '' %></textarea>
+            <% } else if (field.type === 'secret') { %>
+              <input id="cred_field_<%= field.name %>" type="password" name="field__<%= field.name %>" <%= field.required ? 'required' : '' %>
+                     autocomplete="new-password" value="<%= (f.payload && f.payload[field.name]) || '' %>">
+            <% } else if (field.type === 'url') { %>
+              <input id="cred_field_<%= field.name %>" type="url" name="field__<%= field.name %>" <%= field.required ? 'required' : '' %>
+                     value="<%= (f.payload && f.payload[field.name]) || '' %>">
             <% } else { %>
-              <input id="cred_field_<%= f.name %>" type="text" name="field__<%= f.name %>" <%= f.required ? 'required' : '' %>
-                     value="<%= form?.payload?.[f.name] ?? '' %>">
+              <input id="cred_field_<%= field.name %>" type="text" name="field__<%= field.name %>" <%= field.required ? 'required' : '' %>
+                     value="<%= (f.payload && f.payload[field.name]) || '' %>">
             <% } %>
           </div>
         </div>
@@ -85,7 +86,7 @@
       <div class="input-field">
         <label class="input-field__label" for="cred_reason">Reason</label>
         <div class="input-field__control">
-          <textarea id="cred_reason" name="reason" rows="3" required maxlength="2000"><%= form?.reason ?? '' %></textarea>
+          <textarea id="cred_reason" name="reason" rows="3" required maxlength="2000"><%= f.reason ?? '' %></textarea>
         </div>
       </div>
       <div class="form-actions">
