@@ -209,5 +209,43 @@ on customer_id and there's no service method).
 
 ---
 
+## Password-reset typo silent-success UX (Phase E candidate)
+
+`/auth/password-reset` (and the equivalent admin path) returns the
+same success page whether the entered email exists in the system or
+not, by design — this prevents account-enumeration probes. Real-world
+cost: 2026-05-01 the operator typed `info@brainzr.com` instead of
+`info@brainzr.eu`, got a "we sent you a link" page, and waited for a
+mail that was never going to arrive. No error surfaced.
+
+**Trade-off space** (decide during Phase E brainstorm — bundle with
+the digest copy/layout rework since both are email-UX):
+- (a) Keep current behavior, but soften the wording: "If your address
+  is registered, we've sent a link" (RFC 7613 / OWASP-cheatsheet style).
+  Communicates the conditional without leaking which side is true.
+- (b) On submit, show a confirm-the-domain-spelling step in the form
+  ("Did you mean `…@dbstudio.one`?") for known-typo TLDs. Suggestion
+  layer only; no enumeration.
+- (c) Out-of-band: when a customer's actual address has been recently
+  used and a typo'd variant is submitted (e.g. `.com` for `.eu`), send
+  a one-line note to the actual address: "we received a reset request
+  with a typo'd version of your address; if it was you, try again."
+  Adds attack surface — defer.
+- (d) Per-account rate-limit on reset submissions across address
+  variants (Levenshtein-1) — reduces enumeration value without
+  changing UX.
+
+(a) is the cheap/safe baseline; (b) is the high-value low-risk add;
+(c) only worth it if the operator wants to. (d) is an orthogonal
+hardening regardless.
+
+Scope: half a day for (a)+(b). Lives well in Phase E because the same
+spec touches password-reset email copy + the digest copy/layout rework
++ the bounce-handling story (MailerSend soft-bounces from Phase D's
+fixture pollution incident raise the same question of "what does the
+operator/customer see when a mail can't reach the inbox").
+
+---
+
 Tracking convention: when an item ships, move its bullet into the
 build-log + delete the line here.
