@@ -1,17 +1,23 @@
-<section class="customer-profile">
-  <header class="customer-section-header">
-    <h1>Your new backup codes</h1>
-    <p class="subtitle">Save these somewhere safe. We won't show them again.</p>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'PORTAL · PROFILE',
+  title: 'Your new backup codes',
+  subtitle: 'Save these somewhere safe — we won\'t show them again.'
+}) %>
 
-  <article class="customer-card">
-    <ul class="backup-codes" aria-label="Backup codes">
-      <% codes.forEach(function (code) { %>
-        <li><code><%= code %></code></li>
-      <% }); %>
-    </ul>
-    <p class="muted">Each code is single-use. When you've used one to sign in, it's
-      consumed and removed from your account.</p>
-    <p><a href="/customer/profile">Done — back to profile</a></p>
-  </article>
-</section>
+<%- include('../../components/_alert', {
+  variant: 'warn',
+  body: 'You will not see these codes again. Store them in your password manager. Each code works once if you lose access to your authenticator.'
+}) %>
+
+<div class="card">
+  <h2 class="card__title">Backup codes</h2>
+  <ul class="backup-codes" aria-label="Backup codes">
+    <% codes.forEach(function(code) { %>
+      <li><code><%= code %></code></li>
+    <% }) %>
+  </ul>
+  <p class="card__subtitle">Each code is single-use. When you've used one to sign in, it's consumed and removed from your account.</p>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'primary', size: 'md', href: '/customer/profile', label: 'I\'ve saved my codes' }) %>
+  </div>
+</div>

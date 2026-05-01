@@ -1,14 +1,22 @@
-<section class="admin-profile">
-  <header class="admin-section-header">
-    <h1>Your new backup codes</h1>
-    <p class="subtitle">Save these somewhere safe. We won't show them again.</p>
-  </header>
-  <article class="admin-card">
-    <ul class="backup-codes" aria-label="Backup codes">
-      <% codes.forEach(function (code) { %>
-        <li><code><%= code %></code></li>
-      <% }); %>
-    </ul>
-    <p><a href="/admin/profile">Done — back to profile</a></p>
-  </article>
-</section>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · PROFILE',
+  title: 'Your new backup codes',
+  subtitle: 'Save these somewhere safe — we won\'t show them again.'
+}) %>
+
+<%- include('../../components/_alert', {
+  variant: 'warn',
+  body: 'You will not see these codes again. Store them in your password manager. Each code works once if you lose access to your authenticator.'
+}) %>
+
+<div class="card">
+  <h2 class="card__title">Backup codes</h2>
+  <ul class="backup-codes" aria-label="Backup codes">
+    <% codes.forEach(function(code) { %>
+      <li><code><%= code %></code></li>
+    <% }) %>
+  </ul>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'primary', size: 'md', href: '/admin/profile', label: 'I\'ve saved my codes' }) %>
+  </div>
+</div>

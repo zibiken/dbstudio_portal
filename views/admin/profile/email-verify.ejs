@@ -1,16 +1,18 @@
-<section class="admin-profile">
-  <header class="admin-section-header">
-    <h1>Confirm new email address</h1>
-  </header>
-  <article class="admin-card">
-    <p>You're about to change the email on your DB Studio admin account to the address you used to open this link.</p>
-    <% if (typeof error !== 'undefined' && error) { %>
-      <p class="form-error" role="alert"><%= error %></p>
-    <% } %>
-    <form method="post" action="/admin/profile/email/verify/<%= token %>" class="admin-form">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <button type="submit">Confirm change</button>
-      <a href="/admin/profile" class="cancel-link">Cancel</a>
-    </form>
-  </article>
-</section>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · PROFILE',
+  title: 'Confirm new email address'
+}) %>
+
+<div class="card">
+  <p>You're about to change the email on your DB Studio admin account to the address you used to open this link.</p>
+  <% if (typeof error !== 'undefined' && error) { %>
+    <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+  <% } %>
+  <form method="post" action="/admin/profile/email/verify/<%= token %>" class="form-stack">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="form-actions">
+      <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Confirm change' }) %>
+      <%- include('../../components/_button', { variant: 'ghost',   size: 'md', href: '/admin/profile', label: 'Cancel' }) %>
+    </div>
+  </form>
+</div>

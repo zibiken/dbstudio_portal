@@ -1,36 +1,40 @@
-<section class="customer-profile">
-  <header class="customer-section-header">
-    <h1>Regenerate two-factor authentication</h1>
-    <p class="subtitle">Replace the TOTP secret on this account with a fresh one.</p>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'PORTAL · PROFILE',
+  title: 'Regenerate two-factor authentication',
+  subtitle: 'Replace the TOTP secret on your account with a fresh one.'
+}) %>
 
-  <article class="customer-card">
-    <h2>Step 1 — scan the new QR code</h2>
-    <p class="muted">Use your authenticator app (Google Authenticator, 1Password, Authy, …)
-      to scan or manually enter the code below. <strong>Don't remove the existing
-      DB Studio entry yet</strong> — we'll need a code from it in step 2.</p>
-    <p class="totp-secret"><code><%= newSecret %></code></p>
-    <p class="muted">otpauth URI for manual entry: <code><%= otpauthUri %></code></p>
-  </article>
+<div class="card">
+  <h2 class="card__title">Step 1 — scan the new QR code</h2>
+  <p class="card__subtitle">Use your authenticator app (Google Authenticator, 1Password, Authy, …) to scan the QR or enter the secret manually. <strong>Don't remove the existing DB Studio entry yet</strong> — you'll need a code from it in step 2.</p>
+  <% if (typeof qrSvg !== 'undefined' && qrSvg) { %>
+    <%- include('../../components/_qr', { svg: qrSvg, secret: newSecret }) %>
+  <% } else { %>
+    <p><strong>Manual-entry secret:</strong> <code class="qr-block__secret"><%= newSecret %></code></p>
+  <% } %>
+</div>
 
-  <article class="customer-card">
-    <h2>Step 2 — confirm the swap</h2>
-    <p class="muted">Enter a 6-digit code from your <em>old</em> authenticator entry to
-      prove it's you, plus a 6-digit code from the <em>new</em> entry to prove the
-      QR scanned cleanly. After this, you can delete the old entry.</p>
-    <% if (typeof error !== 'undefined' && error) { %>
-      <p class="form-error" role="alert"><%= error %></p>
-    <% } %>
-    <form method="post" action="/customer/profile/2fa" class="customer-form" autocomplete="off">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <label for="current-code">Current 6-digit code</label>
-      <input id="current-code" name="current_code" type="text" inputmode="numeric"
-             pattern="[0-9]{6}" maxlength="6" required autocomplete="one-time-code">
-      <label for="new-code">New 6-digit code</label>
-      <input id="new-code" name="new_code" type="text" inputmode="numeric"
-             pattern="[0-9]{6}" maxlength="6" required autocomplete="one-time-code">
-      <button type="submit">Replace TOTP secret</button>
-      <a href="/customer/profile" class="cancel-link">Cancel</a>
-    </form>
-  </article>
-</section>
+<div class="card">
+  <h2 class="card__title">Step 2 — confirm the swap</h2>
+  <p class="card__subtitle">Enter a 6-digit code from your <em>old</em> entry to prove it's you, plus a 6-digit code from the <em>new</em> entry to prove the QR scanned cleanly. Once this succeeds you can delete the old entry.</p>
+  <% if (typeof error !== 'undefined' && error) { %>
+    <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+  <% } %>
+  <form method="post" action="/customer/profile/2fa" class="form-stack" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <%- include('../../components/_input', {
+      name: 'current_code', type: 'text', label: 'Current 6-digit code',
+      required: true, inputmode: 'numeric', pattern: '[0-9]{6}', maxlength: 6,
+      autocomplete: 'one-time-code'
+    }) %>
+    <%- include('../../components/_input', {
+      name: 'new_code', type: 'text', label: 'New 6-digit code',
+      required: true, inputmode: 'numeric', pattern: '[0-9]{6}', maxlength: 6,
+      autocomplete: 'one-time-code'
+    }) %>
+    <div class="form-actions">
+      <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Replace TOTP secret' }) %>
+      <%- include('../../components/_button', { variant: 'ghost',   size: 'md', href: '/customer/profile', label: 'Cancel' }) %>
+    </div>
+  </form>
+</div>

@@ -104,14 +104,14 @@ No domain/, routes/, migrations/ work. M11 is presentation-layer.
 | **PLAN REWIRE** Insert T15 polish, demote T19 admin profile, broaden T22 | ✅ | `7f28264` | Re-ordered T15→T22 around customer-perception priority + locked-bar-first principle. Documented in `## Rewired execution sequence` above. |
 | T15 Admin surface polish + English copy + extended search + responsive + missing list views | ✅ | `e96bc20` | Operator review surfaced 3 deltas during T15 walk: mobile non-responsive, two tab routes 404'd (Documents + Credentials), credential-request field types missing. First two baked in here (≤640px breakpoints + new `routes/admin/credentials.js` + `admin/documents/list.ejs` + `admin/credentials/list.ejs` metadata-only view). Tests +7 (579 total). New doc: `docs/superpowers/m11-list-surface-contract.md`. |
 | T15.5 Credential-request dynamic field repeater + clearer type labels | ✅ | `e65ef2b` | Per-field type wiring (text/secret/url/note) was already correct end-to-end since M7; missing UX was the "+ Add another field" repeater + descriptive type-option labels. No schema, contract, or service change. Customer fulfillment view restyle deferred to T18b (chrome only — type-aware rendering is correct). |
-| T16 lib/customer-summary.js + unit tests | ⬜ | — | Dep for T17. Unchanged scope. |
-| T17 /customer/dashboard restyled (bento + summary) | ⬜ | — | Promoted ahead of admin profile/audit — first customer-perception surface, must inherit T15's contract. |
-| T18a Customer NDAs/Documents/Invoices/Projects restyled | ⬜ | — | Customer-facing list surfaces, polished from day 1 against T15's contract. |
-| T18b Customer Credentials/Credential-requests/Activity/Profile restyled | ⬜ | — | Customer-facing, includes vault-reveal modal contract from M7 — preserved byte-identical. |
-| T19 /admin/profile (QR) + /admin/audit + export | ⬜ | — | **WAS T15.** Demoted: operator-only surface, can ship after the customer-facing pass. |
-| T20 Extend scripts/a11y-check.js with M11 checks | ⬜ | — | **WAS T19.** |
-| T21 Add probe #10 to scripts/smoke.sh | ⬜ | — | **WAS T20.** |
-| T22 Final cross-surface polish sweep + acceptance dry-run + v1.0 tag | ⬜ | — | **WAS T21 (acceptance dryrun only).** Now carries explicit budget for cross-surface drift fixes found during the dry-run walk, not just screenshot capture. |
+| T16 lib/customer-summary.js + integration tests (TDD) | ✅ | `5badbd7` | One-query Postgres aggregator (per-section count + latestAt + unreadCount). 7 tests covering shape / empty / counts / unread semantics / isolation / latestAt / guard. |
+| T17 /customer/dashboard restyled (bento + summary) | ✅ | `bc5183d` | 6-card bento grid wired to T16's getCustomerDashboardSummary. Cache-Control: private, max-age=15. |
+| T18a Customer NDAs/Documents/Invoices/Projects restyled | ✅ | `d7bca9e` | Includes new GET /customer/documents list route + view (was missing). NDA drafts filtered out per M8.4 contract. |
+| T18b Customer Credentials/Credential-requests/Activity/Profile restyled | ✅ | `cce3dd3` | Type-aware credential-request fulfilment preserved (note→textarea / secret→password / url / text). Profile sub-pages restyled in T22. |
+| T19 /admin/profile (QR) + /admin/audit + export | ✅ | `7c3626c` | Operator-only. Same skeleton as customer/profile from T18b. Audit-export CSV streaming preserved. |
+| T20 Extend scripts/a11y-check.js with M11 checks | ✅ | `3de8078` | 5 EJS-side + 1 CSS-partner check. Sidebar conditional-class false positives fixed via classIsDynamic() helper. |
+| T21 Add probe #10 to scripts/smoke.sh | ✅ | `5fc6312` | Gated on RUN_M11_SMOKE=1 + M11_SMOKE_WELCOME_TOKEN. Default off — production smoke runs 1-9 unchanged. |
+| T22 Final cross-surface polish sweep + acceptance dry-run | ✅ | `(this commit)` | Restyled the 10 deep profile sub-pages (admin + customer × totp-regen / backup-codes-regen / -show / email-verify / sessions). Drift scan returns zero legacy class names. Authored docs/superpowers/m11-acceptance-dryrun.md. v1.0.0 tag fires on operator sign-off in dryrun §9. |
 
 ## Open issues at handoff — RESOLVED 2026-04-30
 

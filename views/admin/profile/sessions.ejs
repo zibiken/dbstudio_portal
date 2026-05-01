@@ -1,58 +1,71 @@
-<section class="admin-profile">
-  <header class="admin-section-header">
-    <h1>Active sessions</h1>
-  </header>
-  <% if (typeof error !== 'undefined' && error) { %>
-    <p class="form-error" role="alert"><%= error %></p>
-  <% } %>
-  <article class="admin-card">
-    <% if (!sessions.length) { %>
-      <p class="muted">No active sessions.</p>
-    <% } else { %>
-      <table class="admin-table">
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · PROFILE',
+  title: 'Active sessions',
+  subtitle: 'Browsers and devices currently signed in to your admin account.'
+}) %>
+
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
+
+<div class="card">
+  <h2 class="card__title"><%= sessions.length %> <%= sessions.length === 1 ? 'session' : 'sessions' %></h2>
+  <% if (!sessions.length) { %>
+    <p class="muted">No active sessions.</p>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data-table data-table--medium">
         <thead>
           <tr>
-            <th scope="col">First seen</th>
-            <th scope="col">Last seen</th>
-            <th scope="col">IP range</th>
-            <th scope="col">2FA</th>
-            <th scope="col">This device</th>
-            <th scope="col">Action</th>
+            <th scope="col" class="data-table__th data-table__th--left">First seen</th>
+            <th scope="col" class="data-table__th data-table__th--left">Last seen</th>
+            <th scope="col" class="data-table__th data-table__th--left">IP range</th>
+            <th scope="col" class="data-table__th data-table__th--left">2FA</th>
+            <th scope="col" class="data-table__th data-table__th--left">Device</th>
+            <th scope="col" class="data-table__th data-table__th--right"></th>
           </tr>
         </thead>
         <tbody>
-          <% sessions.forEach(function (s) { %>
+          <% sessions.forEach(function(s) { %>
             <tr>
-              <td><%= euDateTime(s.created_at) %></td>
-              <td><%= euDateTime(s.last_seen_at) %></td>
-              <td><code><%= s.ip_prefix ?? '—' %></code></td>
-              <td><%= s.step_up_at ? 'verified' : 'pending' %></td>
-              <td><%= s.is_current ? 'yes' : 'no' %></td>
-              <td>
-                <form method="post" action="/admin/profile/sessions/<%= encodeURIComponent(s.id) %>/revoke">
+              <td class="data-table__td data-table__td--left"><time datetime="<%= new Date(s.created_at).toISOString() %>"><%= euDateTime(s.created_at) %></time></td>
+              <td class="data-table__td data-table__td--left"><time datetime="<%= new Date(s.last_seen_at).toISOString() %>"><%= euDateTime(s.last_seen_at) %></time></td>
+              <td class="data-table__td data-table__td--left"><code class="muted"><%= s.ip_prefix ?? '—' %></code></td>
+              <td class="data-table__td data-table__td--left">
+                <span class="status-pill status-pill--<%= s.step_up_at ? 'paid' : 'pending' %>"><%= s.step_up_at ? 'verified' : 'pending' %></span>
+              </td>
+              <td class="data-table__td data-table__td--left">
+                <% if (s.is_current) { %><span class="status-pill status-pill--active">this device</span><% } else { %><span class="muted">—</span><% } %>
+              </td>
+              <td class="data-table__td data-table__td--right">
+                <form method="post" action="/admin/profile/sessions/<%= encodeURIComponent(s.id) %>/revoke" class="form-inline-action">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                  <button type="submit" class="link-button">
-                    <%= s.is_current ? 'Sign out this device' : 'Revoke' %>
-                  </button>
+                  <%- include('../../components/_button', { variant: 'ghost', size: 'sm', type: 'submit', label: s.is_current ? 'Sign out this device' : 'Revoke' }) %>
                 </form>
               </td>
             </tr>
-          <% }); %>
+          <% }) %>
         </tbody>
       </table>
-    <% } %>
-  </article>
-  <article class="admin-card">
-    <h2>Sign out everywhere</h2>
-    <form method="post" action="/admin/profile/sessions/revoke-all" class="admin-form">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <button type="submit">Sign out other sessions</button>
-    </form>
-    <p class="muted">If you also want to sign out this browser:</p>
-    <form method="post" action="/admin/profile/sessions/revoke-all" class="admin-form">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="hidden" name="include_current" value="1">
-      <button type="submit">Sign out everywhere (including here)</button>
-    </form>
-  </article>
-</section>
+    </div>
+  <% } %>
+</div>
+
+<div class="card">
+  <h2 class="card__title">Sign out everywhere</h2>
+  <p class="card__subtitle">Revoke every active session except this one. Your current browser stays signed in.</p>
+  <form method="post" action="/admin/profile/sessions/revoke-all" class="form-stack">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="form-actions">
+      <%- include('../../components/_button', { variant: 'secondary', size: 'sm', type: 'submit', label: 'Sign out other sessions' }) %>
+    </div>
+  </form>
+  <p class="card__subtitle">If you also want to sign out this browser:</p>
+  <form method="post" action="/admin/profile/sessions/revoke-all" class="form-stack">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="include_current" value="1">
+    <div class="form-actions">
+      <%- include('../../components/_button', { variant: 'danger', size: 'sm', type: 'submit', label: 'Sign out everywhere (including here)' }) %>
+    </div>
+  </form>
+</div>
