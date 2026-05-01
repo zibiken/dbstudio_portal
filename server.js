@@ -27,6 +27,7 @@ import { registerLoginRoutes } from './routes/public/login.js';
 import { registerLogin2faRoutes } from './routes/public/login-2fa.js';
 import { registerLogoutRoutes } from './routes/public/logout.js';
 import { registerResetRoutes } from './routes/public/reset.js';
+import { registerAdminIndexRoute } from './routes/admin/_index.js';
 import { registerAdminCustomerRoutes } from './routes/admin/customers.js';
 import { registerAdminProfileRoutes } from './routes/admin/profile.js';
 import { registerAdminAuditRoutes } from './routes/admin/audit.js';
@@ -162,6 +163,7 @@ export async function build({
   registerLogin2faRoutes(app);
   registerLogoutRoutes(app);
   registerResetRoutes(app);
+  registerAdminIndexRoute(app);
   registerAdminCustomerRoutes(app);
   registerAdminProfileRoutes(app);
   registerAdminAuditRoutes(app);
