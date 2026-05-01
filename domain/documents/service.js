@@ -6,6 +6,9 @@ import { Transform } from 'node:stream';
 import { sql } from 'kysely';
 import { v7 as uuidv7 } from 'uuid';
 import { writeAudit } from '../../lib/audit.js';
+import { listActiveCustomerUsers } from '../../lib/digest-fanout.js';
+import { recordForDigest } from '../../lib/digest.js';
+import { titleFor } from '../../lib/digest-strings.js';
 import {
   STORAGE_ROOT,
   storagePath,
@@ -220,6 +223,27 @@ export async function uploadForCustomer(db, {
           ip: ctx?.ip ?? null,
           userAgentHash: ctx?.userAgentHash ?? null,
         });
+
+        // Phase B: digest fan-out to active customer_users (FYI). The
+        // visibleToCustomer flag controls whether this milestone is
+        // surfaced at all — for nda-signed/nda-audit uploads (FALSE) we
+        // skip the digest item too, since the customer-facing event is
+        // the dedicated nda.* audit, not the raw upload.
+        if (visibleToCustomer) {
+          const recipients = await listActiveCustomerUsers(tx, customerId);
+          for (const u of recipients) {
+            await recordForDigest(tx, {
+              recipientType: 'customer_user',
+              recipientId:   u.id,
+              customerId,
+              bucket:        'fyi',
+              eventType:     'document.uploaded',
+              title:         titleFor('document.uploaded', u.locale, { filename: cleanName }),
+              linkPath:      '/customer/documents',
+              metadata:      { documentId, filename: cleanName },
+            });
+          }
+        }
       });
     } catch (err) {
       // Tx failed after the file was renamed into place. Best-effort
