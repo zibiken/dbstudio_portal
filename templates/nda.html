@@ -195,24 +195,33 @@
     line-height: 1.35;
   }
 
-  /* ─────────── SIGNATURES (M8.7 redesign for Yousign anchors) ─────────── */
+  /* ─────────── SIGNATURES (M8.7 redesign for Yousign anchors;
+       T15 follow-up shrunk the block ~25% so it fits at the bottom of
+       page 2 instead of orphaning on a near-empty page 3 — operator
+       feedback on nda-draft-019de26c.pdf. Heights here are calibrated
+       against typical 6-8 clause NDAs; if a longer template ever
+       pushes signatures off page 2 again, the fix is to reduce
+       .firma-rect further or compress .firmas-closing, NOT to add a
+       forced page-break which makes the orphan worse.) ───── */
   .firmas-section {
     page-break-inside: avoid;
     break-inside: avoid;
-    margin-top: 8mm;
+    page-break-before: avoid;
+    break-before: avoid;
+    margin-top: 6mm;
   }
 
   .firmas-closing {
     font-size: 9.5pt;
-    margin-bottom: 4mm;
-    line-height: 1.4;
+    margin-bottom: 3mm;
+    line-height: 1.35;
   }
 
   .firmas-date {
     text-align: center;
     color: #6B6B68;
     font-size: 9pt;
-    margin: 4mm 0 6mm 0;
+    margin: 3mm 0 4mm 0;
   }
 
   .firmas {
@@ -235,7 +244,7 @@
     letter-spacing: 0.05em;
     text-transform: uppercase;
     color: #555;
-    margin-bottom: 2mm;
+    margin-bottom: 1.5mm;
   }
 
   .firma-name {
@@ -244,18 +253,18 @@
     font-size: 10.5pt;
     color: #0A0A0A;
     line-height: 1.25;
-    margin-bottom: 3mm;
+    margin-bottom: 2mm;
   }
 
   .firma-rect {
     width: 78mm;
-    height: 40mm;
+    height: 28mm;
     border: 0.5pt solid #999;
     box-sizing: border-box;
   }
 
   .firmas-footer {
-    margin-top: 6mm;
+    margin-top: 4mm;
     font-size: 7.5pt;
     text-align: center;
     color: #666;
