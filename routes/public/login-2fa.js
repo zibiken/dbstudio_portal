@@ -37,6 +37,9 @@ export function registerLogin2faRoutes(app) {
     const session = await readSession(app, req);
     if (!session) return reply.redirect('/login', 302);
 
+    // 2FA failures bucket on session.id, not email/ip — keeps the 2FA
+    // gate strictly isolated from the login:* bucket (Phase E
+    // investigation, 2026-05-01: confirmed no cross-contamination).
     const bucket = `2fa:${session.id}`;
     const lock = await checkLockout(app.db, bucket);
     if (lock.locked) {

@@ -72,7 +72,7 @@
     unread:   summary.credentials.unreadCount,
     body:    summary.credentials.unreadCount > 0
       ? '<p class="muted">' + summary.credentials.unreadCount + ' flagged for refresh.</p>'
-      : '<p class="muted">Encrypted with your account vault key — admins never see plaintext.</p>',
+      : '<p class="muted">Encrypted with your account vault key. Every admin read is recorded in your activity log.</p>',
     footerHref:  '/customer/credentials',
     footerLabel: 'Open vault →'
   }) %>
