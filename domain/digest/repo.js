@@ -86,11 +86,11 @@ export async function findSchedule(db, { recipientType, recipientId }) {
   return r.rows[0] ?? null;
 }
 
-export async function claimDue(tx, { batchSize }) {
+export async function claimDue(tx, { batchSize, now = new Date() }) {
   const r = await sql`
     SELECT recipient_type, recipient_id::text AS recipient_id
       FROM digest_schedules
-     WHERE due_at <= now()
+     WHERE due_at <= ${now.toISOString()}::timestamptz
      ORDER BY due_at ASC
      LIMIT ${Number(batchSize)}
      FOR UPDATE SKIP LOCKED

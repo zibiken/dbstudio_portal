@@ -47,9 +47,9 @@ function groupBuckets(items) {
   return { action, fyi };
 }
 
-export async function tickOnce({ db, log, batchSize = 25 }) {
+export async function tickOnce({ db, log, batchSize = 25, now = new Date() }) {
   return await db.transaction().execute(async (tx) => {
-    const claims = await repo.claimDue(tx, { batchSize });
+    const claims = await repo.claimDue(tx, { batchSize, now });
     if (claims.length === 0) return { claimed: 0, fired: 0, dropped: 0 };
 
     let fired = 0, dropped = 0;
