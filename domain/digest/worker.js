@@ -48,6 +48,39 @@ function groupBuckets(items) {
   return { action, fyi };
 }
 
+async function customerNameLookup(tx, items) {
+  const ids = [...new Set(items.map((i) => i.customer_id).filter(Boolean))];
+  if (ids.length === 0) return new Map();
+  const r = await sql`
+    SELECT id::text AS id, razon_social
+      FROM customers
+     WHERE id = ANY(${ids}::uuid[])
+  `.execute(tx);
+  return new Map(r.rows.map((row) => [row.id, row.razon_social]));
+}
+
+function groupItemsByCustomer(items, nameLookup) {
+  // Returns { byCustomer: [{ name, action[], fyi[] }, ...], system: { action[], fyi[] } }
+  const map = new Map();
+  const system = { action: [], fyi: [] };
+  for (const item of items) {
+    const isAction = item.bucket === 'action_required';
+    if (item.customer_id) {
+      const name = nameLookup.get(item.customer_id) ?? 'Other';
+      if (!map.has(name)) map.set(name, { action: [], fyi: [] });
+      const target = map.get(name);
+      (isAction ? target.action : target.fyi).push(item);
+    } else {
+      (isAction ? system.action : system.fyi).push(item);
+    }
+  }
+  // Stable sort: alphabetical by customer name.
+  const byCustomer = [...map.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, b]) => ({ name, action: b.action, fyi: b.fyi }));
+  return { byCustomer, system };
+}
+
 export async function tickOnce({ db, log, batchSize = 25, now = new Date() }) {
   return await db.transaction().execute(async (tx) => {
     const claims = await repo.claimDue(tx, { batchSize, now });
@@ -69,12 +102,18 @@ export async function tickOnce({ db, log, batchSize = 25, now = new Date() }) {
         continue;
       }
       const buckets = groupBuckets(items);
+      const isAdmin = claim.recipient_type === 'admin';
+      const nameLookup = isAdmin ? await customerNameLookup(tx, items) : new Map();
+      const grouped = isAdmin ? groupItemsByCustomer(items, nameLookup) : null;
       // Phase F: subject is dynamic per recipient based on bucket counts.
       const subject = digestSubject(recipient.locale ?? 'en', {
         actionCount: buckets.action.length,
         fyiCount:    buckets.fyi.length,
       });
       const idempotencyKey = `digest:${claim.recipient_type}:${claim.recipient_id}:${new Date().toISOString()}`;
+      // Pre-compute date labels in worker rather than in template, so the
+      // template stays simple and serialisation through email_outbox.locals
+      // (jsonb) doesn't lose Date-typed values across the boundary.
       await enqueueEmail(tx, {
         idempotencyKey,
         toAddress: recipient.email,
@@ -82,9 +121,13 @@ export async function tickOnce({ db, log, batchSize = 25, now = new Date() }) {
         locale: recipient.locale ?? 'en',
         locals: {
           recipientName: recipient.name,
-          isAdmin: claim.recipient_type === 'admin',
+          isAdmin,
           actionItems: buckets.action,
           fyiItems:    buckets.fyi,
+          actionCount: buckets.action.length,
+          fyiCount:    buckets.fyi.length,
+          grouped,
+          locale:      recipient.locale ?? 'en',
         },
         subjectOverride: subject,
       });

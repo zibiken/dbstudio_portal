@@ -1,37 +1,83 @@
 <%# subject: Activity update from DB Studio Portal %>
+<%# Phase F: subject is overridden at enqueue time by digestSubject(); the
+    front-matter above acts as a fallback for any caller that doesn't
+    supply __subject_override. %>
+
+<style>
+  @media (prefers-color-scheme: light) {
+    .digest-card    { background: #FFFFFF !important; color: #1A1A1A !important; }
+    .digest-meta    { color: #6B7378 !important; }
+    .digest-link    { color: #2F5D50 !important; }
+    .digest-section { color: #1A1A1A !important; }
+    .digest-group   { color: #2F5D50 !important; }
+  }
+</style>
+
 <div style="<%- S.tagline %>">Portal · Activity update</div>
 <h1 style="<%- S.h1 %>">Hello, <%= recipientName %>.</h1>
 
-<% if (actionItems && actionItems.length) { %>
-  <p style="<%- S.body %>"><strong>Action required</strong></p>
-  <ul style="margin:0 0 24px;padding-left:20px;color:#F6F3EE;font-size:15px;line-height:1.7;">
-    <% actionItems.forEach(function(item) { %>
-      <li style="margin-bottom:6px;">
-        <% if (item.link_path) { %>
-          <a href="https://portal.dbstudio.one<%= item.link_path %>" style="<%- S.link %>"><%= item.title %></a>
-        <% } else { %>
-          <%= item.title %>
-        <% } %>
-        <% if (item.detail) { %><br><span style="color:#A8B0B8;font-size:13px;"><%= item.detail %></span><% } %>
-      </li>
-    <% }) %>
-  </ul>
+<%
+  function renderItem(item, locale) {
+    var ts = item.created_at ? new Date(item.created_at) : new Date();
+    var dateLabel = humanDate(ts, locale, 'Atlantic/Canary');
+    var titleHtml = item.link_path
+      ? '<a class="digest-link" href="https://portal.dbstudio.one' + item.link_path + '" style="' + S.link + '">' + item.title + '</a>'
+      : item.title;
+    var detailHtml = item.detail
+      ? '<br><span class="digest-meta" style="color:#A8B0B8;font-size:13px;">' + item.detail + '</span>'
+      : '';
+%>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 4px;border-collapse:collapse;">
+    <tr>
+      <td class="digest-meta" style="width:100px;color:#A8B0B8;font-size:13px;vertical-align:top;padding:2px 12px 2px 0;white-space:nowrap;">
+        <%= dateLabel %>
+      </td>
+      <td class="digest-section" style="color:#F6F3EE;font-size:15px;line-height:1.6;vertical-align:top;padding:2px 0;">
+        <%- titleHtml %>
+        <%- detailHtml %>
+      </td>
+    </tr>
+  </table>
 <% } %>
 
-<% if (fyiItems && fyiItems.length) { %>
-  <p style="<%- S.body %>"><strong>For your information</strong></p>
-  <ul style="margin:0 0 24px;padding-left:20px;color:#F6F3EE;font-size:15px;line-height:1.7;">
-    <% fyiItems.forEach(function(item) { %>
-      <li style="margin-bottom:6px;">
-        <% if (item.link_path) { %>
-          <a href="https://portal.dbstudio.one<%= item.link_path %>" style="<%- S.link %>"><%= item.title %></a>
-        <% } else { %>
-          <%= item.title %>
-        <% } %>
-        <% if (item.detail) { %><br><span style="color:#A8B0B8;font-size:13px;"><%= item.detail %></span><% } %>
-      </li>
-    <% }) %>
-  </ul>
+<%
+  function renderGroup(group, key) {
+    var arr = group[key];
+    if (!arr || !arr.length) return;
+%>
+  <p class="digest-group" style="margin:10px 0 4px;color:#C4A97A;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;">
+    <%= group.name %> — <%= arr.length %> item<%= arr.length === 1 ? '' : 's' %>
+  </p>
+  <% arr.forEach(function(item) { renderItem(item, locale); }) %>
 <% } %>
 
-<p style="<%- S.note %>">You're getting this because there was activity in your DB Studio Portal. <a href="https://portal.dbstudio.one<%= isAdmin ? '/admin' : '/customer/dashboard' %>" style="<%- S.link %>">Sign in</a> to see the full timeline.</p>
+<% if (isAdmin && grouped) { %>
+  <% if (actionCount > 0) { %>
+    <p class="digest-section" style="<%- S.body %>"><strong>ACTION REQUIRED (<%= actionCount %>)</strong></p>
+    <% grouped.byCustomer.forEach(function(g) { renderGroup(g, 'action'); }) %>
+    <% if (grouped.system && grouped.system.action && grouped.system.action.length) {
+         renderGroup({ name: 'Other', action: grouped.system.action }, 'action');
+       } %>
+  <% } %>
+
+  <% if (fyiCount > 0) { %>
+    <p class="digest-section" style="<%- S.body %>"><strong>UPDATES (<%= fyiCount %>)</strong></p>
+    <% grouped.byCustomer.forEach(function(g) { renderGroup(g, 'fyi'); }) %>
+    <% if (grouped.system && grouped.system.fyi && grouped.system.fyi.length) {
+         renderGroup({ name: 'Other', fyi: grouped.system.fyi }, 'fyi');
+       } %>
+  <% } %>
+<% } else { %>
+  <% if (actionItems && actionItems.length) { %>
+    <p class="digest-section" style="<%- S.body %>"><strong>ACTION REQUIRED (<%= actionItems.length %>)</strong></p>
+    <% actionItems.forEach(function(item) { renderItem(item, locale); }) %>
+  <% } %>
+  <% if (fyiItems && fyiItems.length) { %>
+    <p class="digest-section" style="<%- S.body %>"><strong>UPDATES (<%= fyiItems.length %>)</strong></p>
+    <% fyiItems.forEach(function(item) { renderItem(item, locale); }) %>
+  <% } %>
+<% } %>
+
+<p style="<%- S.note %>">
+  <a class="digest-link" href="https://portal.dbstudio.one<%= isAdmin ? '/admin' : '/customer/dashboard' %>" style="<%- S.link %>">Sign in to your dashboard</a>.
+</p>
