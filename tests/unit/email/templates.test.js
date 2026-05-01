@@ -21,6 +21,7 @@ const EXPECTED_SLUGS = [
   'generic-admin-message',
   'invite-expiring-soon',
   'nda-ready',
+  'nda-unlocked',
   'new-device-login',
   'new-document-available',
   'new-invoice',
@@ -150,6 +151,15 @@ const SAMPLES = {
     subjectMatches: /nda|non-disclosure/i,
     bodyContains: ['Acme Industries', 'https://portal.dbstudio.one/ndas/nda-id'],
   },
+  'nda-unlocked': {
+    locals: {
+      recipientName: 'Bram',
+      customerName: 'Acme Industries',
+      dashboardUrl: 'https://portal.dbstudio.one/customer/dashboard',
+    },
+    subjectMatches: /unlock|dashboard/i,
+    bodyContains: ['Acme Industries', 'https://portal.dbstudio.one/customer/dashboard'],
+  },
   'generic-admin-message': {
     locals: {
       recipientName: 'Bram',
@@ -182,7 +192,7 @@ const SAMPLES = {
 };
 
 describe('email templates', () => {
-  it('lists exactly the 17 expected slugs', () => {
+  it('lists exactly the 18 expected slugs', () => {
     expect(listTemplates()).toEqual(EXPECTED_SLUGS);
   });
 

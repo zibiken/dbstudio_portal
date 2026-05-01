@@ -110,6 +110,11 @@ describe.skipIf(skip)('projects CRUD', () => {
       sessionIp: '198.51.100.7',
       sessionDeviceFingerprint: null,
     }, { hibpHasBeenPwned: vi.fn(async () => false), audit: { tag } });
+    // Phase D — clear NDA gate so subsequent /customer/* requests don't
+    // 302 to /customer/waiting. Gate behavior has its own tests.
+    await sql`UPDATE customers SET nda_signed_at = now() WHERE id = (
+      SELECT customer_id FROM customer_users WHERE id = ${r.customerUserId}::uuid
+    )`.execute(db);
     return { jar: { sid: app.signCookie(r.sid) } };
   }
 

@@ -138,6 +138,11 @@ describe.skipIf(skip)('documents download', () => {
       sessionDeviceFingerprint: null,
     }, { hibpHasBeenPwned: vi.fn(async () => false), audit: { tag } });
 
+    // Phase D — clear the NDA gate for the test fixture so customer
+    // routes return their actual response codes (rather than 302
+    // /customer/waiting). The gate's behavior itself has its own tests.
+    await sql`UPDATE customers SET nda_signed_at = now() WHERE id = ${customerId}::uuid`.execute(db);
+
     // Seat the sid as the session cookie. @fastify/cookie was registered
     // with the SESSION_SIGNING_SECRET in build(), so app.signCookie()
     // produces the same signed string the server would set with
