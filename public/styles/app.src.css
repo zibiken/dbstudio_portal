@@ -921,6 +921,10 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 }
 
 /* _user-mention — name + muted email stacked, used inside table cells. */
+/* Auto-filled chip beside form labels (Phase C). */
+.chip { display: inline-block; padding: 2px 8px; margin-left: var(--s-2); border-radius: 999px; font-size: var(--f-xs); font-weight: 600; line-height: 1.4; vertical-align: middle; }
+.chip--auto-filled { background: var(--c-pearl); color: var(--c-obsidian); }
+
 .user-mention { display: inline-flex; flex-direction: column; gap: 2px; line-height: 1.3; min-width: 0; }
 .user-mention__name { font-weight: 500; color: var(--c-obsidian); }
 .user-mention__email { font-size: var(--f-sm); color: var(--fg-on-light-muted); }

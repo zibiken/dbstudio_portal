@@ -12,6 +12,12 @@
 
 <div class="card">
   <p>Invoices are issued in the billing platform. Upload the finished PDF here and record the metadata so the customer can see and download it. 50 MB cap per file; total per customer 5 GB.</p>
+  <p class="muted">Tip: select the PDF first — the metadata fields below will be auto-filled when the system can read them.</p>
+</div>
+
+<div id="parse-banner" class="alert alert--info" hidden role="status" aria-live="polite">
+  <span class="alert__icon" aria-hidden="true">✓</span>
+  <p class="alert__body" id="parse-banner-text"></p>
 </div>
 
 <form id="invoice-form"
@@ -22,6 +28,14 @@
       autocomplete="off"
       class="form-stack">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+  <div class="input-field">
+    <label class="input-field__label" for="inv_file">Invoice PDF</label>
+    <div class="input-field__control">
+      <input id="inv_file" type="file" name="file" accept="application/pdf" required>
+    </div>
+    <p class="input-field__helper">Drop the PDF here first — the system will pre-fill invoice number, dates and total when it can read them.</p>
+  </div>
 
   <%- include('../../components/_input', { name: 'invoice_number', type: 'text', label: 'Invoice number', required: true, maxlength: 64, value: (form && form.invoice_number) || '' }) %>
   <%- include('../../components/_input', { name: 'amount_cents',   type: 'number', label: 'Amount (cents)', required: true, value: (form && form.amount_cents) || '' }) %>
@@ -36,13 +50,6 @@
     </div>
   </div>
 
-  <div class="input-field">
-    <label class="input-field__label" for="inv_file">Invoice PDF</label>
-    <div class="input-field__control">
-      <input id="inv_file" type="file" name="file" accept="application/pdf" required>
-    </div>
-  </div>
-
   <div class="form-actions">
     <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Upload invoice' }) %>
     <%- include('../../components/_button', { variant: 'ghost',   size: 'md', href: '/admin/customers/' + customer.id, label: 'Cancel' }) %>
@@ -51,14 +58,65 @@
 
 <script nonce="<%= nonce %>">
   (function () {
-    var f = document.getElementById('invoice-form');
-    f.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var fd = new FormData(f);
-      fetch(f.action, {
+    var form = document.getElementById('invoice-form');
+    var fileInput = document.getElementById('inv_file');
+    var banner = document.getElementById('parse-banner');
+    var bannerText = document.getElementById('parse-banner-text');
+
+    function attachChip(input) {
+      if (!input) return;
+      var label = form.querySelector('label[for="' + input.id + '"]');
+      if (!label || label.querySelector('.chip--auto-filled')) return;
+      var chip = document.createElement('span');
+      chip.className = 'chip chip--auto-filled';
+      chip.textContent = 'Auto-filled';
+      chip.setAttribute('aria-label', 'Auto-filled by PDF parser');
+      label.appendChild(chip);
+      input.addEventListener('input', function once() {
+        chip.remove();
+        input.removeEventListener('input', once);
+      }, { once: true });
+    }
+
+    function setField(name, value) {
+      var input = form.querySelector('input[name="' + name + '"]');
+      if (!input) return;
+      input.value = value;
+      attachChip(input);
+    }
+
+    fileInput.addEventListener('change', function () {
+      var file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      var fd = new FormData();
+      fd.append('file', file);
+      fetch('/admin/invoices/parse-pdf', {
         method: 'POST',
         body: fd,
-        headers: { 'x-csrf-token': f.dataset.csrf },
+        headers: { 'x-csrf-token': form.dataset.csrf },
+        credentials: 'same-origin'
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j || !j.ok) return;
+        var fields = j.fields || {};
+        if (fields.invoice_number) setField('invoice_number', fields.invoice_number);
+        if (fields.amount_cents !== undefined) setField('amount_cents', String(fields.amount_cents));
+        setField('currency', fields.currency || 'EUR');
+        if (fields.issued_on) setField('issued_on', fields.issued_on);
+        if (fields.due_on)    setField('due_on',    fields.due_on);
+        if (j.fields_found > 0 && j.fields_found < 4) {
+          bannerText.textContent = 'Auto-filled ' + j.fields_found + ' of 4 fields from the PDF. Please complete the missing field(s) before saving.';
+          banner.hidden = false;
+        }
+      }).catch(function () { /* silent fallback */ });
+    });
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(form);
+      fetch(form.action, {
+        method: 'POST',
+        body: fd,
+        headers: { 'x-csrf-token': form.dataset.csrf },
         credentials: 'same-origin',
         redirect: 'follow'
       }).then(function (r) {
