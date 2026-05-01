@@ -278,46 +278,54 @@ This supersedes the older "Admin credential view UI (M7 deferred minor)"
 and "Vault view-with-decrypt (M9.X partial)" entries above — keep them
 for context but treat this as the active item.
 
-### 4. Login lockout is global to the NPM proxy IP (functional / security-adjacent)
+### 4. "Correct password" attempts counted as fails — verifyLogin investigation (functional)
 
-Real incident 2026-05-01 ~12:58 WEST: the operator typed a wrong
-password for `info@brainzr.eu` 2-3 times, reset, then got "Too many
-attempts. Try again later." instantly on the next attempt despite a
-valid password. Diagnosis from `rate_limit_buckets`:
+Real incident 2026-05-01 ~12:58 WEST: the operator typed a password
+for `info@brainzr.eu` they believed was correct, was rejected, reset
+the password, tried again, was rejected, and after 5 total fails
+their personal IP locked out for 30 minutes. **The lockout system
+is working as designed** — `routes/public/login.js` correctly bucket
+on the real client IP because `server.js:90` already configures
+`trustProxy: ['127.0.0.1', '94.72.96.105']` (NPM at 94.72.96.105) and
+honors `CF-Connecting-IP` from Cloudflare. No proxy / Fastify config
+change needed.
 
+The remaining mystery: **why were the supposedly-correct attempts
+recorded as fails?** Possibilities, in order of likelihood:
+
+- **(a) Browser-cached old password.** Most common: the operator's
+  browser auto-filled an old saved password without it being visible.
+  After a reset, the autofill keeps trying the old one. No bug.
+- **(b) Mistype on a typo'd email.** 2 of the 5 fails were against
+  `info@brainzr.com` (the operator-confirmed typo from item 4 of the
+  earlier batch). Those would 100% fail because that account doesn't
+  exist; the rate-limiter still counts them.
+- **(c) Genuine `verifyLogin` mishandling of the freshly-reset hash.**
+  Unlikely, but the post-reset `customer_users.password_hash` should
+  be tested for verify-success in an integration test. If a test
+  doesn't already exist for "after a successful password reset, the
+  new password verifies", add one.
+- **(d) 2FA failure path counted into the wrong bucket.** Look at
+  `login-2fa.js` to confirm 2FA fails go into a `2fa:*` bucket, not
+  `login:*`.
+
+**Fix scope** (Phase E candidate; small):
+- Add an integration test for "successful password-reset then sign-in
+  with the new password verifies on the first attempt."
+- Audit `login-2fa.js` to confirm bucket isolation.
+- Consider a UX improvement: when the same IP has already incurred
+  failures within the window, show a "Recent failures from this
+  device — verify your password manager isn't using an old saved
+  one" hint above the password field. Account-enumeration-safe (no
+  email-existence leak).
+
+**Operator workaround when locked out:** clear the bucket directly:
+
+```sql
+DELETE FROM rate_limit_buckets WHERE key LIKE 'login:ip:<your-ip>%';
 ```
-key                       | count | locked_until
-login:ip:212.231.193.53   |   5   | 2026-05-01 14:19:02+02   ← LOCKED
-login:email:info@brainzr.eu|   3   | (unlocked)
-```
 
-`212.231.193.53` is **Nginx Proxy Manager**, the single ingress for all
-portal traffic. `routes/public/login.js` builds `ipBucket(req)` from
-`req.ip`, which under the current Fastify config is the connection IP
-(NPM), not the originating client IP. Result: **every failed login
-across every user, customer, and admin on the entire portal shares the
-same IP bucket.** Five fails total = global lockout for 30 minutes.
-Same bug applies to `login-2fa.js`, `reset.js`, customer-side login
-routes, and any other route using `ipBucket`-style keys.
-
-**Fix scope** (Phase E or a small security-fix bundle, depending on
-how often this is biting):
-- Configure Fastify with `trustProxy: '212.231.193.53'` (or the
-  appropriate CIDR / proxy-list).
-  Then `req.ip` returns the leftmost-trusted X-Forwarded-For value,
-  i.e. the real client IP.
-- Verify `X-Forwarded-For` is being sent correctly by the NPM template.
-- Add an integration test that asserts `req.ip` reflects an
-  X-Forwarded-For header when Fastify is configured to trust a proxy.
-- Audit every `req.ip` callsite (login + login-2fa + reset + profile
-  email/password mutations + signed-URL routes) to make sure none of
-  them are still bucketed against the proxy.
-- Reset existing `login:ip:212.231.193.53` and similar global-IP
-  buckets after the fix lands so the legacy lockouts clear.
-
-**Risk if left unfixed:** denial-of-service against the entire portal
-by a single bad actor (or a noisy bot) hitting `/login` with bogus
-credentials. Higher priority than (1) and (2) above.
+Lockout clears immediately. (30-minute natural decay also works.)
 
 ---
 
