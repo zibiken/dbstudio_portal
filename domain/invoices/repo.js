@@ -6,6 +6,28 @@ import { sql } from 'kysely';
 // derived, never stored on the row (spec §12 + plan Task 8.1).
 const OVERDUE_EXPR = sql`(i.status = 'open' AND i.due_on < CURRENT_DATE)`;
 
+// Phase B: invoice payment ledger aggregate. Joined as a LATERAL so
+// every read of the invoice carries paid_cents (sum of invoice_payments
+// rows for that invoice). status_computed is the customer-facing
+// status: 'paid' when the ledger sums to >= total, 'partially_paid'
+// when > 0 but < total, otherwise the row's own status (which still
+// drives 'overdue' / 'void' semantics).
+const PAID_AGG_JOIN = sql`
+  LEFT JOIN LATERAL (
+    SELECT COALESCE(SUM(amount_cents), 0)::bigint AS paid_cents
+      FROM invoice_payments
+     WHERE invoice_id = i.id
+  ) p ON TRUE
+`;
+const STATUS_COMPUTED_EXPR = sql`(
+  CASE
+    WHEN p.paid_cents >= i.amount_cents THEN 'paid'
+    WHEN p.paid_cents > 0               THEN 'partially_paid'
+    WHEN i.status = 'open' AND i.due_on < CURRENT_DATE THEN 'overdue'
+    ELSE i.status
+  END
+)`;
+
 export async function insertInvoice(db, {
   id,
   customerId,
@@ -32,9 +54,12 @@ export async function findInvoiceById(db, id) {
   const r = await sql`
     SELECT i.id, i.customer_id, i.document_id, i.invoice_number,
            i.amount_cents, i.currency, i.issued_on, i.due_on,
-           i.status, i.notes, i.created_at,
-           ${OVERDUE_EXPR} AS overdue
+           i.status AS status_raw, i.notes, i.created_at,
+           ${OVERDUE_EXPR} AS overdue,
+           p.paid_cents,
+           ${STATUS_COMPUTED_EXPR} AS status
       FROM invoices i
+      ${PAID_AGG_JOIN}
      WHERE i.id = ${id}::uuid
   `.execute(db);
   return r.rows[0] ?? null;
@@ -54,9 +79,12 @@ export async function listInvoicesByCustomer(db, customerId) {
   const r = await sql`
     SELECT i.id, i.customer_id, i.document_id, i.invoice_number,
            i.amount_cents, i.currency, i.issued_on, i.due_on,
-           i.status, i.notes, i.created_at,
-           ${OVERDUE_EXPR} AS overdue
+           i.status AS status_raw, i.notes, i.created_at,
+           ${OVERDUE_EXPR} AS overdue,
+           p.paid_cents,
+           ${STATUS_COMPUTED_EXPR} AS status
       FROM invoices i
+      ${PAID_AGG_JOIN}
      WHERE i.customer_id = ${customerId}::uuid
      ORDER BY i.issued_on DESC, i.created_at DESC
   `.execute(db);
@@ -67,9 +95,12 @@ export async function listInvoicesAll(db, { status = null, customerId = null } =
   const r = await sql`
     SELECT i.id, i.customer_id, i.document_id, i.invoice_number,
            i.amount_cents, i.currency, i.issued_on, i.due_on,
-           i.status, i.notes, i.created_at,
-           ${OVERDUE_EXPR} AS overdue
+           i.status AS status_raw, i.notes, i.created_at,
+           ${OVERDUE_EXPR} AS overdue,
+           p.paid_cents,
+           ${STATUS_COMPUTED_EXPR} AS status
       FROM invoices i
+      ${PAID_AGG_JOIN}
      WHERE (${status}::text IS NULL OR i.status = ${status}::text)
        AND (${customerId}::uuid IS NULL OR i.customer_id = ${customerId}::uuid)
      ORDER BY i.issued_on DESC, i.created_at DESC
