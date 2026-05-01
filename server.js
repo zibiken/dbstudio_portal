@@ -198,6 +198,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     apiKey: env.MAILERSEND_API_KEY,
     fromEmail: env.MAILERSEND_FROM_EMAIL,
     fromName: env.MAILERSEND_FROM_NAME,
+    devHold: process.env.PORTAL_EMAIL_DEV_HOLD === 'true',
+    log: app.log,
   });
   const stopOutboxWorker = startOutboxWorker({ db: app.db, mailer, log: app.log });
   app.addHook('onClose', async () => { stopOutboxWorker(); });
