@@ -391,6 +391,20 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
   .activity-feed__time { order: 0; }
 }
 
+/* Audit log JSON metadata cell — keep wide JSON readable in a table cell. */
+.audit-meta-json {
+  font-size: var(--f-xs);
+  background: var(--bg-light-alt);
+  padding: 2px var(--s-2);
+  border-radius: 3px;
+  display: inline-block;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
 /* _page-header — every list/detail/form surface starts with this. The
    min-height keeps the header consistent across tabs: when one sub-tab
    has actions (button) and another has none (or a status-pill), the

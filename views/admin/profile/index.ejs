@@ -1,78 +1,103 @@
-<section class="admin-profile">
-  <header class="admin-section-header">
-    <h1>Profile</h1>
-    <p class="subtitle">Your admin account.</p>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN',
+  title: 'Profile',
+  subtitle: 'Your admin account.'
+}) %>
 
-  <article class="admin-card">
-    <h2>Display name</h2>
-    <% if (typeof nameError !== 'undefined' && nameError) { %>
-      <p class="form-error" role="alert"><%= nameError %></p>
-    <% } %>
-    <form method="post" action="/admin/profile/name" class="admin-form">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <label for="profile-name">Name</label>
-      <input id="profile-name" name="name" type="text" required maxlength="256"
-             value="<%= typeof nameDraft !== 'undefined' ? nameDraft : profile.name %>"
-             autocomplete="name">
-      <button type="submit">Save name</button>
-    </form>
-  </article>
+<div class="card">
+  <h2 class="card__title">Display name</h2>
+  <p class="card__subtitle">Shown when you sign in and on every audit-log entry attributed to you.</p>
+  <% if (typeof nameError !== 'undefined' && nameError) { %>
+    <%- include('../../components/_alert', { variant: 'error', body: nameError }) %>
+  <% } %>
+  <form method="post" action="/admin/profile/name" class="form-stack">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <%- include('../../components/_input', {
+      name: 'name', type: 'text', label: 'Name',
+      required: true, maxlength: 256,
+      value: typeof nameDraft !== 'undefined' ? nameDraft : profile.name,
+      autocomplete: 'name'
+    }) %>
+    <div class="form-actions">
+      <%- include('../../components/_button', { variant: 'primary', size: 'sm', type: 'submit', label: 'Save name' }) %>
+    </div>
+  </form>
+</div>
 
-  <article class="admin-card">
-    <h2>Email</h2>
-    <dl class="admin-fields">
-      <dt>Current address</dt><dd><%= profile.email %></dd>
-    </dl>
-    <% if (inflight) { %>
-      <p class="muted">A verification email has been sent to <strong><%= inflight.new_email %></strong>.
-        The link expires on <%= euDateTime(inflight.verify_expires_at) %>.
-        Submitting another new address cancels this request.</p>
-    <% } %>
-    <% if (typeof emailError !== 'undefined' && emailError) { %>
-      <p class="form-error" role="alert"><%= emailError %></p>
-    <% } %>
-    <form method="post" action="/admin/profile/email" class="admin-form">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <label for="new-email">New email</label>
-      <input id="new-email" name="new_email" type="email" required maxlength="320"
-             value="<%= typeof emailDraft !== 'undefined' ? emailDraft : '' %>"
-             autocomplete="email">
-      <button type="submit">Send verification link</button>
-    </form>
-  </article>
+<div class="card">
+  <h2 class="card__title">Email</h2>
+  <dl class="kv">
+    <dt>Current address</dt><dd><%= profile.email %></dd>
+  </dl>
+  <% if (inflight) { %>
+    <%- include('../../components/_alert', {
+      variant: 'info',
+      body: 'A verification email has been sent to <strong>' + inflight.new_email + '</strong>. The link expires on ' + euDateTime(inflight.verify_expires_at) + '. Submitting another new address cancels this request.'
+    }) %>
+  <% } %>
+  <% if (typeof emailError !== 'undefined' && emailError) { %>
+    <%- include('../../components/_alert', { variant: 'error', body: emailError }) %>
+  <% } %>
+  <form method="post" action="/admin/profile/email" class="form-stack">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <%- include('../../components/_input', {
+      name: 'new_email', type: 'email', label: 'New email',
+      required: true, maxlength: 320,
+      value: typeof emailDraft !== 'undefined' ? emailDraft : '',
+      autocomplete: 'email',
+      helper: 'We\'ll send a verification link there. Until you click the link, your sign-in email stays at ' + profile.email + '.'
+    }) %>
+    <div class="form-actions">
+      <%- include('../../components/_button', { variant: 'primary', size: 'sm', type: 'submit', label: 'Send verification link' }) %>
+    </div>
+  </form>
+</div>
 
-  <article class="admin-card">
-    <h2>Password</h2>
-    <p class="muted">Changing your password signs out every other browser. The current
-      session stays alive so you don't get bounced mid-form.</p>
-    <% if (typeof passwordError !== 'undefined' && passwordError) { %>
-      <p class="form-error" role="alert"><%= passwordError %></p>
-    <% } %>
-    <form method="post" action="/admin/profile/password" class="admin-form" autocomplete="off">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <label for="current-password">Current password</label>
-      <input id="current-password" name="current_password" type="password" required autocomplete="current-password">
-      <label for="new-password">New password</label>
-      <input id="new-password" name="new_password" type="password" required autocomplete="new-password" minlength="12">
-      <p class="muted">Minimum 12 characters. We screen new passwords against the
-        Have I Been Pwned breach corpus.</p>
-      <button type="submit">Change password</button>
-    </form>
-  </article>
+<div class="card">
+  <h2 class="card__title">Password</h2>
+  <p class="card__subtitle">Changing your password signs out every other browser. The current session stays alive so you don't get bounced mid-form.</p>
+  <% if (typeof passwordError !== 'undefined' && passwordError) { %>
+    <%- include('../../components/_alert', { variant: 'error', body: passwordError }) %>
+  <% } %>
+  <form method="post" action="/admin/profile/password" class="form-stack" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <%- include('../../components/_input', {
+      name: 'current_password', type: 'password', label: 'Current password',
+      required: true, autocomplete: 'current-password', minlength: 1,
+      showHideToggle: true
+    }) %>
+    <%- include('../../components/_input', {
+      name: 'new_password', type: 'password', label: 'New password',
+      required: true, autocomplete: 'new-password', minlength: 12,
+      helper: 'Minimum 12 characters. Screened against the Have I Been Pwned breach corpus.',
+      showHideToggle: true
+    }) %>
+    <div class="form-actions">
+      <%- include('../../components/_button', { variant: 'primary', size: 'sm', type: 'submit', label: 'Change password' }) %>
+    </div>
+  </form>
+</div>
 
-  <article class="admin-card">
-    <h2>Two-factor authentication</h2>
-    <p><a href="/admin/profile/2fa">Regenerate TOTP secret →</a></p>
-  </article>
+<div class="card">
+  <h2 class="card__title">Two-factor authentication</h2>
+  <p class="card__subtitle">If you've lost access to your authenticator app or want to rotate the TOTP secret, regenerate it. You'll be asked for a code from your existing authenticator entry to confirm it's you.</p>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'secondary', size: 'sm', href: '/admin/profile/2fa', label: 'Regenerate TOTP secret' }) %>
+  </div>
+</div>
 
-  <article class="admin-card">
-    <h2>Backup codes</h2>
-    <p><a href="/admin/profile/backup-codes">Regenerate backup codes →</a></p>
-  </article>
+<div class="card">
+  <h2 class="card__title">Backup codes</h2>
+  <p class="card__subtitle">Single-use recovery codes that work in place of your authenticator when you've lost the device. Regenerating produces 8 fresh codes and immediately invalidates the old ones.</p>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'secondary', size: 'sm', href: '/admin/profile/backup-codes', label: 'Regenerate backup codes' }) %>
+  </div>
+</div>
 
-  <article class="admin-card">
-    <h2>Active sessions</h2>
-    <p><a href="/admin/profile/sessions">Manage active sessions →</a></p>
-  </article>
-</section>
+<div class="card">
+  <h2 class="card__title">Active sessions</h2>
+  <p class="card__subtitle">See every browser currently signed in to your admin account, revoke any individual session, or sign out everywhere at once.</p>
+  <div class="form-actions">
+    <%- include('../../components/_button', { variant: 'secondary', size: 'sm', href: '/admin/profile/sessions', label: 'Manage active sessions' }) %>
+  </div>
+</div>

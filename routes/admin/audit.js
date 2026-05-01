@@ -88,6 +88,9 @@ export function registerAdminAuditRoutes(app) {
         { value: 'system', label: 'System' },
       ],
       currentQueryString: req.url.split('?')[1] ?? '',
+      activeNav: 'audit',
+      mainWidth: 'wide',
+      sectionLabel: 'ADMIN · AUDIT',
     });
   });
 

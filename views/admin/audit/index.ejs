@@ -1,85 +1,124 @@
-<section class="admin-audit">
-  <header class="admin-section-header">
-    <h1>Audit log</h1>
-    <p class="subtitle">Append-only stream of every audit-relevant event.</p>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN',
+  title: 'Audit log',
+  subtitle: 'Append-only stream of every audit-relevant event. Filter, browse, or export to CSV.'
+}) %>
 
-  <article class="admin-card">
-    <form method="get" action="/admin/audit" class="admin-filter">
-      <label for="audit-filter">Filter</label>
-      <select id="audit-filter" name="filter">
-        <% filterOptions.forEach(function (opt) { %>
+<div class="card">
+  <h2 class="card__title">Filter</h2>
+  <form method="get" action="/admin/audit" class="activity-filter">
+    <div class="activity-filter__field">
+      <label for="audit-filter">Section</label>
+      <select id="audit-filter" name="filter" class="cr-fields__input">
+        <% filterOptions.forEach(function(opt) { %>
           <option value="<%= opt.value %>" <%= opt.value === filter ? 'selected' : '' %>><%= opt.label %></option>
-        <% }); %>
+        <% }) %>
       </select>
+    </div>
+    <div class="activity-filter__field">
       <label for="audit-actor">Actor</label>
-      <select id="audit-actor" name="actor">
-        <% actorOptions.forEach(function (opt) { %>
+      <select id="audit-actor" name="actor" class="cr-fields__input">
+        <% actorOptions.forEach(function(opt) { %>
           <option value="<%= opt.value %>" <%= opt.value === actorType ? 'selected' : '' %>><%= opt.label %></option>
-        <% }); %>
+        <% }) %>
       </select>
+    </div>
+    <div class="activity-filter__field">
       <label for="audit-since">From</label>
-      <input id="audit-since" name="since" type="date" value="<%= since %>">
+      <input id="audit-since" name="since" type="date" value="<%= since %>" class="cr-fields__input">
+    </div>
+    <div class="activity-filter__field">
       <label for="audit-until">To</label>
-      <input id="audit-until" name="until" type="date" value="<%= until %>">
+      <input id="audit-until" name="until" type="date" value="<%= until %>" class="cr-fields__input">
+    </div>
+    <div class="activity-filter__field">
       <label for="audit-limit">Show</label>
-      <input id="audit-limit" name="limit" type="number" min="1" max="500" value="<%= limit %>">
-      <button type="submit">Apply</button>
-      <a href="/admin/audit" class="cancel-link">Reset</a>
-      <a href="/admin/audit-export.csv?<%= currentQueryString %>" class="cta-link">Export CSV</a>
-    </form>
-  </article>
+      <input id="audit-limit" name="limit" type="number" min="1" max="500" value="<%= limit %>" class="cr-fields__input">
+    </div>
+    <div class="activity-filter__actions">
+      <%- include('../../components/_button', { variant: 'primary',   size: 'md', type: 'submit', label: 'Apply' }) %>
+      <%- include('../../components/_button', { variant: 'ghost',     size: 'md', href: '/admin/audit', label: 'Reset' }) %>
+      <%- include('../../components/_button', { variant: 'secondary', size: 'md', href: '/admin/audit-export.csv?' + currentQueryString, label: 'Export CSV' }) %>
+    </div>
+  </form>
+</div>
 
-  <article class="admin-card">
-    <% if (!events.length) { %>
-      <p class="muted">No events match these filters.</p>
-    <% } else { %>
-      <table class="admin-table">
+<% if (events && events.length) { %>
+  <div class="card">
+    <h2 class="card__title"><%= events.length %> <%= events.length === 1 ? 'event' : 'events' %></h2>
+    <div class="table-wrap">
+      <table class="data-table data-table--medium">
         <thead>
           <tr>
-            <th scope="col">When</th>
-            <th scope="col">Actor</th>
-            <th scope="col">Action</th>
-            <th scope="col">Target</th>
-            <th scope="col">Customer-visible</th>
-            <th scope="col">IP</th>
-            <th scope="col">Metadata</th>
+            <th scope="col" class="data-table__th data-table__th--left">When</th>
+            <th scope="col" class="data-table__th data-table__th--left">Actor</th>
+            <th scope="col" class="data-table__th data-table__th--left">Action</th>
+            <th scope="col" class="data-table__th data-table__th--left">Target</th>
+            <th scope="col" class="data-table__th data-table__th--left">Customer-visible</th>
+            <th scope="col" class="data-table__th data-table__th--left">IP</th>
+            <th scope="col" class="data-table__th data-table__th--left">Metadata</th>
           </tr>
         </thead>
         <tbody>
-          <% events.forEach(function (e) { %>
+          <% events.forEach(function(e) { %>
             <tr>
-              <td><time datetime="<%= e.ts %>"><%= euDateTime(e.ts) %></time></td>
-              <td>
-                <%= e.actor_type %>
+              <td class="data-table__td data-table__td--left">
+                <time datetime="<%= e.ts %>"><%= euDateTime(e.ts) %></time>
+              </td>
+              <td class="data-table__td data-table__td--left">
+                <span class="status-pill status-pill--<%= e.actor_type === 'admin' ? 'active' : (e.actor_type === 'customer' ? 'pending' : 'archived') %>"><%= e.actor_type %></span>
                 <% if (e.actor_email) { %>
-                  · <%= e.actor_name ?? '' %>
-                  <% if (e.actor_name) { %>(<%= e.actor_email %>)<% } else { %><%= e.actor_email %><% } %>
+                  <%- include('../../components/_user-mention', { name: e.actor_name, email: e.actor_email }) %>
                 <% } %>
               </td>
-              <td><code><%= e.action %></code></td>
-              <td>
+              <td class="data-table__td data-table__td--left"><code><%= e.action %></code></td>
+              <td class="data-table__td data-table__td--left">
                 <% if (e.target_type) { %>
-                  <%= e.target_type %><% if (e.target_id) { %>:<code><%= e.target_id %></code><% } %>
+                  <%= e.target_type %><% if (e.target_id) { %><br><code class="muted"><%= e.target_id %></code><% } %>
+                <% } else { %>
+                  <span class="muted">—</span>
                 <% } %>
               </td>
-              <td><%= e.visible_to_customer ? 'yes' : 'no' %></td>
-              <td><code><%= e.ip ?? '' %></code></td>
-              <td><code class="meta-json"><%= JSON.stringify(e.metadata) %></code></td>
+              <td class="data-table__td data-table__td--left">
+                <% if (e.visible_to_customer) { %>
+                  <span class="status-pill status-pill--paid">yes</span>
+                <% } else { %>
+                  <span class="status-pill status-pill--archived">no</span>
+                <% } %>
+              </td>
+              <td class="data-table__td data-table__td--left">
+                <% if (e.ip) { %><code class="muted"><%= e.ip %></code><% } else { %><span class="muted">—</span><% } %>
+              </td>
+              <td class="data-table__td data-table__td--left">
+                <% if (e.metadata && Object.keys(e.metadata).length > 0) { %>
+                  <code class="audit-meta-json"><%= JSON.stringify(e.metadata) %></code>
+                <% } else { %>
+                  <span class="muted">—</span>
+                <% } %>
+              </td>
             </tr>
-          <% }); %>
+          <% }) %>
         </tbody>
       </table>
+    </div>
 
-      <% if (nextCursor) {
-           const qs = currentQueryString
-             .split('&')
-             .filter(function (p) { return p && !p.startsWith('cursor='); })
-             .concat(['cursor=' + encodeURIComponent(nextCursor)])
-             .join('&');
-      %>
-        <p><a href="/admin/audit?<%= qs %>">Older →</a></p>
-      <% } %>
+    <% if (nextCursor) {
+         const qs = currentQueryString
+           .split('&')
+           .filter(function(p) { return p && !p.startsWith('cursor='); })
+           .concat(['cursor=' + encodeURIComponent(nextCursor)])
+           .join('&');
+    %>
+      <div class="form-actions">
+        <%- include('../../components/_button', { variant: 'ghost', size: 'md', href: '/admin/audit?' + qs, label: 'Older →' }) %>
+      </div>
     <% } %>
-  </article>
-</section>
+  </div>
+<% } else { %>
+  <%- include('../../components/_empty-state', {
+    headline: 'No events match these filters',
+    lead: 'Try widening the date range, switching the actor or section filter, or resetting to the defaults.',
+    secondaryHref: '/admin/audit',
+    secondaryLabel: 'Reset filters'
+  }) %>
+<% } %>
