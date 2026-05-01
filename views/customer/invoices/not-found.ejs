@@ -1,5 +1,11 @@
-<section class="customer-not-found">
-  <h1>Not found</h1>
-  <p>The invoice you were looking for is not available.</p>
-  <p><a href="/customer/invoices">Back to invoices</a></p>
-</section>
+<%- include('../../components/_page-header', {
+  eyebrow: 'PORTAL · INVOICES',
+  title: 'Invoice not found'
+}) %>
+
+<%- include('../../components/_empty-state', {
+  headline: 'That invoice is not available',
+  lead: 'It may have been archived, or the link may be wrong. Head back to your invoices list to try again.',
+  ctaHref: '/customer/invoices',
+  ctaLabel: 'Back to invoices'
+}) %>

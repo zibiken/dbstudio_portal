@@ -311,6 +311,15 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 @media (max-width: 1024px) { .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px)  { .bento { grid-template-columns: 1fr; } .bento .card { min-height: 0; } }
 
+/* Customer projects grid (T18a). Two-up on desktop, stacks below 768px. */
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+  margin-block: var(--s-4);
+}
+@media (max-width: 768px) { .project-grid { grid-template-columns: 1fr; } }
+
 /* _page-header — every list/detail/form surface starts with this. The
    min-height keeps the header consistent across tabs: when one sub-tab
    has actions (button) and another has none (or a status-pill), the

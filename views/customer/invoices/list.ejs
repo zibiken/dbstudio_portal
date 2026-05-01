@@ -1,34 +1,55 @@
-<section class="customer-invoices">
-  <header class="customer-section-header">
-    <h1>Invoices</h1>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'PORTAL',
+  title: 'Invoices',
+  subtitle: 'Open, paid, and historical invoices from DB Studio.'
+}) %>
 
-  <% if (rows.length === 0) { %>
-    <p class="muted">You don't have any invoices yet.</p>
-  <% } else { %>
-    <table class="data-table">
+<% if (rows && rows.length) { %>
+  <div class="table-wrap">
+    <table class="data-table data-table--medium">
       <thead>
         <tr>
-          <th>Number</th>
-          <th>Amount</th>
-          <th>Issued</th>
-          <th>Due</th>
-          <th>Status</th>
-          <th></th>
+          <th scope="col" class="data-table__th data-table__th--left">Number</th>
+          <th scope="col" class="data-table__th data-table__th--left">Amount</th>
+          <th scope="col" class="data-table__th data-table__th--left">Issued</th>
+          <th scope="col" class="data-table__th data-table__th--left">Due</th>
+          <th scope="col" class="data-table__th data-table__th--left">Status</th>
+          <th scope="col" class="data-table__th data-table__th--right"></th>
         </tr>
       </thead>
       <tbody>
-        <% for (const r of rows) { %>
+        <% rows.forEach(function(r) {
+             var statusKey = r.overdue && r.status === 'open' ? 'overdue' : r.status;
+             var statusLabel = r.overdue && r.status === 'open' ? 'overdue' : r.status; %>
           <tr>
-            <td><a href="/customer/invoices/<%= r.id %>"><%= r.invoice_number %></a></td>
-            <td><%= (Number(r.amount_cents)/100).toFixed(2) %> <%= r.currency %></td>
-            <td><%= euDate(r.issued_on) %></td>
-            <td><%= euDate(r.due_on) %><% if (r.overdue) { %> <span class="badge badge-warning">overdue</span><% } %></td>
-            <td><%= r.status %></td>
-            <td><a href="/customer/invoices/<%= r.id %>">Open →</a></td>
+            <td class="data-table__td data-table__td--left">
+              <a href="/customer/invoices/<%= r.id %>"><%= r.invoice_number %></a>
+            </td>
+            <td class="data-table__td data-table__td--left">
+              <%= (Number(r.amount_cents) / 100).toFixed(2) %> <%= r.currency %>
+            </td>
+            <td class="data-table__td data-table__td--left">
+              <time datetime="<%= new Date(r.issued_on).toISOString() %>"><%= euDate(r.issued_on) %></time>
+            </td>
+            <td class="data-table__td data-table__td--left">
+              <time datetime="<%= new Date(r.due_on).toISOString() %>"><%= euDate(r.due_on) %></time>
+            </td>
+            <td class="data-table__td data-table__td--left">
+              <span class="status-pill status-pill--<%= statusKey %>"><%= statusLabel %></span>
+            </td>
+            <td class="data-table__td data-table__td--right">
+              <a class="btn btn--ghost btn--sm" href="/customer/invoices/<%= r.id %>">Open →</a>
+            </td>
           </tr>
-        <% } %>
+        <% }) %>
       </tbody>
     </table>
-  <% } %>
-</section>
+  </div>
+<% } else { %>
+  <%- include('../../components/_empty-state', {
+    headline: 'No invoices yet',
+    lead: 'Issued invoices show up here as soon as DB Studio publishes them. You can download the original PDF from each row.',
+    secondaryHref: '/customer/dashboard',
+    secondaryLabel: 'Back to dashboard'
+  }) %>
+<% } %>

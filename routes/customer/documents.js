@@ -1,5 +1,6 @@
+import { renderCustomer } from '../../lib/render.js';
 import { requireCustomerSession } from '../../lib/auth/middleware.js';
-import { findDocumentById } from '../../domain/documents/repo.js';
+import { findDocumentById, listDocumentsByCustomer } from '../../domain/documents/repo.js';
 import { findCustomerUserById } from '../../domain/customers/repo.js';
 import { signDownloadToken } from '../../lib/files.js';
 import { checkLockout, recordFail } from '../../lib/auth/rate-limit.js';
@@ -13,6 +14,31 @@ const SIGNED_URL_WINDOW_MS = 60_000;
 const SIGNED_URL_LOCKOUT_MS = 60_000;
 
 export function registerCustomerDocumentsRoutes(app) {
+  app.get('/customer/documents', async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+
+    const me = await findCustomerUserById(app.db, session.user_id);
+    if (!me) return reply.redirect('/', 302);
+
+    // Customer-side documents list: ALL categories belong to this customer,
+    // but per M8.4 contract NDA drafts must never be visible. Filter them
+    // out here as defence-in-depth on top of the download-route refusal —
+    // a draft listed (even without a download link) would still leak the
+    // existence of an unsigned NDA before the operator wants the customer
+    // to see it.
+    const all = await listDocumentsByCustomer(app.db, me.customer_id);
+    const rows = all.filter((d) => d.category !== 'nda-draft');
+
+    return renderCustomer(req, reply, 'customer/documents/list', {
+      title: 'Documents',
+      rows,
+      activeNav: 'documents',
+      mainWidth: 'wide',
+      sectionLabel: 'DOCUMENTS',
+    });
+  });
+
   app.get('/customer/documents/:id/download', async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;

@@ -30,13 +30,22 @@ export function registerCustomerNdasRoutes(app) {
     const me = await findCustomerUserById(app.db, session.user_id);
     if (!me) {
       reply.code(404);
-      return renderCustomer(req, reply, 'customer/ndas/empty', { title: 'NDAs' });
+      return renderCustomer(req, reply, 'customer/ndas/list', {
+        title: 'NDAs',
+        rows: [],
+        activeNav: 'ndas',
+        mainWidth: 'wide',
+        sectionLabel: 'NDAS',
+      });
     }
 
     const rows = await ndasService.listNdasForCustomer(app.db, me.customer_id);
     return renderCustomer(req, reply, 'customer/ndas/list', {
       title: 'NDAs',
       rows,
+      activeNav: 'ndas',
+      mainWidth: 'wide',
+      sectionLabel: 'NDAS',
     });
   });
 }

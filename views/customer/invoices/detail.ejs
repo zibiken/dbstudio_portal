@@ -1,15 +1,32 @@
-<section class="customer-invoice-detail">
-  <header class="customer-section-header">
-    <h1>Invoice <%= row.invoice_number %></h1>
-    <a class="btn btn-secondary" href="/customer/invoices">Back</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'PORTAL · INVOICES',
+  title: 'Invoice ' + row.invoice_number,
+  subtitle: (Number(row.amount_cents) / 100).toFixed(2) + ' ' + row.currency
+}) %>
 
-  <table class="meta-table">
-    <tr><th>Amount</th><td><%= (Number(row.amount_cents)/100).toFixed(2) %> <%= row.currency %></td></tr>
-    <tr><th>Issued</th><td><%= euDate(row.issued_on) %></td></tr>
-    <tr><th>Due</th><td><%= euDate(row.due_on) %><% if (row.overdue) { %> <span class="badge badge-warning">overdue</span><% } %></td></tr>
-    <tr><th>Status</th><td><%= row.status %></td></tr>
-    <% if (row.notes) { %><tr><th>Notes</th><td><%= row.notes %></td></tr><% } %>
-    <tr><th>PDF</th><td><a href="/customer/documents/<%= row.document_id %>/download">Download invoice PDF</a></td></tr>
-  </table>
-</section>
+<%
+  var statusKey = row.overdue && row.status === 'open' ? 'overdue' : row.status;
+  var statusLabel = row.overdue && row.status === 'open' ? 'overdue' : row.status;
+%>
+
+<div class="detail-status-strip">
+  <span class="detail-status-strip__label">Status</span>
+  <span class="status-pill status-pill--<%= statusKey %>"><%= statusLabel %></span>
+  <a class="btn btn--secondary btn--sm detail-status-strip__edit" href="/customer/documents/<%= row.document_id %>/download">Download PDF</a>
+</div>
+
+<div class="card">
+  <h2 class="card__title">Details</h2>
+  <dl class="kv">
+    <dt>Number</dt> <dd><%= row.invoice_number %></dd>
+    <dt>Amount</dt> <dd><%= (Number(row.amount_cents) / 100).toFixed(2) %> <%= row.currency %></dd>
+    <dt>Issued</dt> <dd><%= euDate(row.issued_on) %></dd>
+    <dt>Due</dt>    <dd><%= euDate(row.due_on) %></dd>
+    <dt>Status</dt> <dd><%= row.status %><% if (row.overdue && row.status === 'open') { %> <span class="muted">— overdue</span><% } %></dd>
+    <% if (row.notes) { %><dt>Notes</dt><dd><%= row.notes %></dd><% } %>
+  </dl>
+</div>
+
+<div class="form-actions">
+  <%- include('../../components/_button', { variant: 'ghost', size: 'md', href: '/customer/invoices', label: 'Back to invoices' }) %>
+</div>

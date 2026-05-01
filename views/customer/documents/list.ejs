@@ -1,0 +1,61 @@
+<%- include('../../components/_page-header', {
+  eyebrow: 'PORTAL',
+  title: 'Documents',
+  subtitle: 'Files DB Studio has shared with your company.'
+}) %>
+
+<% if (rows && rows.length) { %>
+  <%
+    function bytesHuman(n) {
+      if (n == null) return '—';
+      var v = Number(n);
+      if (!isFinite(v)) return '—';
+      if (v < 1024) return v + ' B';
+      if (v < 1024 * 1024) return (v / 1024).toFixed(1) + ' KB';
+      if (v < 1024 * 1024 * 1024) return (v / 1024 / 1024).toFixed(1) + ' MB';
+      return (v / 1024 / 1024 / 1024).toFixed(1) + ' GB';
+    }
+    function categoryLabel(c) {
+      switch (c) {
+        case 'nda-signed': return 'NDA · signed';
+        case 'nda-audit':  return 'NDA · audit';
+        case 'invoice':    return 'Invoice';
+        case 'generic':    return 'Document';
+        default:           return c;
+      }
+    }
+  %>
+  <div class="table-wrap">
+    <table class="data-table data-table--medium">
+      <thead>
+        <tr>
+          <th scope="col" class="data-table__th data-table__th--left">File</th>
+          <th scope="col" class="data-table__th data-table__th--left">Category</th>
+          <th scope="col" class="data-table__th data-table__th--left">Size</th>
+          <th scope="col" class="data-table__th data-table__th--left">Uploaded</th>
+          <th scope="col" class="data-table__th data-table__th--right"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(function(d) { %>
+          <tr>
+            <td class="data-table__td data-table__td--left"><code class="muted"><%= d.original_filename %></code></td>
+            <td class="data-table__td data-table__td--left"><%= categoryLabel(d.category) %></td>
+            <td class="data-table__td data-table__td--left"><%= bytesHuman(d.size_bytes) %></td>
+            <td class="data-table__td data-table__td--left"><time datetime="<%= new Date(d.uploaded_at).toISOString() %>"><%= euDateTime(d.uploaded_at) %></time></td>
+            <td class="data-table__td data-table__td--right">
+              <a class="btn btn--ghost btn--sm" href="/customer/documents/<%= d.id %>/download">Download →</a>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+<% } else { %>
+  <%- include('../../components/_empty-state', {
+    headline: 'No documents yet',
+    lead: 'When DB Studio uploads a file for your company — a signed NDA, an invoice PDF, a deliverable — it appears here for download.',
+    secondaryHref: '/customer/dashboard',
+    secondaryLabel: 'Back to dashboard'
+  }) %>
+<% } %>

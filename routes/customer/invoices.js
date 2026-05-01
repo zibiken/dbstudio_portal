@@ -22,6 +22,9 @@ export function registerCustomerInvoicesRoutes(app) {
     return renderCustomer(req, reply, 'customer/invoices/list', {
       title: 'Invoices',
       rows,
+      activeNav: 'invoices',
+      mainWidth: 'wide',
+      sectionLabel: 'INVOICES',
     });
   });
 
@@ -41,6 +44,9 @@ export function registerCustomerInvoicesRoutes(app) {
     return renderCustomer(req, reply, 'customer/invoices/detail', {
       title: `Invoice ${row.invoice_number}`,
       row,
+      activeNav: 'invoices',
+      mainWidth: 'content',
+      sectionLabel: 'INVOICES',
     });
   });
 }

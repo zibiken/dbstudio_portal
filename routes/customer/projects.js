@@ -18,6 +18,9 @@ export function registerCustomerProjectsRoutes(app) {
     return renderCustomer(req, reply, 'customer/projects/list', {
       title: 'Projects',
       projects,
+      activeNav: 'projects',
+      mainWidth: 'wide',
+      sectionLabel: 'PROJECTS',
     });
   });
 }

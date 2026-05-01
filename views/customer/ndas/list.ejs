@@ -1,43 +1,51 @@
-<section class="customer-ndas">
-  <header class="customer-section-header">
-    <h1>NDAs</h1>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'PORTAL',
+  title: 'NDAs',
+  subtitle: 'Non-disclosure agreements between you and DB Studio.'
+}) %>
 
-  <% if (rows.length === 0) { %>
-    <p class="muted">You don't have any signed NDAs yet.</p>
-  <% } else { %>
-    <p class="muted">These are the NDAs you have signed with DB Studio. Each row
-      links to the signed PDF and, when present, the audit-trail document from
-      the signing platform.</p>
-    <table class="data-table">
+<% if (rows && rows.length) { %>
+  <div class="table-wrap">
+    <table class="data-table data-table--medium">
       <thead>
         <tr>
-          <th>Project</th>
-          <th>Generated</th>
-          <th>Template version</th>
-          <th>Signed PDF</th>
-          <th>Audit-trail</th>
+          <th scope="col" class="data-table__th data-table__th--left">Project</th>
+          <th scope="col" class="data-table__th data-table__th--left">Generated</th>
+          <th scope="col" class="data-table__th data-table__th--left">Template</th>
+          <th scope="col" class="data-table__th data-table__th--left">Signed PDF</th>
+          <th scope="col" class="data-table__th data-table__th--left">Audit trail</th>
         </tr>
       </thead>
       <tbody>
-        <% for (const r of rows) { %>
+        <% rows.forEach(function(r) { %>
           <tr>
-            <td><%= r.project_name %></td>
-            <td><%= euDate(r.generated_at) %></td>
-            <td><code><%= (r.template_version_sha || '').slice(0, 8) %></code></td>
-            <td>
-              <a href="/customer/documents/<%= r.signed_document_id %>/download">Download</a>
+            <td class="data-table__td data-table__td--left"><%= r.project_name %></td>
+            <td class="data-table__td data-table__td--left"><time datetime="<%= new Date(r.generated_at).toISOString() %>"><%= euDate(r.generated_at) %></time></td>
+            <td class="data-table__td data-table__td--left"><code class="muted"><%= (r.template_version_sha || '').slice(0, 8) %></code></td>
+            <td class="data-table__td data-table__td--left">
+              <% if (r.signed_document_id) { %>
+                <a class="btn btn--ghost btn--sm" href="/customer/documents/<%= r.signed_document_id %>/download">Download →</a>
+              <% } else { %>
+                <span class="muted">—</span>
+              <% } %>
             </td>
-            <td>
+            <td class="data-table__td data-table__td--left">
               <% if (r.audit_document_id) { %>
-                <a href="/customer/documents/<%= r.audit_document_id %>/download">Download</a>
+                <a class="btn btn--ghost btn--sm" href="/customer/documents/<%= r.audit_document_id %>/download">Download →</a>
               <% } else { %>
                 <span class="muted">—</span>
               <% } %>
             </td>
           </tr>
-        <% } %>
+        <% }) %>
       </tbody>
     </table>
-  <% } %>
-</section>
+  </div>
+<% } else { %>
+  <%- include('../../components/_empty-state', {
+    headline: 'No NDAs yet',
+    lead: 'Once you sign an NDA with DB Studio, the signed copy and the audit trail from the signing platform appear here for download.',
+    secondaryHref: '/customer/dashboard',
+    secondaryLabel: 'Back to dashboard'
+  }) %>
+<% } %>

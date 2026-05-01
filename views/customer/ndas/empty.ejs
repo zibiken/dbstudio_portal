@@ -1,6 +1,12 @@
-<section class="customer-ndas">
-  <header class="customer-section-header">
-    <h1>NDAs</h1>
-  </header>
-  <p class="muted">You don't have any signed NDAs yet.</p>
-</section>
+<%- include('../../components/_page-header', {
+  eyebrow: 'PORTAL',
+  title: 'NDAs',
+  subtitle: 'Non-disclosure agreements between you and DB Studio.'
+}) %>
+
+<%- include('../../components/_empty-state', {
+  headline: 'No NDAs yet',
+  lead: 'Once you sign an NDA with DB Studio, the signed copy and the audit trail from the signing platform appear here for download.',
+  secondaryHref: '/customer/dashboard',
+  secondaryLabel: 'Back to dashboard'
+}) %>
