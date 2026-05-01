@@ -1,50 +1,98 @@
-<section class="customer-dashboard">
-  <header class="customer-section-header">
-    <h1>Hello, <%= user.name %></h1>
-    <p class="subtitle"><%= customer.razon_social %></p>
-  </header>
+<%- include('../components/_page-header', {
+  eyebrow: customer.razon_social,
+  title: 'Hello, ' + user.name,
+  subtitle: 'Your projects, NDAs, credentials and invoices in one place.'
+}) %>
 
-  <div class="customer-grid">
-    <article class="customer-card">
-      <h2>Documents</h2>
-      <p>Project documents and signed agreements.</p>
-      <p><a href="/customer/documents">Open documents →</a></p>
-    </article>
+<%
+  function fmtLatest(latestAt) {
+    if (!latestAt) return null;
+    return euDateTime(latestAt);
+  }
+%>
 
-    <article class="customer-card">
-      <h2>Projects</h2>
-      <p>Active and archived engagements.</p>
-      <p><a href="/customer/projects">Open projects →</a></p>
-    </article>
+<div class="bento">
+  <%- include('../components/_card', {
+    eyebrow: 'NDAs',
+    title:   'Agreements',
+    count:   summary.ndas.count,
+    latestAt: fmtLatest(summary.ndas.latestAt),
+    unread:   summary.ndas.unreadCount,
+    body:    summary.ndas.unreadCount > 0
+      ? '<p class="muted">' + summary.ndas.unreadCount + ' awaiting your signature.</p>'
+      : '<p class="muted">Signed and historical NDAs on file.</p>',
+    footerHref:  '/customer/ndas',
+    footerLabel: 'Open NDAs →'
+  }) %>
 
-    <article class="customer-card">
-      <h2>Invoices</h2>
-      <p>Open, paid, and overdue invoices.</p>
-      <p><a href="/customer/invoices">Open invoices →</a></p>
-    </article>
+  <%- include('../components/_card', {
+    eyebrow: 'Documents',
+    title:   'Files',
+    count:   summary.documents.count,
+    latestAt: fmtLatest(summary.documents.latestAt),
+    body:    '<p class="muted">Project deliverables and other shared files.</p>',
+    footerHref:  '/customer/documents',
+    footerLabel: 'Open documents →'
+  }) %>
 
-    <article class="customer-card">
-      <h2>NDAs</h2>
-      <p>Signed non-disclosure agreements.</p>
-      <p><a href="/customer/ndas">Open NDAs →</a></p>
-    </article>
+  <%- include('../components/_card', {
+    eyebrow: 'Credentials',
+    title:   'Vault',
+    count:   summary.credentials.count,
+    latestAt: fmtLatest(summary.credentials.latestAt),
+    unread:   summary.credentials.unreadCount,
+    body:    summary.credentials.unreadCount > 0
+      ? '<p class="muted">' + summary.credentials.unreadCount + ' flagged for refresh.</p>'
+      : '<p class="muted">Encrypted with your account vault key — admins never see plaintext.</p>',
+    footerHref:  '/customer/credentials',
+    footerLabel: 'Open vault →'
+  }) %>
 
-    <article class="customer-card">
-      <h2>Credentials</h2>
-      <p>Production logins, API keys, and shared secrets — vaulted under your customer key.</p>
-      <p><a href="/customer/credentials">Open credential vault →</a></p>
-      <p><a href="/customer/credential-requests">Open credential requests →</a></p>
-    </article>
+  <%- include('../components/_card', {
+    eyebrow: 'Credential requests',
+    title:   'To share',
+    count:   summary.credentialRequests.count,
+    latestAt: fmtLatest(summary.credentialRequests.latestAt),
+    unread:   summary.credentialRequests.unreadCount,
+    body:    summary.credentialRequests.unreadCount > 0
+      ? '<p class="muted">' + summary.credentialRequests.unreadCount + ' open ' + (summary.credentialRequests.unreadCount === 1 ? 'request' : 'requests') + ' waiting on you.</p>'
+      : '<p class="muted">Provider-by-provider asks from your studio.</p>',
+    footerHref:  '/customer/credential-requests',
+    footerLabel: 'Open requests →'
+  }) %>
 
-    <article class="customer-card">
-      <h2>Profile</h2>
-      <dl class="customer-fields">
-        <dt>Name</dt><dd><%= user.name %></dd>
-        <dt>Email</dt><dd><%= user.email %></dd>
-        <dt>Company</dt><dd><%= customer.razon_social %></dd>
-      </dl>
-      <p><a href="/customer/profile">Edit profile →</a></p>
-      <p><a href="/customer/activity">View account activity →</a></p>
-    </article>
+  <%- include('../components/_card', {
+    eyebrow: 'Invoices',
+    title:   'Billing',
+    count:   summary.invoices.count,
+    latestAt: fmtLatest(summary.invoices.latestAt),
+    unread:   summary.invoices.unreadCount,
+    body:    summary.invoices.unreadCount > 0
+      ? '<p class="muted">' + summary.invoices.unreadCount + ' open ' + (summary.invoices.unreadCount === 1 ? 'invoice' : 'invoices') + '.</p>'
+      : '<p class="muted">All current and historical invoices.</p>',
+    footerHref:  '/customer/invoices',
+    footerLabel: 'Open invoices →'
+  }) %>
+
+  <%- include('../components/_card', {
+    eyebrow: 'Projects',
+    title:   'Engagements',
+    count:   summary.projects.count,
+    latestAt: fmtLatest(summary.projects.latestAt),
+    body:    '<p class="muted">Scope, timeline, and status of every active engagement.</p>',
+    footerHref:  '/customer/projects',
+    footerLabel: 'Open projects →'
+  }) %>
+</div>
+
+<section class="dashboard-meta">
+  <div class="card">
+    <p class="card__eyebrow eyebrow">Signed in as</p>
+    <h2 class="card__title"><%= user.name %></h2>
+    <p class="card__subtitle"><%= user.email %> · <%= customer.razon_social %></p>
+    <div class="form-actions">
+      <%- include('../components/_button', { variant: 'secondary', size: 'sm', href: '/customer/profile', label: 'Edit profile' }) %>
+      <%- include('../components/_button', { variant: 'ghost',     size: 'sm', href: '/customer/activity', label: 'View activity' }) %>
+    </div>
   </div>
 </section>
