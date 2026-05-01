@@ -4,6 +4,19 @@
   subtitle: 'Your projects, NDAs, credentials and invoices in one place.'
 }) %>
 
+<% if (typeof cleanupBanner !== 'undefined' && cleanupBanner) { %>
+  <div class="cleanup-banner">
+    <div class="cleanup-banner__body">
+      DB Studio cleaned up your <code><%= cleanupBanner.provider %></code> credential on
+      <time datetime="<%= cleanupBanner.ts.toISOString() %>"><%= euDate(cleanupBanner.ts) %></time>.
+    </div>
+    <form method="post" action="/customer/dashboard/cleanup-banner/dismiss" class="cleanup-banner__dismiss">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" aria-label="Dismiss">×</button>
+    </form>
+  </div>
+<% } %>
+
 <% if (openQuestions && openQuestions.length > 0) { %>
   <div class="card card--action">
     <h2 class="card__title">Questions for you</h2>

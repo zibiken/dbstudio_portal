@@ -4,6 +4,7 @@ import { requireCustomerSession, requireNdaSigned } from '../../lib/auth/middlew
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { getCustomerDashboardSummary } from '../../lib/customer-summary.js';
 import * as cqRepo from '../../domain/customer-questions/repo.js';
+import { getCleanupBannerForCustomer, dismissCleanupBanner } from '../../lib/cleanup-banner.js';
 
 export function registerCustomerDashboardRoutes(app) {
   app.get('/customer/dashboard', async (req, reply) => {
@@ -20,6 +21,7 @@ export function registerCustomerDashboardRoutes(app) {
     const customer = await findCustomerById(app.db, user.customer_id);
     const summary = await getCustomerDashboardSummary(app.db, { customerId: user.customer_id });
     const openQuestions = await cqRepo.listOpenForCustomer(app.db, user.customer_id);
+    const cleanupBanner = await getCleanupBannerForCustomer(app.db, user.customer_id);
 
     // Dashboard is per-user data — never shared. 15s is short enough to
     // feel live (typing on a sibling tab and switching back), long
@@ -32,9 +34,26 @@ export function registerCustomerDashboardRoutes(app) {
       customer,
       summary,
       openQuestions,
+      cleanupBanner,
+      csrfToken: await reply.generateCsrf(),
       activeNav: 'dashboard',
       mainWidth: 'wide',
       sectionLabel: customer.razon_social.toUpperCase(),
     });
+  });
+
+  app.post('/customer/dashboard/cleanup-banner/dismiss', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
+
+    const userR = await sql`
+      SELECT customer_id FROM customer_users WHERE id = ${session.user_id}::uuid
+    `.execute(app.db);
+    const customerId = userR.rows[0]?.customer_id;
+    if (!customerId) return reply.code(404).send();
+
+    await dismissCleanupBanner(app.db, customerId);
+    return reply.redirect('/customer/dashboard', 302);
   });
 }
