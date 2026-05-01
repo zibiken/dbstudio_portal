@@ -101,7 +101,9 @@ No domain/, routes/, migrations/ work. M11 is presentation-layer.
 | **VISUAL FIX 3** Eye/eye-off SVG icons for password toggle | ✅ | `c952411` | Operator reported `·` middot — replaced with feather-style SVG icons + JS toggle |
 | **AUTH FIX 1** /login/2fa redirects admins to /admin/customers, not / | ✅ | `bc67e04` | server.js GET '/' redirects to /login, so the previous '/' target bounced admins back to the login form post-2FA. Updated 2 integration test assertions in lockstep. |
 | **AUTH FIX 2** Admin /welcome auto-logs-in (mirrors completeCustomerWelcome) | ✅ | `6a06f7c` | Mints session inside the invite-consume tx + stepUp + login_success audit (`via='onboarding'`). Backup-codes "continue" button now → /admin/customers. Auto-applies to /reset (shared handler). |
-| T15 Admin surface polish + English copy + extended search | ⬜ | — | **NEW — INSERTED 2026-04-30 after operator polish review.** Sweeps T13/T14 surfaces against marketing-site bar; codifies the list-surface contract that T17/T18 inherit. Was the unblocker for the T17/T18 customer-facing pass. |
+| **PLAN REWIRE** Insert T15 polish, demote T19 admin profile, broaden T22 | ✅ | `7f28264` | Re-ordered T15→T22 around customer-perception priority + locked-bar-first principle. Documented in `## Rewired execution sequence` above. |
+| T15 Admin surface polish + English copy + extended search + responsive + missing list views | ✅ | `e96bc20` | Operator review surfaced 3 deltas during T15 walk: mobile non-responsive, two tab routes 404'd (Documents + Credentials), credential-request field types missing. First two baked in here (≤640px breakpoints + new `routes/admin/credentials.js` + `admin/documents/list.ejs` + `admin/credentials/list.ejs` metadata-only view). Tests +7 (579 total). New doc: `docs/superpowers/m11-list-surface-contract.md`. |
+| T15.5 Credential-request dynamic field repeater + clearer type labels | ✅ | `e65ef2b` | Per-field type wiring (text/secret/url/note) was already correct end-to-end since M7; missing UX was the "+ Add another field" repeater + descriptive type-option labels. No schema, contract, or service change. Customer fulfillment view restyle deferred to T18b (chrome only — type-aware rendering is correct). |
 | T16 lib/customer-summary.js + unit tests | ⬜ | — | Dep for T17. Unchanged scope. |
 | T17 /customer/dashboard restyled (bento + summary) | ⬜ | — | Promoted ahead of admin profile/audit — first customer-perception surface, must inherit T15's contract. |
 | T18a Customer NDAs/Documents/Invoices/Projects restyled | ⬜ | — | Customer-facing list surfaces, polished from day 1 against T15's contract. |
@@ -131,7 +133,8 @@ The remaining T15→T21 sequence has been rewired around two principles:
 
 | New | Was | Task | Notes |
 |---|---|---|---|
-| T15 | *new* | Admin surface polish + English copy + extended search | Polish-debt sweep on T13/T14. Codifies list-surface contract for T17/T18 to inherit. |
+| T15 | *new* | Admin surface polish + English copy + extended search (+ responsive + 2 missing list views) | Polish-debt sweep on T13/T14. Codifies list-surface contract for T17/T18 to inherit. Scope grew during operator review to include ≤640px responsive pass and the two previously-404'd tab routes (Documents, Credentials metadata-only). |
+| T15.5 | *new* | Credential-request dynamic field repeater | Inserted after T15 operator review. Schema/contract unchanged — UX-only. |
 | T16 | T16 | lib/customer-summary.js (TDD) | Unchanged. Dep for T17. |
 | T17 | T17 | Customer dashboard (bento + summary) | Polished from day 1 against T15's contract. |
 | T18a/b | T18a/b | Customer per-section pages | Polished from day 1. |
