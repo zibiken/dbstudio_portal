@@ -5,9 +5,9 @@
 //   2. upsertSchedule — keeps the per-recipient debounce timer current
 //   3. claimDue + drainItems + clearSchedule — the worker's drain loop
 //
-// upsertSchedule's LEAST(...) clause enforces the 60-min hard cap so a
-// recipient who keeps generating events cannot starve their digest
-// indefinitely; once oldest_item_at is 60 min old, due_at stops sliding.
+// upsertSchedule writes the next configured fire slot (08:00 / 17:00
+// Atlantic/Canary) into due_at; oldest_item_at survives across upserts
+// in the same cycle as the timestamp of the first pending item.
 
 import { sql } from 'kysely';
 import { v7 as uuidv7 } from 'uuid';
@@ -56,23 +56,23 @@ export async function updateCoalesced(db, { id, title, detail, metadata }) {
   `.execute(db);
 }
 
-export async function upsertSchedule(db, {
-  recipientType, recipientId, windowMinutes, capMinutes,
-}) {
-  const window = `${Number(windowMinutes)} minutes`;
-  const cap = `${Number(capMinutes)} minutes`;
+export async function upsertSchedule(db, { recipientType, recipientId, dueAt }) {
+  // dueAt is a Date computed by nextDigestFire(); we always overwrite the
+  // schedule to the next configured fire slot. The LEAST(...) cap from the
+  // sliding-window era is gone — items now wait deterministically for the
+  // next 08:00 or 17:00 Atlantic/Canary fire.
+  // oldest_item_at is set on insert and untouched on conflict so it
+  // preserves the timestamp of the first pending item in the current cycle.
+  const dueAtIso = dueAt.toISOString();
   await sql`
     INSERT INTO digest_schedules (recipient_type, recipient_id, due_at, oldest_item_at)
     VALUES (
       ${recipientType}, ${recipientId}::uuid,
-      now() + ${window}::interval,
+      ${dueAtIso}::timestamptz,
       now()
     )
     ON CONFLICT (recipient_type, recipient_id) DO UPDATE
-      SET due_at = LEAST(
-        now() + ${cap === '0 minutes' ? sql`'0 minutes'::interval` : sql`${window}::interval`},
-        digest_schedules.oldest_item_at + ${cap}::interval
-      )
+      SET due_at = ${dueAtIso}::timestamptz
   `.execute(db);
 }
 
