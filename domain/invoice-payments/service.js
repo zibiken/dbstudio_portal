@@ -74,52 +74,66 @@ export async function record(db, { adminId, invoiceId, amountCents, paidOn, note
     const users = await listActiveCustomerUsers(tx, inv.customer_id);
     const admins = await listActiveAdmins(tx);
     const amount = formatEur(amountCents);
+    const cnameRow = await sql`SELECT razon_social FROM customers WHERE id = ${inv.customer_id}::uuid`.execute(tx);
+    const customerName = cnameRow.rows[0]?.razon_social ?? '';
 
     for (const u of users) {
+      const recVars = { invoiceNumber: inv.invoice_number, amount, paidOn };
       await recordForDigest(tx, {
         recipientType: 'customer_user',
         recipientId:   u.id,
         customerId:    inv.customer_id,
         bucket:        'fyi',
         eventType:     'invoice.payment_recorded',
-        title:         titleFor('invoice.payment_recorded', u.locale, { invoiceNumber: inv.invoice_number, amount, paidOn }),
+        title:         titleFor('invoice.payment_recorded', u.locale, recVars),
         linkPath:      `/customer/invoices/${invoiceId}`,
         metadata:      { paymentId: id, invoiceId, amountCents, paidOn },
+        vars:          recVars,
+        locale:        u.locale,
       });
       if (isFullyPaid) {
+        const paidVars = { recipient: 'customer', invoiceNumber: inv.invoice_number };
         await recordForDigest(tx, {
           recipientType: 'customer_user',
           recipientId:   u.id,
           customerId:    inv.customer_id,
           bucket:        'fyi',
           eventType:     'invoice.paid',
-          title:         titleFor('invoice.paid', u.locale, { invoiceNumber: inv.invoice_number }),
+          title:         titleFor('invoice.paid', u.locale, paidVars),
           linkPath:      `/customer/invoices/${invoiceId}`,
           metadata:      { invoiceId },
+          vars:          paidVars,
+          locale:        u.locale,
         });
       }
     }
     for (const adm of admins) {
+      const recVars = { invoiceNumber: inv.invoice_number, amount, paidOn };
       await recordForDigest(tx, {
         recipientType: 'admin',
         recipientId:   adm.id,
         customerId:    inv.customer_id,
         bucket:        'fyi',
         eventType:     'invoice.payment_recorded',
-        title:         titleFor('invoice.payment_recorded', adm.locale, { invoiceNumber: inv.invoice_number, amount, paidOn }),
+        title:         titleFor('invoice.payment_recorded', adm.locale, recVars),
         linkPath:      `/admin/invoices/${invoiceId}`,
         metadata:      { paymentId: id, invoiceId, amountCents, paidOn },
+        vars:          recVars,
+        locale:        adm.locale,
       });
       if (isFullyPaid) {
+        const paidVars = { recipient: 'admin', customerName, invoiceNumber: inv.invoice_number };
         await recordForDigest(tx, {
           recipientType: 'admin',
           recipientId:   adm.id,
           customerId:    inv.customer_id,
           bucket:        'fyi',
           eventType:     'invoice.paid',
-          title:         titleFor('invoice.paid', adm.locale, { invoiceNumber: inv.invoice_number }),
+          title:         titleFor('invoice.paid', adm.locale, paidVars),
           linkPath:      `/admin/invoices/${invoiceId}`,
           metadata:      { invoiceId },
+          vars:          paidVars,
+          locale:        adm.locale,
         });
       }
     }

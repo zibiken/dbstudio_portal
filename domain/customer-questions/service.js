@@ -1,3 +1,4 @@
+import { sql } from 'kysely';
 import { writeAudit } from '../../lib/audit.js';
 import { recordForDigest } from '../../lib/digest.js';
 import { titleFor } from '../../lib/digest-strings.js';
@@ -39,15 +40,18 @@ export async function createQuestion(db, { customerId, createdByAdminId, questio
     const recipients = await listActiveCustomerUsers(tx, customerId);
     const preview = String(question).slice(0, 80);
     for (const u of recipients) {
+      const vars = { recipient: 'customer', questionPreview: preview };
       await recordForDigest(tx, {
         recipientType: 'customer_user',
         recipientId:   u.id,
         customerId,
         bucket:        'action_required',
         eventType:     'question.created',
-        title:         titleFor('question.created', u.locale, { questionPreview: preview }),
+        title:         titleFor('question.created', u.locale, vars),
         linkPath:      `/customer/questions/${row.id}`,
         metadata:      { questionId: row.id },
+        vars,
+        locale:        u.locale,
       });
     }
     return row;
@@ -72,10 +76,13 @@ export async function answerQuestion(db, { id, answeredByCustomerUserId, answerT
       userAgentHash: a.userAgentHash,
     });
 
+    const meta = await fetchQuestionMeta(tx, row.customer_id);
     await fanoutAdminFyi(tx, {
       eventType: 'question.answered',
       questionId: id,
       customerId: row.customer_id,
+      customerName: meta.customerName,
+      questionPreview: row.question,
     });
     return row;
   });
@@ -99,27 +106,38 @@ export async function skipQuestion(db, { id, answeredByCustomerUserId }, ctx = {
       userAgentHash: a.userAgentHash,
     });
 
+    const meta = await fetchQuestionMeta(tx, row.customer_id);
     await fanoutAdminFyi(tx, {
       eventType: 'question.skipped',
       questionId: id,
       customerId: row.customer_id,
+      customerName: meta.customerName,
+      questionPreview: row.question,
     });
     return row;
   });
 }
 
-async function fanoutAdminFyi(tx, { eventType, questionId, customerId }) {
+async function fetchQuestionMeta(tx, customerId) {
+  const r = await sql`SELECT razon_social FROM customers WHERE id = ${customerId}::uuid`.execute(tx);
+  return { customerName: r.rows[0]?.razon_social ?? '' };
+}
+
+async function fanoutAdminFyi(tx, { eventType, questionId, customerId, customerName, questionPreview }) {
   const admins = await listActiveAdmins(tx);
   for (const ad of admins) {
+    const vars = { recipient: 'admin', customerName: customerName ?? '', questionPreview: questionPreview ?? '' };
     await recordForDigest(tx, {
       recipientType: 'admin',
       recipientId:   ad.id,
       customerId,
       bucket:        'fyi',
       eventType,
-      title:         titleFor(eventType, ad.locale, {}),
-      linkPath:      `/admin/customers/${customerId}`,
+      title:         titleFor(eventType, ad.locale, vars),
+      linkPath:      `/admin/customers/${customerId}/questions/${questionId}`,
       metadata:      { questionId },
+      vars,
+      locale:        ad.locale,
     });
   }
 }

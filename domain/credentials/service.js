@@ -179,15 +179,18 @@ export async function createByCustomer(db, {
     const customerName = cnameRow.rows[0]?.razon_social ?? '';
     const admins = await listActiveAdmins(tx);
     for (const adm of admins) {
+      const vars = { customerName, count: 1 };
       await recordForDigest(tx, {
         recipientType: 'admin',
         recipientId:   adm.id,
         customerId,
         bucket:        'fyi',
         eventType:     'credential.created',
-        title:         titleFor('credential.created', adm.locale, { customerName }),
+        title:         titleFor('credential.created', adm.locale, vars),
         linkPath:      `/admin/customers/${customerId}/credentials`,
         metadata:      { credentialId: id, customerId },
+        vars,
+        locale:        adm.locale,
       });
     }
 
@@ -392,15 +395,18 @@ export async function view(db, {
       // Trust contract: every admin view is surfaced to the customer.
       const recipients = await listActiveCustomerUsers(tx, cred.customer_id);
       for (const u of recipients) {
+        const vars = { recipient: 'customer', count: 1 };
         await recordForDigest(tx, {
           recipientType: 'customer_user',
           recipientId:   u.id,
           customerId:    cred.customer_id,
           bucket:        'fyi',
           eventType:     'credential.viewed',
-          title:         titleFor('credential.viewed', u.locale, {}),
+          title:         titleFor('credential.viewed', u.locale, vars),
           linkPath:      '/customer/credentials',
           metadata:      { credentialId, provider: cred.provider, label: cred.label },
+          vars,
+          locale:        u.locale,
         });
       }
 

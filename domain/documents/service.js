@@ -232,15 +232,18 @@ export async function uploadForCustomer(db, {
         if (visibleToCustomer) {
           const recipients = await listActiveCustomerUsers(tx, customerId);
           for (const u of recipients) {
+            const vars = { recipient: 'customer', filename: cleanName };
             await recordForDigest(tx, {
               recipientType: 'customer_user',
               recipientId:   u.id,
               customerId,
               bucket:        'fyi',
               eventType:     'document.uploaded',
-              title:         titleFor('document.uploaded', u.locale, { filename: cleanName }),
+              title:         titleFor('document.uploaded', u.locale, vars),
               linkPath:      '/customer/documents',
               metadata:      { documentId, filename: cleanName },
+              vars,
+              locale:        u.locale,
             });
           }
         }

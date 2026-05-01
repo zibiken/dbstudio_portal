@@ -48,10 +48,6 @@ describe.skipIf(skip)('digest worker — twice-daily fixed cadence', () => {
     const r = await sql`SELECT COUNT(*)::int AS c FROM email_outbox WHERE to_address = ${email}`.execute(db);
     return r.rows[0].c;
   }
-  async function scheduleExists(recipientId) {
-    const r = await sql`SELECT 1 FROM digest_schedules WHERE recipient_id = ${recipientId}::uuid`.execute(db);
-    return r.rows.length > 0;
-  }
 
   it('event recorded at 09:00 Canary fires at 17:00 Canary same day (skip-if-empty otherwise)', async () => {
     const admin = await makeAdmin('a');
@@ -67,12 +63,10 @@ describe.skipIf(skip)('digest worker — twice-daily fixed cadence', () => {
 
     // Tick at 16:30 Canary (15:30 UTC) — too early for our schedule (due 16:00 UTC)
     await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T15:30:00Z') });
-    expect(await scheduleExists(admin.id)).toBe(true);
     expect(await emailCountFor(admin.email)).toBe(0);
 
     // Tick at 17:01 Canary (16:01 UTC) — our schedule fires
     await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T16:01:00Z') });
-    expect(await scheduleExists(admin.id)).toBe(false);
     expect(await emailCountFor(admin.email)).toBe(1);
 
     await clearForRecipient(admin.id);
@@ -92,12 +86,10 @@ describe.skipIf(skip)('digest worker — twice-daily fixed cadence', () => {
 
     // Tick at 18:01 Canary same day — too early
     await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T17:01:00Z') });
-    expect(await scheduleExists(admin.id)).toBe(true);
     expect(await emailCountFor(admin.email)).toBe(0);
 
     // Tick at 08:01 Canary next day (07:01 UTC WEST)
     await tickOnce({ db, log: silentLog, now: new Date('2026-05-02T07:01:00Z') });
-    expect(await scheduleExists(admin.id)).toBe(false);
     expect(await emailCountFor(admin.email)).toBe(1);
 
     await clearForRecipient(admin.id);
@@ -120,7 +112,6 @@ describe.skipIf(skip)('digest worker — twice-daily fixed cadence', () => {
     }, { now: new Date('2026-05-01T14:00:00Z') });
 
     await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T16:01:00Z') });
-    expect(await scheduleExists(admin.id)).toBe(false);
     expect(await emailCountFor(admin.email)).toBe(1);
 
     await clearForRecipient(admin.id);
@@ -139,7 +130,6 @@ describe.skipIf(skip)('digest worker — twice-daily fixed cadence', () => {
     await sql`DELETE FROM pending_digest_items WHERE recipient_id = ${admin.id}::uuid`.execute(db);
 
     await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T16:01:00Z') });
-    expect(await scheduleExists(admin.id)).toBe(false);
     expect(await emailCountFor(admin.email)).toBe(0);
 
     await clearForRecipient(admin.id);

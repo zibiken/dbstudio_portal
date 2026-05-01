@@ -243,15 +243,18 @@ export async function create(db, {
     const recipients = await listActiveCustomerUsers(tx, customerId);
     const amount = formatAmount(amt, cur);
     for (const u of recipients) {
+      const vars = { recipient: 'customer', invoiceNumber: number, amount };
       await recordForDigest(tx, {
         recipientType: 'customer_user',
         recipientId:   u.id,
         customerId,
         bucket:        'fyi',
         eventType:     'invoice.uploaded',
-        title:         titleFor('invoice.uploaded', u.locale, { invoiceNumber: number, amount }),
+        title:         titleFor('invoice.uploaded', u.locale, vars),
         linkPath:      `/customer/invoices/${id}`,
         metadata:      { invoiceId: id, invoiceNumber: number, amountCents: amt },
+        vars,
+        locale:        u.locale,
       });
     }
 
