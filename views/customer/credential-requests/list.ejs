@@ -1,37 +1,52 @@
-<section class="customer-cr-list">
-  <header class="customer-section-header">
-    <h1>Credential requests</h1>
-    <a class="btn btn-secondary" href="/customer/dashboard">Back to dashboard</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'PORTAL',
+  title: 'Credential requests',
+  subtitle: 'Provider-by-provider asks from DB Studio. Open ones need your input.'
+}) %>
 
-  <% if (requests.length === 0) { %>
-    <p class="muted">No credential requests yet.</p>
-  <% } else { %>
-    <table class="customer-table">
+<% if (requests && requests.length) { %>
+  <div class="table-wrap">
+    <table class="data-table data-table--medium">
       <thead>
         <tr>
-          <th>Provider</th>
-          <th>Status</th>
-          <th>Fields</th>
-          <th>Created</th>
-          <th></th>
+          <th scope="col" class="data-table__th data-table__th--left">Provider</th>
+          <th scope="col" class="data-table__th data-table__th--left">Status</th>
+          <th scope="col" class="data-table__th data-table__th--left">Fields</th>
+          <th scope="col" class="data-table__th data-table__th--left">Created</th>
+          <th scope="col" class="data-table__th data-table__th--right"></th>
         </tr>
       </thead>
       <tbody>
-        <% requests.forEach((r) => { %>
+        <% requests.forEach(function(r) {
+             var pillKey = r.status === 'open' ? 'pending' :
+                           r.status === 'fulfilled' ? 'fulfilled' :
+                           r.status === 'cancelled' ? 'archived' :
+                           r.status === 'not_applicable' ? 'void' : 'pending';
+        %>
           <tr>
-            <td><%= r.provider %></td>
-            <td><span class="status status-<%= r.status %>"><%= r.status %></span></td>
-            <td><%= r.fields.length %></td>
-            <td><%= euDateTime(r.created_at) %></td>
-            <td>
-              <a href="/customer/credential-requests/<%= r.id %>">
-                <%= r.status === 'open' ? 'Fulfil' : 'View' %>
+            <td class="data-table__td data-table__td--left">
+              <a href="/customer/credential-requests/<%= r.id %>"><%= r.provider %></a>
+            </td>
+            <td class="data-table__td data-table__td--left">
+              <span class="status-pill status-pill--<%= pillKey %>"><%= r.status %></span>
+            </td>
+            <td class="data-table__td data-table__td--left"><%= r.fields.length %></td>
+            <td class="data-table__td data-table__td--left"><time datetime="<%= new Date(r.created_at).toISOString() %>"><%= euDateTime(r.created_at) %></time></td>
+            <td class="data-table__td data-table__td--right">
+              <a class="btn btn--<%= r.status === 'open' ? 'primary' : 'ghost' %> btn--sm" href="/customer/credential-requests/<%= r.id %>">
+                <%= r.status === 'open' ? 'Fulfil →' : 'View →' %>
               </a>
             </td>
           </tr>
-        <% }); %>
+        <% }) %>
       </tbody>
     </table>
-  <% } %>
-</section>
+  </div>
+<% } else { %>
+  <%- include('../../components/_empty-state', {
+    headline: 'No credential requests yet',
+    lead: 'When DB Studio needs a third-party login or API key from you, the ask appears here. You enter values directly into your portal — they never travel via email or chat — and they are encrypted with your account key the moment you save.',
+    secondaryHref: '/customer/dashboard',
+    secondaryLabel: 'Back to dashboard'
+  }) %>
+<% } %>

@@ -320,6 +320,77 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 }
 @media (max-width: 768px) { .project-grid { grid-template-columns: 1fr; } }
 
+/* Customer credential / credential-request shared two-column rows (T18b).
+   Used in /customer/credentials/new where each row is name + value. */
+.customer-cred-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+}
+@media (max-width: 640px) { .customer-cred-row { grid-template-columns: 1fr; } }
+
+/* Customer activity filter row (T18b). Five inline fields + actions on
+   desktop, stacks vertically on mobile. */
+.activity-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s-3);
+}
+.activity-filter__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.activity-filter__field label {
+  font-size: var(--f-xs);
+  font-family: var(--f-mono);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-upper);
+  color: var(--fg-on-light-muted);
+}
+.activity-filter__actions {
+  display: flex;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+@media (max-width: 768px) {
+  .activity-filter { flex-direction: column; align-items: stretch; }
+  .activity-filter__actions { margin-left: 0; flex-direction: row; }
+  .activity-filter__actions .btn { flex: 1 1 auto; justify-content: center; }
+}
+
+/* Customer activity feed list (T18b). Each event is a row with a
+   monospace timestamp, action verb, optional actor and metadata. */
+.activity-feed { list-style: none; padding: 0; margin: var(--s-3) 0 0; display: flex; flex-direction: column; gap: var(--s-3); }
+.activity-feed__item {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: var(--s-4);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.activity-feed__item:last-child { border-bottom: 0; }
+.activity-feed__time {
+  font-family: var(--f-mono);
+  font-size: var(--f-xs);
+  color: var(--fg-on-light-muted);
+  letter-spacing: 0.02em;
+}
+.activity-feed__action { margin: 0; font-weight: 500; color: var(--c-obsidian); font-family: var(--f-mono); font-size: var(--f-sm); }
+.activity-feed__actor  { margin: 2px 0 0; font-size: var(--f-sm); color: var(--fg-on-light-muted); }
+.activity-feed__meta { display: grid; grid-template-columns: max-content 1fr; gap: 2px var(--s-3); margin: var(--s-2) 0 0; font-size: var(--f-xs); }
+.activity-feed__meta dt { color: var(--fg-on-light-muted); font-family: var(--f-mono); }
+.activity-feed__meta dd { margin: 0; }
+.activity-feed__meta code { font-size: var(--f-xs); background: var(--bg-light-alt); padding: 1px var(--s-1); border-radius: 3px; }
+@media (max-width: 640px) {
+  .activity-feed__item { grid-template-columns: 1fr; gap: var(--s-1); }
+  .activity-feed__time { order: 0; }
+}
+
 /* _page-header — every list/detail/form surface starts with this. The
    min-height keeps the header consistent across tabs: when one sub-tab
    has actions (button) and another has none (or a status-pill), the

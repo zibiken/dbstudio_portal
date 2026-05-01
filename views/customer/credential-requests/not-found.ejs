@@ -1,5 +1,11 @@
-<section class="customer-not-found">
-  <h1>Not found</h1>
-  <p>That credential request does not exist or is not assigned to your account.</p>
-  <p><a class="btn btn-secondary" href="/customer/dashboard">Back to dashboard</a></p>
-</section>
+<%- include('../../components/_page-header', {
+  eyebrow: 'PORTAL · CREDENTIAL REQUESTS',
+  title: 'Request not found'
+}) %>
+
+<%- include('../../components/_empty-state', {
+  headline: 'That credential request is not available',
+  lead: 'It may have been cancelled, fulfilled, or the link may be wrong. Head back to your requests list to try again.',
+  ctaHref: '/customer/credential-requests',
+  ctaLabel: 'Back to credential requests'
+}) %>

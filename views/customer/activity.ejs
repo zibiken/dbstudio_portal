@@ -1,52 +1,70 @@
-<section class="customer-activity">
-  <header class="customer-section-header">
-    <h1>Activity</h1>
-    <p class="subtitle">Everything that happened on your account.</p>
-  </header>
+<%- include('../components/_page-header', {
+  eyebrow: 'PORTAL',
+  title: 'Activity',
+  subtitle: 'Everything that happened on your account.'
+}) %>
 
-  <article class="customer-card">
-    <form method="get" action="/customer/activity" class="customer-filter">
-      <label for="activity-filter">Filter</label>
-      <select id="activity-filter" name="filter">
-        <% filterOptions.forEach(function (opt) { %>
+<div class="card">
+  <h2 class="card__title">Filter</h2>
+  <form method="get" action="/customer/activity" class="activity-filter">
+    <div class="activity-filter__field">
+      <label for="activity-filter">Section</label>
+      <select id="activity-filter" name="filter" class="cr-fields__input">
+        <% filterOptions.forEach(function(opt) { %>
           <option value="<%= opt.value %>" <%= opt.value === filter ? 'selected' : '' %>><%= opt.label %></option>
-        <% }); %>
+        <% }) %>
       </select>
+    </div>
+    <div class="activity-filter__field">
       <label for="activity-since">From</label>
-      <input id="activity-since" name="since" type="date" value="<%= since %>">
+      <input id="activity-since" name="since" type="date" value="<%= since %>" class="cr-fields__input">
+    </div>
+    <div class="activity-filter__field">
       <label for="activity-until">To</label>
-      <input id="activity-until" name="until" type="date" value="<%= until %>">
+      <input id="activity-until" name="until" type="date" value="<%= until %>" class="cr-fields__input">
+    </div>
+    <div class="activity-filter__field">
       <label for="activity-limit">Show</label>
-      <input id="activity-limit" name="limit" type="number" min="1" max="200" value="<%= limit %>">
-      <button type="submit">Apply</button>
-      <a href="/customer/activity" class="cancel-link">Reset</a>
-    </form>
-  </article>
+      <input id="activity-limit" name="limit" type="number" min="1" max="200" value="<%= limit %>" class="cr-fields__input">
+    </div>
+    <div class="activity-filter__actions">
+      <%- include('../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Apply' }) %>
+      <%- include('../components/_button', { variant: 'ghost',   size: 'md', href: '/customer/activity', label: 'Reset' }) %>
+    </div>
+  </form>
+</div>
 
-  <article class="customer-card">
-    <% if (!events.length) { %>
-      <p class="muted">No events match these filters.</p>
-    <% } else { %>
-      <ul class="customer-activity-list">
-        <% events.forEach(function (e) { %>
-          <li>
-            <time datetime="<%= e.ts %>"><%= euDateTime(e.ts) %></time>
-            <span class="action"><%= e.action %></span>
+<% if (events && events.length) { %>
+  <div class="card">
+    <h2 class="card__title"><%= events.length %> <%= events.length === 1 ? 'event' : 'events' %></h2>
+    <ul class="activity-feed">
+      <% events.forEach(function(e) { %>
+        <li class="activity-feed__item">
+          <time class="activity-feed__time" datetime="<%= e.ts %>"><%= euDateTime(e.ts) %></time>
+          <div class="activity-feed__body">
+            <p class="activity-feed__action"><%= e.action %></p>
             <% if (e.actor_display_name) { %>
-              <span class="actor">by <%= e.actor_display_name %></span>
+              <p class="activity-feed__actor">by <%= e.actor_display_name %></p>
             <% } %>
             <% if (e.metadata && Object.keys(e.metadata).length > 0) { %>
-              <ul class="meta">
-                <% Object.entries(e.metadata).forEach(function (kv) {
-                     if (kv[0] === 'customerId') return;
-                %>
-                  <li><strong><%= kv[0] %></strong>: <code><%= typeof kv[1] === 'string' ? kv[1] : JSON.stringify(kv[1]) %></code></li>
-                <% }); %>
-              </ul>
+              <dl class="activity-feed__meta">
+                <% Object.entries(e.metadata).forEach(function(kv) {
+                     if (kv[0] === 'customerId') return; %>
+                  <dt><%= kv[0] %></dt>
+                  <dd><code><%= typeof kv[1] === 'string' ? kv[1] : JSON.stringify(kv[1]) %></code></dd>
+                <% }) %>
+              </dl>
             <% } %>
-          </li>
-        <% }); %>
-      </ul>
-    <% } %>
-  </article>
-</section>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  </div>
+<% } else { %>
+  <%- include('../components/_empty-state', {
+    headline: 'No events match these filters',
+    lead: 'Try widening the date range or switching the section filter to "Everything".',
+    secondaryHref: '/customer/activity',
+    secondaryLabel: 'Reset filters'
+  }) %>
+<% } %>

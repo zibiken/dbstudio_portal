@@ -39,6 +39,9 @@ export function registerCustomerCredentialsRoutes(app) {
       scope,
       credentials,
       csrfToken: await reply.generateCsrf(),
+      activeNav: 'credentials',
+      mainWidth: 'wide',
+      sectionLabel: 'CREDENTIALS',
     });
   });
 
@@ -51,6 +54,9 @@ export function registerCustomerCredentialsRoutes(app) {
       title: 'Add a credential',
       scope,
       csrfToken: await reply.generateCsrf(),
+      activeNav: 'credentials',
+      mainWidth: 'content',
+      sectionLabel: 'CREDENTIALS',
     });
   });
 

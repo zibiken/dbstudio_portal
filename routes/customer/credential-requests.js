@@ -20,7 +20,18 @@ function notFound(req, reply) {
   reply.code(404);
   return renderCustomer(req, reply, 'customer/credential-requests/not-found', {
     title: 'Not found',
+    activeNav: 'credential-requests',
+    mainWidth: 'content',
+    sectionLabel: 'CREDENTIAL REQUESTS',
   });
+}
+
+function crChrome(width = 'wide') {
+  return {
+    activeNav: 'credential-requests',
+    mainWidth: width,
+    sectionLabel: 'CREDENTIAL REQUESTS',
+  };
 }
 
 function makeCtx(req, session, app) {
@@ -44,6 +55,7 @@ export function registerCustomerCredentialRequestsRoutes(app) {
     return renderCustomer(req, reply, 'customer/credential-requests/list', {
       title: 'Credential requests',
       requests,
+      ...crChrome('wide'),
     });
   });
 
@@ -60,6 +72,7 @@ export function registerCustomerCredentialRequestsRoutes(app) {
       title: `Credential request · ${request.provider}`,
       request,
       csrfToken: await reply.generateCsrf(),
+      ...crChrome('content'),
     });
   });
 
@@ -98,6 +111,7 @@ export function registerCustomerCredentialRequestsRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           error: err.message,
           form: { label, payload },
+          ...crChrome('content'),
         });
       }
       reply.redirect(`/customer/credential-requests/${id}`, 302);
@@ -130,6 +144,7 @@ export function registerCustomerCredentialRequestsRoutes(app) {
           csrfToken: await reply.generateCsrf(),
           error: err.message,
           form: { reason },
+          ...crChrome('content'),
         });
       }
       reply.redirect(`/customer/credential-requests/${id}`, 302);

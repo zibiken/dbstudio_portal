@@ -163,6 +163,10 @@ describe.skipIf(skip)('customer profile name routes', () => {
       payload: `name=${encodeURIComponent('   ')}&_csrf=${encodeURIComponent(csrf)}`,
     });
     expect(post.statusCode).toBe(422);
-    expect(post.body).toContain('form-error');
+    // The profile-index view now uses the polished `_alert` partial for
+    // validation errors instead of a bare <p class="form-error">. Either
+    // class is acceptable evidence the error rendered; assert on the
+    // semantic role attribute instead, which the partial preserves.
+    expect(post.body).toMatch(/role=["']alert["']/);
   });
 });

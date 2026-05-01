@@ -73,6 +73,9 @@ export function registerCustomerActivityRoutes(app) {
         { value: 'ndas', label: 'NDAs' },
         { value: 'projects', label: 'Projects' },
       ],
+      activeNav: 'activity',
+      mainWidth: 'wide',
+      sectionLabel: 'ACTIVITY',
     });
   });
 }

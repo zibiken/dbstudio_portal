@@ -1,69 +1,104 @@
-<section class="customer-cr-detail">
-  <header class="customer-section-header">
-    <h1><%= request.provider %></h1>
-    <a class="btn btn-secondary" href="/customer/credential-requests">Back to requests</a>
-  </header>
+<%- include('../../components/_page-header', {
+  eyebrow: 'PORTAL · CREDENTIAL REQUESTS',
+  title: request.provider,
+  subtitle: 'DB Studio is asking for the values listed below.'
+}) %>
 
-  <% if (typeof error !== 'undefined' && error) { %>
-    <p class="error" role="alert"><%= error %></p>
-  <% } %>
+<%
+  var pillKey = request.status === 'open' ? 'pending' :
+                request.status === 'fulfilled' ? 'fulfilled' :
+                request.status === 'cancelled' ? 'archived' :
+                request.status === 'not_applicable' ? 'void' : 'pending';
+%>
 
-  <dl class="customer-meta">
-    <dt>Status</dt><dd><span class="status status-<%= request.status %>"><%= request.status %></span></dd>
+<div class="detail-status-strip">
+  <span class="detail-status-strip__label">Status</span>
+  <span class="status-pill status-pill--<%= pillKey %>"><%= request.status %></span>
+  <a class="btn btn--ghost btn--sm detail-status-strip__edit" href="/customer/credential-requests">Back to requests</a>
+</div>
+
+<% if (typeof error !== 'undefined' && error) { %>
+  <%- include('../../components/_alert', { variant: 'error', body: error }) %>
+<% } %>
+
+<div class="card">
+  <h2 class="card__title">Details</h2>
+  <dl class="kv">
+    <dt>Status</dt><dd><%= request.status %></dd>
     <dt>Created</dt><dd><%= euDateTime(request.created_at) %></dd>
     <dt>Updated</dt><dd><%= euDateTime(request.updated_at) %></dd>
     <% if (request.status === 'not_applicable' && request.not_applicable_reason) { %>
       <dt>Your reason</dt><dd><%= request.not_applicable_reason %></dd>
     <% } %>
   </dl>
+</div>
 
-  <% if (request.status === 'open') { %>
-    <h2>Provide credentials</h2>
-    <p class="muted">Values you enter here are encrypted with your account's data key before they are saved. Anything marked <code>secret</code> is masked when displayed back.</p>
+<% if (request.status === 'open') { %>
+  <div class="card">
+    <h2 class="card__title">Provide credentials</h2>
+    <p class="card__subtitle">Values you enter here are encrypted with your account vault key before they are saved. Anything marked <strong>secret</strong> is masked when displayed back.</p>
 
-    <form method="post" action="/customer/credential-requests/<%= request.id %>/fulfil" autocomplete="off">
+    <form method="post" action="/customer/credential-requests/<%= request.id %>/fulfil" autocomplete="off" class="form-stack">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-      <label>Label
-        <input type="text" name="label" maxlength="200"
-               placeholder="<%= request.provider %>"
-               value="<%= form?.label ?? '' %>">
-        <span class="muted">Optional. Defaults to the provider name.</span>
-      </label>
+      <div class="input-field">
+        <label class="input-field__label" for="cred_label">Label</label>
+        <div class="input-field__control">
+          <input id="cred_label" type="text" name="label" maxlength="200"
+                 placeholder="<%= request.provider %>"
+                 value="<%= form?.label ?? '' %>">
+        </div>
+        <p class="input-field__helper">Optional. Defaults to the provider name.</p>
+      </div>
 
-      <% request.fields.forEach((f) => { %>
-        <label>
-          <%= f.label %><%= f.required ? ' *' : '' %>
-          <% if (f.type === 'note') { %>
-            <textarea name="field__<%= f.name %>" rows="4" <%= f.required ? 'required' : '' %>><%= form?.payload?.[f.name] ?? '' %></textarea>
-          <% } else if (f.type === 'secret') { %>
-            <input type="password" name="field__<%= f.name %>" <%= f.required ? 'required' : '' %>
-                   autocomplete="new-password" value="<%= form?.payload?.[f.name] ?? '' %>">
-          <% } else if (f.type === 'url') { %>
-            <input type="url" name="field__<%= f.name %>" <%= f.required ? 'required' : '' %>
-                   value="<%= form?.payload?.[f.name] ?? '' %>">
-          <% } else { %>
-            <input type="text" name="field__<%= f.name %>" <%= f.required ? 'required' : '' %>
-                   value="<%= form?.payload?.[f.name] ?? '' %>">
-          <% } %>
-        </label>
-      <% }); %>
+      <% request.fields.forEach(function(f) { %>
+        <div class="input-field">
+          <label class="input-field__label" for="cred_field_<%= f.name %>"><%= f.label %><%= f.required ? ' *' : '' %></label>
+          <div class="input-field__control">
+            <% if (f.type === 'note') { %>
+              <textarea id="cred_field_<%= f.name %>" name="field__<%= f.name %>" rows="4" <%= f.required ? 'required' : '' %>><%= form?.payload?.[f.name] ?? '' %></textarea>
+            <% } else if (f.type === 'secret') { %>
+              <input id="cred_field_<%= f.name %>" type="password" name="field__<%= f.name %>" <%= f.required ? 'required' : '' %>
+                     autocomplete="new-password" value="<%= form?.payload?.[f.name] ?? '' %>">
+            <% } else if (f.type === 'url') { %>
+              <input id="cred_field_<%= f.name %>" type="url" name="field__<%= f.name %>" <%= f.required ? 'required' : '' %>
+                     value="<%= form?.payload?.[f.name] ?? '' %>">
+            <% } else { %>
+              <input id="cred_field_<%= f.name %>" type="text" name="field__<%= f.name %>" <%= f.required ? 'required' : '' %>
+                     value="<%= form?.payload?.[f.name] ?? '' %>">
+            <% } %>
+          </div>
+        </div>
+      <% }) %>
 
-      <button type="submit" class="btn btn-primary">Save credentials</button>
+      <div class="form-actions">
+        <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Save credentials' }) %>
+      </div>
     </form>
+  </div>
 
-    <h2>Or mark as not applicable</h2>
-    <p class="muted">If this provider does not apply to you, tell us briefly why and we'll close the request.</p>
-    <form method="post" action="/customer/credential-requests/<%= request.id %>/not-applicable">
+  <div class="card">
+    <h2 class="card__title">Or mark as not applicable</h2>
+    <p class="card__subtitle">If this provider does not apply to you, tell us briefly why and we'll close the request.</p>
+    <form method="post" action="/customer/credential-requests/<%= request.id %>/not-applicable" class="form-stack">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <label>Reason
-        <textarea name="reason" rows="3" required maxlength="2000"><%= form?.reason ?? '' %></textarea>
-      </label>
-      <button type="submit" class="btn btn-secondary">Mark not applicable</button>
+      <div class="input-field">
+        <label class="input-field__label" for="cred_reason">Reason</label>
+        <div class="input-field__control">
+          <textarea id="cred_reason" name="reason" rows="3" required maxlength="2000"><%= form?.reason ?? '' %></textarea>
+        </div>
+      </div>
+      <div class="form-actions">
+        <%- include('../../components/_button', { variant: 'secondary', size: 'md', type: 'submit', label: 'Mark not applicable' }) %>
+      </div>
     </form>
-  <% } else if (request.status === 'fulfilled') { %>
-    <p class="muted">Thank you — these credentials are saved.</p>
-  <% } else if (request.status === 'cancelled') { %>
-    <p class="muted">This request was cancelled.</p>
-  <% } %>
-</section>
+  </div>
+<% } else if (request.status === 'fulfilled') { %>
+  <div class="card">
+    <p>Thank you — these credentials are saved and visible to DB Studio.</p>
+  </div>
+<% } else if (request.status === 'cancelled') { %>
+  <div class="card">
+    <p class="muted">This request was cancelled by DB Studio. No action needed.</p>
+  </div>
+<% } %>
