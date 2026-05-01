@@ -264,6 +264,12 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 .card__subtitle { margin: 0 0 var(--s-2); color: var(--fg-on-light-muted); font-size: var(--f-sm); line-height: 1.55; }
 .card + .card { margin-top: var(--s-6); }
 .form-stack > .card + .card { margin-top: 0; }
+/* Grid containers must not inherit the vertical-stack margin — every grid
+   cell positions its card from the cell's top edge. Without this, the
+   first card sits flush to the cell top while siblings get the 24px
+   stack margin and visually drop below it. */
+.bento > .card + .card,
+.project-grid > .card + .card { margin-top: 0; }
 .card--danger {
   border-color: rgba(163, 32, 32, 0.25);
   background: linear-gradient(0deg, rgba(163, 32, 32, 0.02), rgba(163, 32, 32, 0.02)), var(--c-white);
