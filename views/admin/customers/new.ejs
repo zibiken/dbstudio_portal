@@ -1,6 +1,7 @@
 <%- include('../../components/_page-header', {
   eyebrow: 'ADMIN · CUSTOMERS',
-  title: 'New customer'
+  title: 'New customer',
+  subtitle: 'Add a company and invite their primary contact.'
 }) %>
 
 <% if (typeof error !== 'undefined' && error) { %>
@@ -11,17 +12,17 @@
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
   <fieldset class="fieldset-stack">
-    <legend class="eyebrow">Customer (the company)</legend>
-    <%- include('../../components/_input', { name: 'razon_social', type: 'text', label: 'Razón social', required: true, maxlength: 200, value: form ? (form.razon_social || '') : '' }) %>
-    <%- include('../../components/_input', { name: 'nif',          type: 'text', label: 'NIF', maxlength: 20, value: form ? (form.nif || '') : '' }) %>
-    <%- include('../../components/_input', { name: 'domicilio',    type: 'text', label: 'Domicilio', maxlength: 300, value: form ? (form.domicilio || '') : '' }) %>
+    <legend class="eyebrow">Company</legend>
+    <%- include('../../components/_input', { name: 'razon_social', type: 'text', label: 'Company name', helper: 'Razón social — the legal name on file.', required: true, maxlength: 200, value: form ? (form.razon_social || '') : '' }) %>
+    <%- include('../../components/_input', { name: 'nif',          type: 'text', label: 'Tax ID', helper: 'CIF / NIF for Spanish entities, or the equivalent.', maxlength: 20, value: form ? (form.nif || '') : '' }) %>
+    <%- include('../../components/_input', { name: 'domicilio',    type: 'text', label: 'Registered address', helper: 'The address that appears on invoices and the NDA.', maxlength: 300, value: form ? (form.domicilio || '') : '' }) %>
   </fieldset>
 
   <fieldset class="fieldset-stack">
-    <legend class="eyebrow">Primary user</legend>
-    <p>Receives the welcome email and becomes the customer's first user.</p>
-    <%- include('../../components/_input', { name: 'primary_user_name',  type: 'text',  label: 'Name',  required: true, maxlength: 120, value: form ? (form.primary_user_name || '') : '' }) %>
-    <%- include('../../components/_input', { name: 'primary_user_email', type: 'email', label: 'Email', required: true, maxlength: 254, autocomplete: 'email', value: form ? (form.primary_user_email || '') : '' }) %>
+    <legend class="eyebrow">Primary contact</legend>
+    <p>This person receives the welcome email and becomes the company's first portal user. They can invite teammates from inside the portal once they are signed in.</p>
+    <%- include('../../components/_input', { name: 'primary_user_name',  type: 'text',  label: 'Contact name',  required: true, maxlength: 120, value: form ? (form.primary_user_name || '') : '' }) %>
+    <%- include('../../components/_input', { name: 'primary_user_email', type: 'email', label: 'Contact email', required: true, maxlength: 254, autocomplete: 'email', value: form ? (form.primary_user_email || '') : '' }) %>
   </fieldset>
 
   <div class="form-actions">

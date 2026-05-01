@@ -81,23 +81,47 @@ export async function updateCustomerStatus(db, id, status) {
 }
 
 export async function listCustomers(db, { q = '', limit = 25, offset = 0 } = {}) {
-  // Search is a case-insensitive substring match on razon_social OR nif.
+  // Search is a case-insensitive substring match on razon_social, nif,
+  // OR ANY customer_user's email or name (so operators can look up by
+  // contact email or contact person, not only by company name). EXISTS
+  // keeps the main customers row count at one-per-customer (no DISTINCT
+  // needed). The LATERAL primary-contact join surfaces the first
+  // customer_user (oldest by created_at, which by construction is the
+  // primary user minted alongside the customer in customersService.create)
+  // so the list cell can render a "Primary contact" column without a
+  // second round-trip per row.
   // Returns { rows, total } so the caller can render a pagination control.
   const term = typeof q === 'string' ? q.trim() : '';
   const filter = term ? `%${term}%` : null;
   const where = filter
-    ? sql`WHERE razon_social ILIKE ${filter} OR nif ILIKE ${filter}`
+    ? sql`WHERE c.razon_social ILIKE ${filter}
+             OR c.nif ILIKE ${filter}
+             OR EXISTS (
+               SELECT 1 FROM customer_users cu
+                WHERE cu.customer_id = c.id
+                  AND (cu.email::text ILIKE ${filter} OR cu.name ILIKE ${filter})
+             )`
     : sql``;
 
   const totalRow = await sql`
-    SELECT count(*)::int AS total FROM customers ${where}
+    SELECT count(*)::int AS total FROM customers c ${where}
   `.execute(db);
 
   const rowsRes = await sql`
-    SELECT id, razon_social, nif, domicilio, status, created_at, updated_at
-      FROM customers
+    SELECT c.id, c.razon_social, c.nif, c.domicilio, c.status,
+           c.created_at, c.updated_at,
+           pc.name  AS primary_contact_name,
+           pc.email AS primary_contact_email
+      FROM customers c
+      LEFT JOIN LATERAL (
+        SELECT name, email::text AS email
+          FROM customer_users
+         WHERE customer_id = c.id
+         ORDER BY created_at ASC
+         LIMIT 1
+      ) pc ON true
       ${where}
-     ORDER BY created_at DESC
+     ORDER BY c.created_at DESC
      LIMIT ${limit} OFFSET ${offset}
   `.execute(db);
 

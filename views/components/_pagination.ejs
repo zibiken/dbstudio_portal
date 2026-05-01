@@ -1,0 +1,37 @@
+<%# Pagination. Locals: page, totalPages, qs (function: builds the querystring), q (optional), perPage (optional). Renders nothing when totalPages <= 1. %>
+<% if (totalPages > 1) { %>
+  <%
+    var qVal = typeof q === 'string' ? q : '';
+    var perPageVal = typeof perPage === 'number' ? perPage : null;
+    function url(p) {
+      var params = { q: qVal, page: p };
+      if (perPageVal) params.per_page = perPageVal;
+      return '?' + qs(params);
+    }
+  %>
+  <nav class="pagination" aria-label="Pagination">
+    <% if (page > 1) { %>
+      <a class="pagination__link" href="<%= url(page - 1) %>" rel="prev" aria-label="Previous page">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="15 18 9 12 15 6"/></svg>
+        <span>Previous</span>
+      </a>
+    <% } else { %>
+      <span class="pagination__link pagination__link--disabled" aria-disabled="true">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="15 18 9 12 15 6"/></svg>
+        <span>Previous</span>
+      </span>
+    <% } %>
+    <span class="pagination__cursor">Page <%= page %> of <%= totalPages %></span>
+    <% if (page < totalPages) { %>
+      <a class="pagination__link" href="<%= url(page + 1) %>" rel="next" aria-label="Next page">
+        <span>Next</span>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="9 18 15 12 9 6"/></svg>
+      </a>
+    <% } else { %>
+      <span class="pagination__link pagination__link--disabled" aria-disabled="true">
+        <span>Next</span>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="9 18 15 12 9 6"/></svg>
+      </span>
+    <% } %>
+  </nav>
+<% } %>

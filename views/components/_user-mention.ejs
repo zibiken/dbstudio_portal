@@ -1,0 +1,17 @@
+<%# User mention. Locals: name, email. Renders nothing if both are falsy. %>
+<%
+  var hasName = typeof name === 'string' && name;
+  var hasEmail = typeof email === 'string' && email;
+%>
+<% if (hasName || hasEmail) { %>
+  <span class="user-mention">
+    <% if (hasName) { %>
+      <span class="user-mention__name"><%= name %></span>
+    <% } %>
+    <% if (hasEmail) { %>
+      <span class="user-mention__email"><%= email %></span>
+    <% } %>
+  </span>
+<% } else { %>
+  <span class="user-mention user-mention--empty">—</span>
+<% } %>

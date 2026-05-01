@@ -171,7 +171,11 @@ describe.skipIf(skip)('admin customers routes (list / new / detail)', () => {
   it('happy path: list (empty) → new → POST → confirmation w/ invite URL → list shows it → detail page', async () => {
     const { jar } = await loginAdminFully(app, db, env, 'happy');
 
-    // List (empty)
+    // List view loads. We do NOT assert on the empty-state copy here — the
+    // DB may carry customers from other test files, real operator activity,
+    // or the bootstrap admin's onboarding seed; the test's actual intent
+    // (creating a customer makes it appear in the list) is asserted later
+    // against the tag-prefixed razon_social, which IS scoped to this test.
     const list0 = await app.inject({
       method: 'GET',
       url: '/admin/customers',
@@ -179,7 +183,8 @@ describe.skipIf(skip)('admin customers routes (list / new / detail)', () => {
     });
     expect(list0.statusCode).toBe(200);
     expect(list0.body).toMatch(/Customers/i);
-    expect(list0.body).toMatch(/no customers yet/i);
+    // Pre-flight: this test's tagged customer doesn't exist yet.
+    expect(list0.body).not.toContain(tag + ' Happy S.L.');
 
     // New form
     const newGet = await app.inject({

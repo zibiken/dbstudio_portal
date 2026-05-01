@@ -2,36 +2,44 @@
   eyebrow: 'ADMIN · CUSTOMERS',
   title: 'Projects',
   subtitle: customer.razon_social,
-  actions: '<a class="btn btn--primary btn--md" href="/admin/customers/' + customer.id + '/projects/new">+ New project</a>'
+  actions: projects && projects.length ? '<a class="btn btn--primary btn--md" href="/admin/customers/' + customer.id + '/projects/new">+ New project</a>' : null
 }) %>
 
 <%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'projects' }) %>
 
-<%
-  function pillFor(s) {
-    var key = s === 'done' ? 'paid' : (s === 'paused' ? 'pending' : (s === 'archived' ? 'archived' : 'active'));
-    return '<span class="status-pill status-pill--' + key + '">' + s + '</span>';
-  }
-  var tableRows = (projects || []).map(function(p) {
-    var objeto = p.objeto_proyecto ? (p.objeto_proyecto.length > 80 ? p.objeto_proyecto.slice(0, 77) + '…' : p.objeto_proyecto) : '—';
-    return { cells: [
-      '<a href="/admin/customers/' + customer.id + '/projects/' + p.id + '">' + p.name + '</a>',
-      objeto,
-      pillFor(p.status),
-      euDateTime(p.created_at),
-      '<a class="btn btn--ghost btn--sm" href="/admin/customers/' + customer.id + '/projects/' + p.id + '">Open →</a>'
-    ]};
-  });
-%>
-<%- include('../../components/_table', {
-  density: 'medium',
-  columns: [
-    { label: 'Name',    align: 'left' },
-    { label: 'Objeto',  align: 'left' },
-    { label: 'Status',  align: 'left' },
-    { label: 'Created', align: 'left' },
-    { label: '',        align: 'right' }
-  ],
-  rows: tableRows,
-  emptyState: 'No projects yet.'
-}) %>
+<% if (projects && projects.length) { %>
+  <%
+    function pillFor(s) {
+      var key = s === 'done' ? 'paid' : (s === 'paused' ? 'pending' : (s === 'archived' ? 'archived' : 'active'));
+      return '<span class="status-pill status-pill--' + key + '">' + s + '</span>';
+    }
+    var tableRows = projects.map(function(p) {
+      var brief = p.objeto_proyecto ? (p.objeto_proyecto.length > 80 ? p.objeto_proyecto.slice(0, 77) + '…' : p.objeto_proyecto) : '—';
+      return { cells: [
+        '<a href="/admin/customers/' + customer.id + '/projects/' + p.id + '">' + p.name + '</a>',
+        brief,
+        pillFor(p.status),
+        euDateTime(p.created_at),
+        '<a class="btn btn--ghost btn--sm" href="/admin/customers/' + customer.id + '/projects/' + p.id + '">Open →</a>'
+      ]};
+    });
+  %>
+  <%- include('../../components/_table', {
+    density: 'medium',
+    columns: [
+      { label: 'Name',        align: 'left' },
+      { label: 'Description', align: 'left' },
+      { label: 'Status',      align: 'left' },
+      { label: 'Created',     align: 'left' },
+      { label: '',            align: 'right' }
+    ],
+    rows: tableRows
+  }) %>
+<% } else { %>
+  <%- include('../../components/_empty-state', {
+    headline: 'No projects yet for ' + customer.razon_social,
+    lead: 'Projects scope the work delivered to this customer. Each project becomes a thread the customer can follow on their own portal.',
+    ctaHref: '/admin/customers/' + customer.id + '/projects/new',
+    ctaLabel: 'Start the first project'
+  }) %>
+<% } %>

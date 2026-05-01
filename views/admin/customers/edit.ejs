@@ -16,17 +16,17 @@
 
   <fieldset class="fieldset-stack">
     <legend class="eyebrow">Identity</legend>
-    <%- include('../../components/_input', { name: 'razon_social', type: 'text', label: 'Razón social', required: true, maxlength: 200, value: v('razon_social', customer.razon_social) }) %>
-    <%- include('../../components/_input', { name: 'nif',          type: 'text', label: 'NIF / CIF', maxlength: 40, value: v('nif', customer.nif) }) %>
-    <%- include('../../components/_input', { name: 'domicilio',    type: 'text', label: 'Domicilio', maxlength: 300, value: v('domicilio', customer.domicilio) }) %>
+    <%- include('../../components/_input', { name: 'razon_social', type: 'text', label: 'Company name', helper: 'Razón social — the legal name on file.', required: true, maxlength: 200, value: v('razon_social', customer.razon_social) }) %>
+    <%- include('../../components/_input', { name: 'nif',          type: 'text', label: 'Tax ID', helper: 'CIF / NIF for Spanish entities, or the equivalent.', maxlength: 40, value: v('nif', customer.nif) }) %>
+    <%- include('../../components/_input', { name: 'domicilio',    type: 'text', label: 'Registered address', helper: 'The address that appears on invoices and the NDA.', maxlength: 300, value: v('domicilio', customer.domicilio) }) %>
   </fieldset>
 
   <fieldset class="fieldset-stack">
-    <legend class="eyebrow">Representante legal (NDA)</legend>
-    <p>Required to generate an NDA draft for this customer.</p>
-    <%- include('../../components/_input', { name: 'representante_nombre', type: 'text', label: 'Nombre completo', maxlength: 200, value: v('representante_nombre', customer.representante_nombre) }) %>
-    <%- include('../../components/_input', { name: 'representante_dni',    type: 'text', label: 'DNI', maxlength: 40, value: v('representante_dni', customer.representante_dni) }) %>
-    <%- include('../../components/_input', { name: 'representante_cargo',  type: 'text', label: 'Cargo', maxlength: 120, value: v('representante_cargo', customer.representante_cargo) }) %>
+    <legend class="eyebrow">Legal representative (NDA)</legend>
+    <p>Required to generate an NDA draft for this customer. These fields appear verbatim on the rendered NDA — keep them accurate.</p>
+    <%- include('../../components/_input', { name: 'representante_nombre', type: 'text', label: 'Full name',  maxlength: 200, value: v('representante_nombre', customer.representante_nombre) }) %>
+    <%- include('../../components/_input', { name: 'representante_dni',    type: 'text', label: 'National ID (DNI)', maxlength: 40, value: v('representante_dni', customer.representante_dni) }) %>
+    <%- include('../../components/_input', { name: 'representante_cargo',  type: 'text', label: 'Position / title', maxlength: 120, value: v('representante_cargo', customer.representante_cargo) }) %>
   </fieldset>
 
   <div class="form-actions">

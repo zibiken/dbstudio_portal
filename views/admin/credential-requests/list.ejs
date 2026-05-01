@@ -2,35 +2,43 @@
   eyebrow: 'ADMIN · CUSTOMERS',
   title: 'Credential requests',
   subtitle: customer.razon_social,
-  actions: '<a class="btn btn--primary btn--md" href="/admin/customers/' + customer.id + '/credential-requests/new">+ New request</a>'
+  actions: requests && requests.length ? '<a class="btn btn--primary btn--md" href="/admin/customers/' + customer.id + '/credential-requests/new">+ New request</a>' : null
 }) %>
 
 <%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'credential-requests' }) %>
 
-<%
-  function pillFor(s) {
-    var key = s === 'open' ? 'pending' : (s === 'fulfilled' ? 'fulfilled' : (s === 'cancelled' ? 'archived' : (s === 'not_applicable' ? 'void' : 'pending')));
-    return '<span class="status-pill status-pill--' + key + '">' + s + '</span>';
-  }
-  var tableRows = (requests || []).map(function(r) {
-    return { cells: [
-      r.provider,
-      pillFor(r.status),
-      String((r.fields || []).length),
-      euDateTime(r.created_at),
-      '<a class="btn btn--ghost btn--sm" href="/admin/customers/' + customer.id + '/credential-requests/' + r.id + '">Open →</a>'
-    ]};
-  });
-%>
-<%- include('../../components/_table', {
-  density: 'dense',
-  columns: [
-    { label: 'Provider', align: 'left' },
-    { label: 'Status',   align: 'left' },
-    { label: 'Fields',   align: 'left' },
-    { label: 'Created',  align: 'left' },
-    { label: '',         align: 'right' }
-  ],
-  rows: tableRows,
-  emptyState: 'No credential requests yet.'
-}) %>
+<% if (requests && requests.length) { %>
+  <%
+    function pillFor(s) {
+      var key = s === 'open' ? 'pending' : (s === 'fulfilled' ? 'fulfilled' : (s === 'cancelled' ? 'archived' : (s === 'not_applicable' ? 'void' : 'pending')));
+      return '<span class="status-pill status-pill--' + key + '">' + s + '</span>';
+    }
+    var tableRows = requests.map(function(r) {
+      return { cells: [
+        r.provider,
+        pillFor(r.status),
+        String((r.fields || []).length),
+        euDateTime(r.created_at),
+        '<a class="btn btn--ghost btn--sm" href="/admin/customers/' + customer.id + '/credential-requests/' + r.id + '">Open →</a>'
+      ]};
+    });
+  %>
+  <%- include('../../components/_table', {
+    density: 'dense',
+    columns: [
+      { label: 'Provider', align: 'left' },
+      { label: 'Status',   align: 'left' },
+      { label: 'Fields',   align: 'left' },
+      { label: 'Created',  align: 'left' },
+      { label: '',         align: 'right' }
+    ],
+    rows: tableRows
+  }) %>
+<% } else { %>
+  <%- include('../../components/_empty-state', {
+    headline: 'No credential requests yet for ' + customer.razon_social,
+    lead: 'A credential request asks the customer to share access to a third-party service (hosting, domain registrar, analytics, etc.) without sending values over email. Each request lists the fields you need; the customer fills them in their own portal.',
+    ctaHref: '/admin/customers/' + customer.id + '/credential-requests/new',
+    ctaLabel: 'Open the first request'
+  }) %>
+<% } %>

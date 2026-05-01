@@ -1,0 +1,37 @@
+<%# List toolbar. Locals: action, q, placeholder, total (number), totalLabel (singular), ctaHref (optional), ctaLabel (optional). Renders search form + result-count line + optional primary CTA. %>
+<%
+  var totalNum = (typeof total === 'number') ? total : 0;
+  var noun = (typeof totalLabel === 'string' && totalLabel) ? totalLabel : 'result';
+  var nounPlural = noun.replace(/y$/, 'ies');
+  var hasQ = typeof q === 'string' && q !== '';
+  var hasCta = (typeof ctaHref !== 'undefined' && ctaHref) && (typeof ctaLabel !== 'undefined' && ctaLabel);
+  var resultCopy;
+  if (totalNum === 0) {
+    resultCopy = hasQ ? ('No ' + nounPlural + ' match "' + q + '".') : ('No ' + nounPlural + ' yet.');
+  } else if (totalNum === 1) {
+    resultCopy = hasQ ? ('1 ' + noun + ' for "' + q + '".') : ('1 ' + noun + '.');
+  } else {
+    resultCopy = hasQ ? (totalNum + ' ' + nounPlural + ' for "' + q + '".') : (totalNum + ' ' + nounPlural + '.');
+  }
+%>
+<div class="list-toolbar">
+  <form method="get" action="<%= action %>" class="list-toolbar__search" role="search">
+    <label class="list-toolbar__field">
+      <span class="list-toolbar__label">Search</span>
+      <span class="list-toolbar__input-wrap">
+        <svg class="list-toolbar__icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input class="list-toolbar__input" name="q" type="search" value="<%= hasQ ? q : '' %>" placeholder="<%= typeof placeholder !== 'undefined' ? placeholder : 'Search…' %>" autocomplete="off" inputmode="search">
+      </span>
+    </label>
+    <button type="submit" class="btn btn--secondary btn--md list-toolbar__submit">Search</button>
+    <% if (hasQ) { %>
+      <a class="btn btn--ghost btn--md list-toolbar__clear" href="<%= action %>">Clear</a>
+    <% } %>
+  </form>
+  <% if (hasCta) { %>
+    <div class="list-toolbar__cta">
+      <%- include('./_button', { variant: 'primary', size: 'md', href: ctaHref, label: ctaLabel }) %>
+    </div>
+  <% } %>
+</div>
+<p class="list-toolbar__count"><%= resultCopy %></p>

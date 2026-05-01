@@ -1,7 +1,7 @@
 import { renderAdmin } from '../../lib/render.js';
 import { requireAdminSession } from '../../lib/auth/middleware.js';
 import * as documentsService from '../../domain/documents/service.js';
-import { findDocumentById } from '../../domain/documents/repo.js';
+import { findDocumentById, listDocumentsByCustomer } from '../../domain/documents/repo.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { signDownloadToken } from '../../lib/files.js';
 import { checkLockout, recordFail } from '../../lib/auth/rate-limit.js';
@@ -36,6 +36,25 @@ function customerChrome(customer, activeTab) {
 }
 
 export function registerAdminDocumentsRoutes(app) {
+  app.get('/admin/customers/:id/documents', async (req, reply) => {
+    const session = await requireAdminSession(app, req, reply);
+    if (!session) return;
+
+    const id = req.params?.id;
+    if (typeof id !== 'string' || !UUID_RE.test(id)) return notFound(req, reply);
+    const customer = await findCustomerById(app.db, id);
+    if (!customer) return notFound(req, reply);
+
+    const rows = await listDocumentsByCustomer(app.db, id);
+    return renderAdmin(req, reply, 'admin/documents/list', {
+      title: 'Documents · ' + customer.razon_social,
+      customer,
+      rows,
+      mainWidth: 'wide',
+      ...customerChrome(customer, 'documents'),
+    });
+  });
+
   app.get('/admin/customers/:id/documents/new', async (req, reply) => {
     const session = await requireAdminSession(app, req, reply);
     if (!session) return;

@@ -1,0 +1,24 @@
+<%# Empty state. Locals: icon (raw SVG, optional), headline, lead, ctaHref (optional), ctaLabel (optional), secondaryHref (optional), secondaryLabel (optional). %>
+<%
+  var defaultIcon = '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 10h18"></path><path d="M8 14h2"></path></svg>';
+  var iconHtml = (typeof icon !== 'undefined' && icon) ? icon : defaultIcon;
+  var hasCta = (typeof ctaHref !== 'undefined' && ctaHref) && (typeof ctaLabel !== 'undefined' && ctaLabel);
+  var hasSecondary = (typeof secondaryHref !== 'undefined' && secondaryHref) && (typeof secondaryLabel !== 'undefined' && secondaryLabel);
+%>
+<section class="empty-state" role="status" aria-live="polite">
+  <div class="empty-state__icon" aria-hidden="true"><%- iconHtml %></div>
+  <h2 class="empty-state__headline"><%= headline %></h2>
+  <% if (typeof lead !== 'undefined' && lead) { %>
+    <p class="empty-state__lead"><%= lead %></p>
+  <% } %>
+  <% if (hasCta || hasSecondary) { %>
+    <div class="empty-state__actions">
+      <% if (hasCta) { %>
+        <%- include('./_button', { variant: 'primary', size: 'md', href: ctaHref, label: ctaLabel }) %>
+      <% } %>
+      <% if (hasSecondary) { %>
+        <%- include('./_button', { variant: 'ghost', size: 'md', href: secondaryHref, label: secondaryLabel }) %>
+      <% } %>
+    </div>
+  <% } %>
+</section>

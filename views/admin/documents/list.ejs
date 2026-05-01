@@ -1,0 +1,59 @@
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'Documents',
+  subtitle: customer.razon_social,
+  actions: rows && rows.length ? '<a class="btn btn--primary btn--md" href="/admin/customers/' + customer.id + '/documents/new">+ Upload</a>' : null
+}) %>
+
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'documents' }) %>
+
+<% if (rows && rows.length) { %>
+  <%
+    function bytesHuman(n) {
+      if (n == null) return '—';
+      var v = Number(n);
+      if (!isFinite(v)) return '—';
+      if (v < 1024) return v + ' B';
+      if (v < 1024 * 1024) return (v / 1024).toFixed(1) + ' KB';
+      if (v < 1024 * 1024 * 1024) return (v / 1024 / 1024).toFixed(1) + ' MB';
+      return (v / 1024 / 1024 / 1024).toFixed(1) + ' GB';
+    }
+    function categoryLabel(c) {
+      switch (c) {
+        case 'nda-draft':  return 'NDA · draft';
+        case 'nda-signed': return 'NDA · signed';
+        case 'nda-audit':  return 'NDA · audit';
+        case 'invoice':    return 'Invoice';
+        case 'generic':    return 'Generic';
+        default:           return c;
+      }
+    }
+    var tableRows = rows.map(function(d) {
+      return { cells: [
+        '<code class="muted">' + d.original_filename + '</code>',
+        categoryLabel(d.category),
+        bytesHuman(d.size_bytes),
+        euDateTime(d.uploaded_at),
+        '<a class="btn btn--ghost btn--sm" href="/admin/documents/' + d.id + '/download">Download →</a>'
+      ]};
+    });
+  %>
+  <%- include('../../components/_table', {
+    density: 'medium',
+    columns: [
+      { label: 'File',     align: 'left' },
+      { label: 'Category', align: 'left' },
+      { label: 'Size',     align: 'left' },
+      { label: 'Uploaded', align: 'left' },
+      { label: '',         align: 'right' }
+    ],
+    rows: tableRows
+  }) %>
+<% } else { %>
+  <%- include('../../components/_empty-state', {
+    headline: 'No documents yet for ' + customer.razon_social,
+    lead: 'Documents uploaded here are stored encrypted and become downloadable from the customer\'s own portal. Use this for NDA copies that did not flow through the NDAs tab, ad-hoc deliverables, or any file the customer should be able to retrieve later.',
+    ctaHref: '/admin/customers/' + customer.id + '/documents/new',
+    ctaLabel: 'Upload the first document'
+  }) %>
+<% } %>
