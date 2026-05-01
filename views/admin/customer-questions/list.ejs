@@ -1,0 +1,55 @@
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'Questions',
+  subtitle: customer.razon_social,
+  actions: rows && rows.length ? '<a class="btn btn--primary btn--md" href="/admin/customers/' + customer.id + '/questions/new">+ Ask a question</a>' : null
+}) %>
+
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'customer-questions' }) %>
+
+<% if (rows && rows.length) { %>
+  <%
+    function pillFor(s) {
+      var key = s === 'open' ? 'pending' : (s === 'answered' ? 'fulfilled' : 'archived');
+      return '<span class="status-pill status-pill--' + key + '">' + s + '</span>';
+    }
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function(ch) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+      });
+    }
+    function truncate(s, n) {
+      var v = String(s || '');
+      return v.length <= n ? v : v.slice(0, n - 1) + '…';
+    }
+    var tableRows = rows.map(function(r) {
+      var detail = '/admin/customers/' + customer.id + '/questions/' + r.id;
+      var qLink = '<a href="' + escapeHtml(detail) + '">' + escapeHtml(truncate(r.question, 80)) + '</a>';
+      return { cells: [
+        qLink,
+        pillFor(r.status),
+        euDateTime(r.created_at),
+        r.answered_at ? euDateTime(r.answered_at) : '—',
+        r.answered_by_email || '—'
+      ]};
+    });
+  %>
+  <%- include('../../components/_table', {
+    density: 'medium',
+    columns: [
+      { label: 'Question',    align: 'left' },
+      { label: 'Status',      align: 'left' },
+      { label: 'Created',     align: 'left' },
+      { label: 'Resolved',    align: 'left' },
+      { label: 'Answered by', align: 'left' }
+    ],
+    rows: tableRows
+  }) %>
+<% } else { %>
+  <%- include('../../components/_empty-state', {
+    headline: 'No questions yet for ' + customer.razon_social,
+    lead: 'Ask the customer a single short-answer question. They can answer or click "Skip / I don\'t know" — both outcomes write a digest event for the team.',
+    ctaHref: '/admin/customers/' + customer.id + '/questions/new',
+    ctaLabel: '+ Ask a question'
+  }) %>
+<% } %>

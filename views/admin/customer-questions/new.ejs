@@ -1,8 +1,10 @@
 <%- include('../../components/_page-header', {
-  eyebrow: 'ADMIN · ' + customer.razon_social,
+  eyebrow: 'ADMIN · CUSTOMERS',
   title: 'Ask a question',
-  subtitle: 'The customer will see this on their dashboard and can answer or skip it.'
+  subtitle: customer.razon_social
 }) %>
+
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'customer-questions' }) %>
 
 <% if (typeof error !== 'undefined' && error) { %>
   <%- include('../../components/_alert', { variant: 'error', body: error }) %>
@@ -17,6 +19,10 @@
 
   <div class="form-actions">
     <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Send to customer' }) %>
-    <%- include('../../components/_button', { variant: 'secondary', size: 'md', href: '/admin/customers/' + customer.id, label: 'Cancel' }) %>
+    <%- include('../../components/_button', { variant: 'secondary', size: 'md', href: '/admin/customers/' + customer.id + '/questions', label: 'Cancel' }) %>
   </div>
 </form>
+
+<div class="form-actions">
+  <%- include('../../components/_button', { variant: 'ghost', size: 'sm', href: '/admin/customers/' + customer.id + '/questions', label: '← Back to questions' }) %>
+</div>

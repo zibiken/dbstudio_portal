@@ -1,0 +1,78 @@
+<%- include('../../components/_page-header', {
+  eyebrow: 'CUSTOMER · QUESTIONS',
+  title: 'Questions'
+}) %>
+
+<%
+  var openRows     = (rows || []).filter(function(r) { return r.status === 'open'; });
+  var resolvedRows = (rows || []).filter(function(r) { return r.status !== 'open'; });
+  function pillFor(s) {
+    var key = s === 'answered' ? 'fulfilled' : (s === 'skipped' ? 'archived' : 'pending');
+    return '<span class="status-pill status-pill--' + key + '">' + s + '</span>';
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function(ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+  function truncate(s, n) {
+    var v = String(s || '');
+    return v.length <= n ? v : v.slice(0, n - 1) + '…';
+  }
+%>
+
+<% if (!rows || rows.length === 0) { %>
+  <%- include('../../components/_empty-state', {
+    headline: 'No questions from DB Studio yet',
+    lead: 'When DB Studio asks something, it will show up here. You can answer or skip — both options are fine.'
+  }) %>
+<% } else { %>
+  <% if (openRows.length === 0) { %>
+    <div class="card">
+      <p>You're all caught up — no open questions.</p>
+    </div>
+  <% } else { %>
+    <div class="card">
+      <h2 class="card__title">Open — needs your answer (<%= openRows.length %>)</h2>
+      <%
+        var openTableRows = openRows.map(function(r) {
+          var detail = '/customer/questions/' + r.id;
+          var qLink = '<a href="' + escapeHtml(detail) + '">' + escapeHtml(truncate(r.question, 80)) + '</a>';
+          return { cells: [ qLink, euDateTime(r.created_at) ]};
+        });
+      %>
+      <%- include('../../components/_table', {
+        density: 'medium',
+        columns: [
+          { label: 'Question', align: 'left' },
+          { label: 'Asked',    align: 'left' }
+        ],
+        rows: openTableRows
+      }) %>
+    </div>
+  <% } %>
+
+  <% if (resolvedRows.length) { %>
+    <div class="card">
+      <h2 class="card__title">Answered or skipped (<%= resolvedRows.length %>)</h2>
+      <%
+        var resolvedTableRows = resolvedRows.map(function(r) {
+          return { cells: [
+            escapeHtml(truncate(r.question, 80)),
+            pillFor(r.status),
+            r.answered_at ? euDateTime(r.answered_at) : '—'
+          ]};
+        });
+      %>
+      <%- include('../../components/_table', {
+        density: 'medium',
+        columns: [
+          { label: 'Question', align: 'left' },
+          { label: 'Status',   align: 'left' },
+          { label: 'Resolved', align: 'left' }
+        ],
+        rows: resolvedTableRows
+      }) %>
+    </div>
+  <% } %>
+<% } %>

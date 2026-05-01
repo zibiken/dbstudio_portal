@@ -30,6 +30,29 @@ async function loadOwnedQuestion(app, req, reply, session) {
 }
 
 export function registerCustomerQuestionsRoutes(app) {
+  app.get('/customer/questions', async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
+
+    const userR = await sql`
+      SELECT customer_id FROM customer_users WHERE id = ${session.user_id}::uuid
+    `.execute(app.db);
+    const customerId = userR.rows[0]?.customer_id;
+    if (!customerId) {
+      reply.redirect('/', 302);
+      return;
+    }
+    const rows = await repo.listAllForCustomer(app.db, customerId, { limit: 200 });
+
+    return renderCustomer(req, reply, 'customer/questions/list', {
+      title: 'Questions',
+      rows,
+      activeNav: 'questions',
+      mainWidth: 'wide',
+    });
+  });
+
   app.get('/customer/questions/:id', async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;

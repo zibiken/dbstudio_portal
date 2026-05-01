@@ -1,0 +1,43 @@
+<%
+  function pillFor(s) {
+    var key = s === 'open' ? 'pending' : (s === 'answered' ? 'fulfilled' : 'archived');
+    return '<span class="status-pill status-pill--' + key + '">' + s + '</span>';
+  }
+%>
+<%- include('../../components/_page-header', {
+  eyebrow: 'ADMIN · CUSTOMERS',
+  title: 'Question',
+  subtitle: customer.razon_social + ' · ' + question.status,
+  actions: pillFor(question.status)
+}) %>
+
+<%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: 'customer-questions' }) %>
+
+<div class="card">
+  <h2 class="card__title">Question</h2>
+  <p><%= question.question %></p>
+  <dl class="kv">
+    <dt>Created</dt>      <dd><%= euDateTime(question.created_at) %></dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h2 class="card__title">Answer</h2>
+  <% if (question.status === 'answered') { %>
+    <p><%= question.answer_text %></p>
+    <dl class="kv">
+      <dt>Answered</dt>     <dd><%= euDateTime(question.answered_at) %></dd>
+    </dl>
+  <% } else if (question.status === 'skipped') { %>
+    <p>Customer clicked "Skip / I don't know" — no answer.</p>
+    <dl class="kv">
+      <dt>Skipped</dt>      <dd><%= euDateTime(question.answered_at) %></dd>
+    </dl>
+  <% } else { %>
+    <p>Awaiting customer response.</p>
+  <% } %>
+</div>
+
+<div class="form-actions">
+  <%- include('../../components/_button', { variant: 'ghost', size: 'sm', href: '/admin/customers/' + customer.id + '/questions', label: '← Back to questions' }) %>
+</div>

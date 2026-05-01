@@ -1,7 +1,13 @@
+<%
+  function truncate(s, n) {
+    var v = String(s || '');
+    return v.length <= n ? v : v.slice(0, n - 1) + '…';
+  }
+%>
 <%- include('../../components/_page-header', {
-  eyebrow: 'A question from DB Studio',
-  title: 'Help us with one short question',
-  subtitle: 'Answer in a few words, or click "Skip" if you don\'t know.'
+  eyebrow: 'CUSTOMER · QUESTIONS',
+  title: 'Question',
+  subtitle: question && question.question ? truncate(question.question, 60) : ''
 }) %>
 
 <% if (typeof error !== 'undefined' && error) { %>
@@ -11,10 +17,13 @@
 <% if (typeof noLongerOpen !== 'undefined' && noLongerOpen) { %>
   <%- include('../../components/_alert', { variant: 'info', body: 'This question is no longer open. A teammate may have just answered or skipped it.' }) %>
   <div class="form-actions">
-    <%- include('../../components/_button', { variant: 'primary', size: 'md', href: '/customer/dashboard', label: 'Back to dashboard' }) %>
+    <%- include('../../components/_button', { variant: 'primary', size: 'md', href: '/customer/questions', label: 'Back to questions' }) %>
   </div>
 <% } else if (question.status === 'open') { %>
-  <blockquote class="customer-question__prompt"><%= question.question %></blockquote>
+  <div class="card">
+    <p class="card__subtitle">Help us with one short question — answer in a few words, or click "Skip" if you don't know.</p>
+    <blockquote class="customer-question__prompt"><%= question.question %></blockquote>
+  </div>
 
   <form method="post" action="/customer/questions/<%= question.id %>/answer" class="card">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -31,7 +40,8 @@
   </form>
 <% } else { %>
   <%- include('../../components/_alert', { variant: 'info', body: 'This question has been ' + question.status + '.' }) %>
-  <div class="form-actions">
-    <%- include('../../components/_button', { variant: 'primary', size: 'md', href: '/customer/dashboard', label: 'Back to dashboard' }) %>
-  </div>
 <% } %>
+
+<div class="form-actions">
+  <%- include('../../components/_button', { variant: 'ghost', size: 'sm', href: '/customer/questions', label: '← Back to questions' }) %>
+</div>
