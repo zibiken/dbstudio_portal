@@ -1,8 +1,7 @@
 <%- include('../../components/_page-header', {
   eyebrow: 'ADMIN · CUSTOMERS',
   title: customer.razon_social,
-  subtitle: customer.nif ? ('Tax ID ' + customer.nif) : null,
-  actions: '<span class="status-pill status-pill--' + customer.status + '">' + customer.status + '</span>'
+  subtitle: customer.nif ? ('Tax ID ' + customer.nif) : null
 }) %>
 
 <%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: typeof activeTab !== 'undefined' ? activeTab : 'detail' }) %>
@@ -10,6 +9,14 @@
 <% if (typeof error !== 'undefined' && error) { %>
   <%- include('../../components/_alert', { variant: 'error', body: error }) %>
 <% } %>
+
+<div class="detail-status-strip">
+  <span class="detail-status-strip__label">Status</span>
+  <span class="status-pill status-pill--<%= customer.status %>"><%= customer.status %></span>
+  <% if (customer.status !== 'archived') { %>
+    <a class="btn btn--ghost btn--sm detail-status-strip__edit" href="/admin/customers/<%= customer.id %>/edit">Edit details</a>
+  <% } %>
+</div>
 
 <div class="card">
   <h2 class="card__title">Company details</h2>
@@ -22,42 +29,42 @@
     <dt>Created</dt>           <dd><%= euDateTime(customer.created_at) %></dd>
     <dt>Updated</dt>           <dd><%= euDateTime(customer.updated_at) %></dd>
   </dl>
-  <div class="form-actions">
-    <%- include('../../components/_button', { variant: 'secondary', size: 'sm', href: '/admin/customers/' + customer.id + '/edit', label: 'Edit details' }) %>
-  </div>
 </div>
 
-<h2>Users</h2>
-<%
-  var userRows = (users || []).map(function(u) {
-    var status, pill;
-    if (u.invite_consumed_at) { status = 'active'; pill = 'active'; }
-    else if (new Date(u.invite_expires_at).getTime() <= Date.now()) { status = 'invite expired'; pill = 'expired'; }
-    else { status = 'invite pending'; pill = 'pending'; }
-    return { cells: [
-      u.name,
-      u.email,
-      '<span class="status-pill status-pill--' + pill + '">' + status + '</span>',
-      euDateTime(u.created_at)
-    ]};
-  });
-%>
-<%- include('../../components/_table', {
-  density: 'medium',
-  columns: [
-    { label: 'Name',    align: 'left' },
-    { label: 'Email',   align: 'left' },
-    { label: 'Status',  align: 'left' },
-    { label: 'Created', align: 'left' }
-  ],
-  rows: userRows,
-  emptyState: 'No users on this customer yet.'
-}) %>
+<div class="card">
+  <h2 class="card__title">Users</h2>
+  <p class="card__subtitle">People who can sign in to this company's portal.</p>
+  <%
+    var userRows = (users || []).map(function(u) {
+      var status, pill;
+      if (u.invite_consumed_at) { status = 'active'; pill = 'active'; }
+      else if (new Date(u.invite_expires_at).getTime() <= Date.now()) { status = 'invite expired'; pill = 'expired'; }
+      else { status = 'invite pending'; pill = 'pending'; }
+      return { cells: [
+        u.name,
+        u.email,
+        '<span class="status-pill status-pill--' + pill + '">' + status + '</span>',
+        euDateTime(u.created_at)
+      ]};
+    });
+  %>
+  <%- include('../../components/_table', {
+    density: 'medium',
+    columns: [
+      { label: 'Name',    align: 'left' },
+      { label: 'Email',   align: 'left' },
+      { label: 'Status',  align: 'left' },
+      { label: 'Created', align: 'left' }
+    ],
+    rows: userRows,
+    emptyState: 'No users on this customer yet.'
+  }) %>
+</div>
 
 <% if (customer.status !== 'archived') { %>
-  <section class="status-actions">
-    <h2>Customer status</h2>
-    <p>Currently <strong><%= customer.status %></strong>.</p>
+  <div class="card card--danger">
+    <h2 class="card__title">Customer status</h2>
+    <p class="card__subtitle">Currently <strong><%= customer.status %></strong>. Suspending blocks the customer's portal access; archive is permanent.</p>
     <div class="form-actions">
       <% if (customer.status === 'active') { %>
         <form method="post" action="/admin/customers/<%= customer.id %>/suspend" class="form-inline-action">
@@ -76,5 +83,5 @@
         <%- include('../../components/_button', { variant: 'danger', size: 'sm', type: 'submit', label: 'Archive' }) %>
       </form>
     </div>
-  </section>
+  </div>
 <% } %>

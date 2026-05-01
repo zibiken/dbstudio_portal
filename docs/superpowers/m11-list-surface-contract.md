@@ -173,7 +173,27 @@ The credentials list carries a leading info alert that states "metadata only —
 
 ---
 
-## 11. Responsive behaviour (added in T15)
+## 11. Page-header harmonisation (added in T15 follow-up)
+
+Every restyled surface uses the same page-header skeleton: **eyebrow + title + subtitle**, NO `actions` slot. The `.page-header` carries a `min-height` so headers don't shift between tabs even when one tab has more chrome below.
+
+- **Status pills, "Edit details" buttons, and any per-surface badge** belong in a small status-strip rendered *below* the sub-tabs (see `.detail-status-strip` on `views/admin/customers/detail.ejs`), not in the page-header `actions` slot.
+- The `_list-toolbar`'s "+ New …" CTA is the canonical place for "create a new X" actions on list pages — not in the page-header.
+- Sub-pages where the title alone tells the whole story (Edit, New) skip the status-strip.
+
+This eliminates the "menu jumps" the operator caught in T15 review: the sidebar (now sticky on desktop) stays put, and the page-header itself doesn't change height between tabs because `actions` was the only variable.
+
+The detail tabs (`Overview`, `Edit`) and list tabs (`NDAs`, `Documents`, etc.) all wrap their primary content in `.card` blocks (`.card__title` + optional `.card__subtitle`), so the visual rhythm matches whether the tab is a form, a table, or a kv definition list.
+
+---
+
+## 12. Sub-tab strip on mobile
+
+`.subtabs` switches to `flex-wrap: wrap` at ≤768px so the 8 sub-tabs reflow to two rows instead of horizontally scrolling. The `overflow-x: auto` rule is kept as defence in depth in case future tab counts blow out the row count, but `flex-wrap: wrap` is the primary mobile behaviour.
+
+---
+
+## 13. Responsive behaviour (added in T15)
 
 All list-surface partials carry mobile breakpoints at ≤640px:
 
@@ -190,7 +210,7 @@ When adding a new list surface, you should NOT need to write fresh responsive CS
 
 ---
 
-## 12. Don't
+## 14. Don't
 
 - **Don't add ad-hoc spacing** between toolbar and table. The `.list-toolbar__count` margin-bottom owns it.
 - **Don't pre-uppercase column headers in the locals**. The CSS does it. Pre-uppercasing breaks the accessible-text reading for screen readers.

@@ -177,6 +177,40 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 .input-field__control input:focus { outline: none; border-color: var(--c-moss); }
 .input-field__control input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .input-field--error .input-field__control input { border-color: var(--c-error); }
+
+/* Same chrome as the input above, for raw <textarea> children of
+   .input-field__control. Lets `_input`-shaped wrappers carry a textarea
+   directly (used by /admin/.../projects/new for "Description") without
+   needing a separate partial — multi-line input is rare enough that
+   inline textarea + this CSS is cleaner than extending _input. */
+.input-field__control textarea {
+  flex: 1;
+  padding: 12px 14px;
+  border: 1px solid var(--c-stone);
+  border-radius: var(--radius-btn);
+  background: var(--c-white);
+  color: var(--fg-on-light);
+  font-family: var(--f-body);
+  font-size: var(--f-md);
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 120px;
+  transition: border var(--dur-micro) var(--ease-expo);
+}
+.input-field__control textarea:focus { outline: none; border-color: var(--c-moss); }
+.input-field__control textarea:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.input-field--error .input-field__control textarea { border-color: var(--c-error); }
+.input-field__control select {
+  flex: 1;
+  height: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--c-stone);
+  border-radius: var(--radius-btn);
+  background: var(--c-white);
+  color: var(--fg-on-light);
+  font-family: var(--f-body);
+  font-size: var(--f-md);
+}
 .input-field__toggle {
   position: absolute; right: var(--s-2); top: 50%; transform: translateY(-50%);
   width: 32px; height: 32px;
@@ -227,8 +261,43 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
   max-width: var(--prose);
   margin-inline: auto;
 }
+.card__subtitle { margin: 0 0 var(--s-2); color: var(--fg-on-light-muted); font-size: var(--f-sm); line-height: 1.55; }
+.card + .card { margin-top: var(--s-6); }
+.form-stack > .card + .card { margin-top: 0; }
+.card--danger {
+  border-color: rgba(163, 32, 32, 0.25);
+  background: linear-gradient(0deg, rgba(163, 32, 32, 0.02), rgba(163, 32, 32, 0.02)), var(--c-white);
+}
 
-/* _page-header */
+/* Status strip on the customer detail Overview tab — replaces the
+   page-header's status-pill action so the page-header skeleton is the
+   same shape across every sub-tab. Sits below the sub-tabs, above the
+   first card. */
+.detail-status-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-6);
+  flex-wrap: wrap;
+}
+.detail-status-strip__label {
+  font-size: var(--f-xs);
+  font-family: var(--f-mono);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-upper);
+  color: var(--fg-on-light-muted);
+}
+.detail-status-strip__edit { margin-left: auto; }
+@media (max-width: 640px) {
+  .detail-status-strip__edit { margin-left: 0; }
+}
+
+/* _page-header — every list/detail/form surface starts with this. The
+   min-height keeps the header consistent across tabs: when one sub-tab
+   has actions (button) and another has none (or a status-pill), the
+   header used to shift the body up/down by ~20-44px causing a visible
+   "jump" when swapping tabs. The reserved height eliminates that
+   without forcing every page to render an actions block. */
 .page-header {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -237,6 +306,7 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
   margin-bottom: var(--s-8);
   border-bottom: 1px solid var(--border-light);
   padding-bottom: var(--s-4);
+  min-height: 92px;
 }
 .page-header .eyebrow      { grid-column: 1 / -1; margin: 0; }
 .page-header__title        { grid-column: 1; margin: 0; font-size: var(--f-3xl); }
@@ -377,6 +447,17 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 .sidebar[data-collapsed="true"] { display: none; }
 @media (min-width: 1024px) {
   .sidebar, .sidebar[data-collapsed="true"] { display: block; }
+  /* Sticky on desktop so content-height differences between tabs (Overview's
+     short company-card vs Invoices' tall list, etc.) don't visually "jump"
+     the left rail when the operator swaps sub-tabs. Top offset = top-bar
+     height (64px) plus its 1px border. */
+  .sidebar {
+    position: sticky;
+    top: calc(64px + 1px);
+    align-self: start;
+    max-height: calc(100vh - 64px - 1px);
+    overflow-y: auto;
+  }
 }
 .sidebar__list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--s-1); }
 .sidebar__item a {
@@ -468,9 +549,16 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
   .kv dt:first-child { margin-top: 0; }
 }
 
-/* sub-tabs (used on admin customer detail and per-customer subroutes, plus profile tabs) */
+/* sub-tabs (used on admin customer detail and per-customer subroutes, plus
+   profile tabs). Wraps to a second row on mobile instead of overflowing
+   horizontally — the horizontal-scroll fallback is kept as defence in
+   depth in case future tabs blow out the row count. */
 .subtabs { margin-bottom: var(--s-6); border-bottom: 1px solid var(--border-light); overflow-x: auto; }
 .subtabs ul { display: flex; flex-wrap: nowrap; gap: var(--s-3); list-style: none; padding: 0; margin: 0; }
+@media (max-width: 768px) {
+  .subtabs { overflow-x: visible; }
+  .subtabs ul { flex-wrap: wrap; gap: var(--s-1) var(--s-3); }
+}
 .subtabs__item a {
   display: inline-block;
   font-family: var(--f-mono);

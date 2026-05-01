@@ -1,6 +1,7 @@
 <%- include('../../components/_page-header', {
   eyebrow: 'ADMIN · CUSTOMERS',
-  title: 'Edit · ' + customer.razon_social
+  title: 'Edit company',
+  subtitle: customer.razon_social
 }) %>
 
 <%- include('../../components/_admin-customer-tabs', { customerId: customer.id, active: typeof activeTab !== 'undefined' ? activeTab : 'edit' }) %>
@@ -14,20 +15,25 @@
 <form method="post" action="/admin/customers/<%= customer.id %>/edit" autocomplete="off" class="form-stack">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-  <fieldset class="fieldset-stack">
-    <legend class="eyebrow">Identity</legend>
-    <%- include('../../components/_input', { name: 'razon_social', type: 'text', label: 'Company name', helper: 'Razón social — the legal name on file.', required: true, maxlength: 200, value: v('razon_social', customer.razon_social) }) %>
-    <%- include('../../components/_input', { name: 'nif',          type: 'text', label: 'Tax ID', helper: 'CIF / NIF for Spanish entities, or the equivalent.', maxlength: 40, value: v('nif', customer.nif) }) %>
-    <%- include('../../components/_input', { name: 'domicilio',    type: 'text', label: 'Registered address', helper: 'The address that appears on invoices and the NDA.', maxlength: 300, value: v('domicilio', customer.domicilio) }) %>
-  </fieldset>
+  <div class="card">
+    <h2 class="card__title">Identity</h2>
+    <p class="card__subtitle">The legal name and tax details on file. These appear on invoices and the NDA.</p>
+    <fieldset class="fieldset-stack">
+      <%- include('../../components/_input', { name: 'razon_social', type: 'text', label: 'Company name', helper: 'Razón social — the legal name on file.', required: true, maxlength: 200, value: v('razon_social', customer.razon_social) }) %>
+      <%- include('../../components/_input', { name: 'nif',          type: 'text', label: 'Tax ID', helper: 'CIF / NIF for Spanish entities, or the equivalent.', maxlength: 40, value: v('nif', customer.nif) }) %>
+      <%- include('../../components/_input', { name: 'domicilio',    type: 'text', label: 'Registered address', helper: 'The address that appears on invoices and the NDA.', maxlength: 300, value: v('domicilio', customer.domicilio) }) %>
+    </fieldset>
+  </div>
 
-  <fieldset class="fieldset-stack">
-    <legend class="eyebrow">Legal representative (NDA)</legend>
-    <p>Required to generate an NDA draft for this customer. These fields appear verbatim on the rendered NDA — keep them accurate.</p>
-    <%- include('../../components/_input', { name: 'representante_nombre', type: 'text', label: 'Full name',  maxlength: 200, value: v('representante_nombre', customer.representante_nombre) }) %>
-    <%- include('../../components/_input', { name: 'representante_dni',    type: 'text', label: 'National ID (DNI)', maxlength: 40, value: v('representante_dni', customer.representante_dni) }) %>
-    <%- include('../../components/_input', { name: 'representante_cargo',  type: 'text', label: 'Position / title', maxlength: 120, value: v('representante_cargo', customer.representante_cargo) }) %>
-  </fieldset>
+  <div class="card">
+    <h2 class="card__title">Legal representative (NDA)</h2>
+    <p class="card__subtitle">Required to generate an NDA draft for this customer. These fields appear verbatim on the rendered NDA — keep them accurate.</p>
+    <fieldset class="fieldset-stack">
+      <%- include('../../components/_input', { name: 'representante_nombre', type: 'text', label: 'Full name',  maxlength: 200, value: v('representante_nombre', customer.representante_nombre) }) %>
+      <%- include('../../components/_input', { name: 'representante_dni',    type: 'text', label: 'National ID (DNI)', maxlength: 40, value: v('representante_dni', customer.representante_dni) }) %>
+      <%- include('../../components/_input', { name: 'representante_cargo',  type: 'text', label: 'Position / title', maxlength: 120, value: v('representante_cargo', customer.representante_cargo) }) %>
+    </fieldset>
+  </div>
 
   <div class="form-actions">
     <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Save changes' }) %>
