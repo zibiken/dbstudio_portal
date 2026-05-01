@@ -37,7 +37,8 @@ describe.skipIf(skip)('admin step-up route', () => {
     kek = randomBytes(32);
     app = await build({ skipSafetyCheck: true, kek });
     adminId = uuidv7();
-    totpSecret = 'JBSWY3DPEHPK3PXP';
+    // 32 base32 chars = 20 decoded bytes; otplib requires ≥16-byte secrets.
+    totpSecret = 'JBSWY3DPEHPK3PXPMFRGGZDFMZTWQ2LK';
     const enc = encrypt(Buffer.from(totpSecret, 'utf8'), kek);
     await sql`
       INSERT INTO admins (id, email, name, password_hash, totp_secret_enc, totp_iv, totp_tag)
@@ -94,5 +95,89 @@ describe.skipIf(skip)('admin step-up route', () => {
     const res = await app.inject({ method: 'GET', url: '/admin/step-up' });
     expect(res.statusCode).toBe(302);
     expect(res.headers.location).toBe('/login');
+  });
+
+  async function getWithCsrf(signed, returnTo = '/admin/') {
+    const get = await app.inject({
+      method: 'GET',
+      url: `/admin/step-up?return=${encodeURIComponent(returnTo)}`,
+      cookies: { sid: signed },
+    });
+    // Build a literal Cookie header from the GET's Set-Cookie pairs so
+    // url-encoded values (CSRF cookie carries '+', '/', '=' which become
+    // %2B/%2F/%3D when serialized) round-trip verbatim. Light-my-request's
+    // cookies-dict re-encodes and the csrf-protection plugin then can't
+    // find the secret.
+    const cookieHeader = ['sid=' + signed]
+      .concat(parseSetCookies(get).map(c => `${c.name}=${c.value}`))
+      .join('; ');
+    const csrfToken = get.body.match(/name="_csrf"[^>]*value="([^"]+)"/)[1];
+    return { cookieHeader, csrfToken };
+  }
+
+  it('POST with valid TOTP refreshes step-up + vault, 302s to validated return', async () => {
+    const { sid, signed } = await makeAdminSession();
+    const { cookieHeader, csrfToken } = await getWithCsrf(signed, '/admin/customers');
+    const code = generateToken(totpSecret);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/admin/step-up',
+      headers: {
+        cookie: cookieHeader,
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      payload: `_csrf=${encodeURIComponent(csrfToken)}&return=${encodeURIComponent('/admin/customers')}&totp_code=${code}`,
+    });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toBe('/admin/customers');
+
+    const sRow = await sql`
+      SELECT vault_unlocked_at, step_up_at FROM sessions WHERE id = ${sid}
+    `.execute(db);
+    expect(sRow.rows[0].vault_unlocked_at).not.toBeNull();
+    expect(sRow.rows[0].step_up_at).not.toBeNull();
+  });
+
+  it('POST with wrong TOTP rerenders 422 + increments rate bucket', async () => {
+    await sql`DELETE FROM rate_limit_buckets WHERE key = ${'step-up:admin:' + adminId}`.execute(db);
+    const { signed } = await makeAdminSession();
+    const { cookieHeader, csrfToken } = await getWithCsrf(signed, '/admin/');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/admin/step-up',
+      headers: {
+        cookie: cookieHeader,
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      payload: `_csrf=${encodeURIComponent(csrfToken)}&return=${encodeURIComponent('/admin/')}&totp_code=000000`,
+    });
+    expect(res.statusCode).toBe(422);
+    expect(res.body).toMatch(/code/i);
+
+    const bucket = await sql`SELECT count FROM rate_limit_buckets WHERE key = ${'step-up:admin:' + adminId}`.execute(db);
+    expect(bucket.rows[0]?.count).toBeGreaterThanOrEqual(1);
+  });
+
+  it('POST 6× wrong TOTP returns 429 lockout', async () => {
+    await sql`DELETE FROM rate_limit_buckets WHERE key = ${'step-up:admin:' + adminId}`.execute(db);
+    const { signed } = await makeAdminSession();
+    const { cookieHeader, csrfToken } = await getWithCsrf(signed, '/admin/');
+
+    let lastStatus;
+    for (let i = 0; i < 6; i++) {
+      const r = await app.inject({
+        method: 'POST',
+        url: '/admin/step-up',
+        headers: {
+          cookie: cookieHeader,
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        payload: `_csrf=${encodeURIComponent(csrfToken)}&return=${encodeURIComponent('/admin/')}&totp_code=000000`,
+      });
+      lastStatus = r.statusCode;
+    }
+    expect(lastStatus).toBe(429);
   });
 });
