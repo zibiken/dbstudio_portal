@@ -1,0 +1,37 @@
+<%# subject: Activity update from DB Studio Portal %>
+<div style="<%- S.tagline %>">Portal · Activity update</div>
+<h1 style="<%- S.h1 %>">Hello, <%= recipientName %>.</h1>
+
+<% if (actionItems && actionItems.length) { %>
+  <p style="<%- S.body %>"><strong>Action required</strong></p>
+  <ul style="margin:0 0 24px;padding-left:20px;color:#F6F3EE;font-size:15px;line-height:1.7;">
+    <% actionItems.forEach(function(item) { %>
+      <li style="margin-bottom:6px;">
+        <% if (item.link_path) { %>
+          <a href="https://portal.dbstudio.one<%= item.link_path %>" style="<%- S.link %>"><%= item.title %></a>
+        <% } else { %>
+          <%= item.title %>
+        <% } %>
+        <% if (item.detail) { %><br><span style="color:#A8B0B8;font-size:13px;"><%= item.detail %></span><% } %>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+
+<% if (fyiItems && fyiItems.length) { %>
+  <p style="<%- S.body %>"><strong>For your information</strong></p>
+  <ul style="margin:0 0 24px;padding-left:20px;color:#F6F3EE;font-size:15px;line-height:1.7;">
+    <% fyiItems.forEach(function(item) { %>
+      <li style="margin-bottom:6px;">
+        <% if (item.link_path) { %>
+          <a href="https://portal.dbstudio.one<%= item.link_path %>" style="<%- S.link %>"><%= item.title %></a>
+        <% } else { %>
+          <%= item.title %>
+        <% } %>
+        <% if (item.detail) { %><br><span style="color:#A8B0B8;font-size:13px;"><%= item.detail %></span><% } %>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+
+<p style="<%- S.note %>">You're getting this because there was activity in your DB Studio Portal. <a href="https://portal.dbstudio.one<%= isAdmin ? '/admin' : '/customer/dashboard' %>" style="<%- S.link %>">Sign in</a> to see the full timeline.</p>

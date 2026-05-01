@@ -42,17 +42,6 @@ function groupBuckets(items) {
   return { action, fyi };
 }
 
-function subjectFor(recipientType, buckets) {
-  if (recipientType === 'admin') {
-    const total = buckets.action.length + buckets.fyi.length;
-    return `DB Studio Portal — activity update (${total} items)`;
-  }
-  if (buckets.action.length > 0) {
-    return `Action required from DB Studio (${buckets.action.length} items)`;
-  }
-  return `What's new in your DB Studio Portal (${buckets.fyi.length} items)`;
-}
-
 export async function tickOnce({ db, log, batchSize = 25 }) {
   return await db.transaction().execute(async (tx) => {
     const claims = await repo.claimDue(tx, { batchSize });
@@ -74,7 +63,9 @@ export async function tickOnce({ db, log, batchSize = 25 }) {
         continue;
       }
       const buckets = groupBuckets(items);
-      const subject = subjectFor(claim.recipient_type, buckets);
+      // The digest template owns its subject (one static string per locale,
+      // parsed at build time from the <%# subject: ... %> front-matter).
+      // We pass the bucketed items in locals; the body renders both.
       const idempotencyKey = `digest:${claim.recipient_type}:${claim.recipient_id}:${new Date().toISOString()}`;
       await enqueueEmail(tx, {
         idempotencyKey,
@@ -82,7 +73,6 @@ export async function tickOnce({ db, log, batchSize = 25 }) {
         template: 'digest',
         locale: recipient.locale ?? 'en',
         locals: {
-          subject,
           recipientName: recipient.name,
           isAdmin: claim.recipient_type === 'admin',
           actionItems: buckets.action,
