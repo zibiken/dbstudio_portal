@@ -80,14 +80,35 @@ export async function build({
   const kek = kekOverride ?? loadKek(env.MASTER_KEY_PATH);
 
   // Trust the loopback proxy (systemd-side health probes hit 127.0.0.1
-   // directly) AND the Nginx Proxy Manager box at 212.231.193.53 (every
-   // public request lands on the portal via NPM, which appends the real
-   // client IP to X-Forwarded-For). Without 212.231.193.53 in the list,
-   // Fastify discards the XFF header and req.ip falls back to NPM's IP
-   // for every audited action — operator caught this on the audit log
-   // post-T22.
-   const TRUSTED_PROXIES = ['127.0.0.1', '212.231.193.53'];
+   // directly) AND the Nginx Proxy Manager box at 94.72.96.105 (every
+   // public request lands on the portal via NPM, which appends the
+   // real client IP to X-Forwarded-For). Without 94.72.96.105 in the
+   // list, Fastify discards XFF and req.ip falls back to NPM's IP for
+   // every audited action.
+   const TRUSTED_PROXIES = ['127.0.0.1', '94.72.96.105'];
    const app = Fastify({ loggerInstance: log, trustProxy: TRUSTED_PROXIES, disableRequestLogging: false });
+
+   // Cloudflare sits in front of NPM. CF appends a CF-Connecting-IP
+   // header carrying the real client IP, regardless of how many CF
+   // edges relayed the request. NPM passes it through as a normal
+   // header. Trusting it without checking the socket peer would let
+   // any client spoof their IP — so we ONLY honor it when the socket
+   // peer is a trusted proxy (NPM or loopback). When honored, it
+   // overrides Fastify's req.ip so every downstream audit / rate-limit
+   // / login-success record sees the true client IP. Falls back to
+   // proxy-addr's XFF parsing (for clients hitting NPM without
+   // Cloudflare in front).
+   app.addHook('onRequest', async (req) => {
+     const cfip = req.headers['cf-connecting-ip'];
+     if (typeof cfip !== 'string' || cfip.length === 0 || cfip.length > 64) return;
+     const peer = req.socket?.remoteAddress;
+     const trusted = peer === '127.0.0.1' || peer === '::1'
+       || peer === '94.72.96.105' || peer === '::ffff:94.72.96.105';
+     if (!trusted) return;
+     try {
+       Object.defineProperty(req, 'ip', { value: cfip, writable: false, configurable: true });
+     } catch (_) { /* if Fastify ever changes req.ip's descriptor, fall back to XFF */ }
+   });
   app.decorate('db', db);
   app.decorate('env', env);
   app.decorate('kek', kek);

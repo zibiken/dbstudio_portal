@@ -112,6 +112,89 @@ export async function create(
   return { customerId, primaryUserId, inviteToken };
 }
 
+// Mints a fresh invite token on an existing customer_user row + emails
+// a reset link. Mirrors admins.requestPasswordReset:
+// - Always neutral on the public surface (POST /reset always renders
+//   the same "Check your email" page) — no enumeration.
+// - When the email matches an active customer_user, this writes
+//   customer.password_reset_requested + enqueues a customer-pw-reset
+//   email pointing at /customer/welcome/<token>. The customer onboarding
+//   handler already consumes invite_token_hash and re-enrols password +
+//   TOTP atomically — same path as first-time setup.
+// - Otherwise audits customer.password_reset_requested_unknown.
+//
+// Suspended / archived customers don't receive a reset link — the
+// account state already blocks login.
+export async function requestCustomerPasswordReset(db, { email }, ctx = {}) {
+  const baseUrl = requirePortalBaseUrl(ctx, 'customers.requestPasswordReset');
+  const safeEmail = typeof email === 'string' ? email.slice(0, 320) : null;
+
+  const r = await sql`
+    SELECT cu.id AS user_id, cu.customer_id, cu.email::text AS email, cu.name,
+           c.status AS customer_status
+      FROM customer_users cu
+      JOIN customers c ON c.id = cu.customer_id
+     WHERE cu.email = ${email}::citext
+     LIMIT 1
+  `.execute(db);
+  const row = r.rows[0];
+
+  if (!row || row.customer_status !== 'active') {
+    await writeAudit(db, {
+      actorType: ctx?.actorType ?? 'system',
+      actorId: ctx?.actorId ?? null,
+      action: 'customer.password_reset_requested_unknown',
+      targetType: 'customer_user',
+      targetId: row?.user_id ?? null,
+      metadata: {
+        email: safeEmail,
+        ...(ctx?.audit ?? {}),
+        ...(row && row.customer_status !== 'active' ? { customer_status: row.customer_status } : {}),
+      },
+      ip: ctx?.ip ?? null,
+      userAgentHash: ctx?.userAgentHash ?? null,
+    });
+    return { inviteToken: null };
+  }
+
+  const inviteToken = generateInviteToken();
+  const inviteTokenHash = hashToken(inviteToken);
+  const inviteExpiresAt = new Date(Date.now() + INVITE_TTL_MS);
+
+  await db.transaction().execute(async (tx) => {
+    await sql`
+      UPDATE customer_users
+         SET invite_token_hash = ${inviteTokenHash},
+             invite_expires_at = ${inviteExpiresAt},
+             invite_consumed_at = NULL
+       WHERE id = ${row.user_id}::uuid
+    `.execute(tx);
+    await writeAudit(tx, {
+      actorType: ctx?.actorType ?? 'system',
+      actorId: ctx?.actorId ?? null,
+      action: 'customer.password_reset_requested',
+      targetType: 'customer_user',
+      targetId: row.user_id,
+      metadata: { ...(ctx?.audit ?? {}) },
+      visibleToCustomer: true,
+      ip: ctx?.ip ?? null,
+      userAgentHash: ctx?.userAgentHash ?? null,
+    });
+    await enqueueEmail(tx, {
+      idempotencyKey: `customer_pw_reset:${row.user_id}:${inviteTokenHash.slice(0, 16)}`,
+      toAddress: row.email,
+      template: 'customer-pw-reset',
+      locals: {
+        recipientName: row.name,
+        resetUrl: `${baseUrl}/customer/welcome/${inviteToken}`,
+        expiresAt: inviteExpiresAt.toISOString(),
+      },
+    });
+  });
+
+  return { inviteToken };
+}
+
 async function lockCustomerById(tx, customerId) {
   const r = await sql`
     SELECT id, status FROM customers WHERE id = ${customerId}::uuid FOR UPDATE

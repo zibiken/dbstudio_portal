@@ -2,26 +2,29 @@ import { registerWelcomeRoutes } from './welcome.js';
 import { renderPublic } from '../../lib/render.js';
 import { checkLockout, recordFail } from '../../lib/auth/rate-limit.js';
 import * as adminsService from '../../domain/admins/service.js';
+import * as customersService from '../../domain/customers/service.js';
 
 // Mounts /reset/:token (the post-email reset flow — same handler as
 // /welcome/:token via registerWelcomeRoutes), and adds GET + POST /reset
 // for the "forgot my password — please email me a link" entry point.
 //
-// /reset (the entry) was missing pre-T22; the operator caught a 404 on
-// it during the polish review. The single-source forgot-password flow
-// now is:
-//   GET  /reset       → email form
-//   POST /reset       → calls adminsService.requestPasswordReset which
-//                       enqueues an admin-pw-reset email (carrying a
-//                       /reset/:token URL) IFF the address matches an
-//                       admin row. Always reports the same neutral
-//                       success message — no enumeration.
-//   GET  /reset/:token → the existing welcome-style set-password +
-//                       2FA-re-enrol form (registerWelcomeRoutes).
-//
-// Customer-side reset is not yet exposed; customers who lose access
-// today contact the operator who triggers a fresh welcome invite via
-// the admin "resend invite" path.
+//   GET  /reset       → email form (single field, neutral copy)
+//   POST /reset       → tries admin lookup first via
+//                       adminsService.requestPasswordReset (enqueues an
+//                       admin-pw-reset email pointing at /reset/<token>);
+//                       then customer lookup via
+//                       customersService.requestCustomerPasswordReset
+//                       (enqueues a customer-pw-reset email pointing at
+//                       /customer/welcome/<token>). Both render the same
+//                       neutral success page — no enumeration of either
+//                       admin or customer email addresses.
+//   GET  /reset/:token → admin reset surface — registerWelcomeRoutes,
+//                       hits the existing welcome-style set-password +
+//                       2FA-re-enrol form. Customer tokens are NOT
+//                       valid here (this handler only consults the
+//                       admins table); the customer-pw-reset email
+//                       points the customer at /customer/welcome/<token>
+//                       which is the customer-side equivalent.
 const RESET_LIMIT = 5;
 const RESET_WINDOW_MS = 15 * 60_000;
 const RESET_LOCKOUT_MS = 30 * 60_000;
@@ -64,20 +67,25 @@ export function registerResetRoutes(app) {
       });
     }
 
-    // Always run the service path so the wall-clock cost looks the
-    // same whether the email exists or not — no enumeration.
+    // Always run BOTH service paths so the wall-clock cost looks the
+    // same whether the email matches an admin, a customer, or
+    // nothing — no enumeration of either user-type. Each service
+    // path no-ops (writes its own _unknown audit row) when the
+    // address doesn't match.
     if (email) {
-      await adminsService.requestPasswordReset(
-        app.db,
-        { email },
-        {
-          actorType: 'system',
-          ip: req.ip ?? null,
-          userAgentHash: null,
-          audit: { source: 'public_reset_form' },
-          portalBaseUrl: app.env.PORTAL_BASE_URL,
-        },
-      );
+      const ctx = {
+        actorType: 'system',
+        ip: req.ip ?? null,
+        userAgentHash: null,
+        audit: { source: 'public_reset_form' },
+        portalBaseUrl: app.env.PORTAL_BASE_URL,
+      };
+      try {
+        await adminsService.requestPasswordReset(app.db, { email }, ctx);
+      } catch (_) { /* never leak which type the address matched */ }
+      try {
+        await customersService.requestCustomerPasswordReset(app.db, { email }, { ...ctx, kek: app.kek });
+      } catch (_) { /* never leak which type the address matched */ }
     }
     await Promise.all([
       recordFail(app.db, ipKey,    { limit: RESET_LIMIT, windowMs: RESET_WINDOW_MS, lockoutMs: RESET_LOCKOUT_MS }),
