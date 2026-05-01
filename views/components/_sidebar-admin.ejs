@@ -11,4 +11,7 @@
       <a href="/admin/profile"<% if (active === 'profile') { %> aria-current="page"<% } %>>Profile</a>
     </li>
   </ul>
+  <div class="sidebar__footer">
+    <%- include('./_button', { variant: 'ghost', size: 'md', href: '/logout', label: 'Sign out' }) %>
+  </div>
 </nav>

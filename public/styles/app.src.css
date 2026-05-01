@@ -591,10 +591,12 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
   border-right: 1px solid var(--border-dark);
   padding: var(--s-6) var(--s-3);
   font-family: var(--f-body);
+  display: flex;
+  flex-direction: column;
 }
 .sidebar[data-collapsed="true"] { display: none; }
 @media (min-width: 1024px) {
-  .sidebar, .sidebar[data-collapsed="true"] { display: block; }
+  .sidebar, .sidebar[data-collapsed="true"] { display: flex; }
   /* Sticky on desktop so content-height differences between tabs (Overview's
      short company-card vs Invoices' tall list, etc.) don't visually "jump"
      the left rail when the operator swaps sub-tabs. Top offset = top-bar
@@ -607,7 +609,19 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
     overflow-y: auto;
   }
 }
-.sidebar__list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--s-1); }
+.sidebar__list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--s-1); flex: 1 1 auto; }
+.sidebar__footer {
+  margin-top: auto;
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--border-dark);
+}
+.sidebar__footer .btn { width: 100%; justify-content: center; }
+.sidebar__footer .btn--ghost { color: var(--fg-on-dark); }
+.sidebar__footer .btn--ghost:hover {
+  color: var(--c-ivory);
+  background: var(--bg-dark-alt);
+  text-decoration: none;
+}
 .sidebar__item a {
   display: block; padding: var(--s-2) var(--s-3);
   color: var(--fg-on-dark-muted);
