@@ -40,6 +40,7 @@ export interface Admins {
   inviteExpiresAt: Timestamp | null;
   inviteTokenHash: string | null;
   language: Generated<string>;
+  locale: Generated<string>;
   name: string;
   passwordHash: string | null;
   totpIv: Buffer | null;
@@ -98,6 +99,9 @@ export interface Customers {
   id: string;
   nif: string | null;
   razonSocial: string;
+  representanteCargo: string | null;
+  representanteDni: string | null;
+  representanteNombre: string | null;
   status: Generated<string>;
   updatedAt: Generated<Timestamp>;
 }
@@ -113,12 +117,20 @@ export interface CustomerUsers {
   inviteExpiresAt: Timestamp | null;
   inviteTokenHash: string | null;
   language: Generated<string>;
+  locale: Generated<string>;
   name: string;
   passwordHash: string | null;
   totpIv: Buffer | null;
   totpSecretEnc: Buffer | null;
   totpTag: Buffer | null;
   webauthnCreds: Generated<Json>;
+}
+
+export interface DigestSchedules {
+  dueAt: Timestamp;
+  oldestItemAt: Timestamp;
+  recipientId: string;
+  recipientType: string;
 }
 
 export interface Documents {
@@ -134,6 +146,29 @@ export interface Documents {
   storagePath: string;
   uploadedAt: Generated<Timestamp>;
   uploadedByAdminId: string | null;
+}
+
+export interface DownloadTokenConsumptions {
+  consumedAt: Generated<Timestamp>;
+  documentId: string;
+  expiresAt: Timestamp;
+  tokenHash: string;
+}
+
+export interface EmailChangeRequests {
+  cancelledAt: Timestamp | null;
+  createdAt: Generated<Timestamp>;
+  id: string;
+  newEmail: string;
+  oldEmail: string;
+  revertedAt: Timestamp | null;
+  revertExpiresAt: Timestamp | null;
+  revertTokenHash: string | null;
+  userId: string;
+  userType: string;
+  verifiedAt: Timestamp | null;
+  verifyExpiresAt: Timestamp;
+  verifyTokenHash: string | null;
 }
 
 export interface EmailOtpCodes {
@@ -162,6 +197,17 @@ export interface EmailOutbox {
   toAddress: string;
 }
 
+export interface InvoicePayments {
+  amountCents: number;
+  createdAt: Generated<Timestamp>;
+  currency: string;
+  id: string;
+  invoiceId: string;
+  note: string | null;
+  paidOn: Timestamp;
+  recordedBy: string;
+}
+
 export interface Invoices {
   amountCents: Int8;
   createdAt: Generated<Timestamp>;
@@ -186,6 +232,20 @@ export interface Ndas {
   projectId: string;
   signedDocumentId: string | null;
   templateVersionSha: string;
+}
+
+export interface PendingDigestItems {
+  bucket: string;
+  createdAt: Generated<Timestamp>;
+  customerId: string | null;
+  detail: string | null;
+  eventType: string;
+  id: string;
+  linkPath: string | null;
+  metadata: Generated<Json>;
+  recipientId: string;
+  recipientType: string;
+  title: string;
 }
 
 export interface Projects {
@@ -223,6 +283,7 @@ export interface Sessions {
   stepUpAt: Timestamp | null;
   userId: string;
   userType: string;
+  vaultUnlockedAt: Timestamp | null;
 }
 
 export interface DB {
@@ -233,11 +294,16 @@ export interface DB {
   credentials: Credentials;
   customers: Customers;
   customerUsers: CustomerUsers;
+  digestSchedules: DigestSchedules;
   documents: Documents;
+  downloadTokenConsumptions: DownloadTokenConsumptions;
+  emailChangeRequests: EmailChangeRequests;
   emailOtpCodes: EmailOtpCodes;
   emailOutbox: EmailOutbox;
+  invoicePayments: InvoicePayments;
   invoices: Invoices;
   ndas: Ndas;
+  pendingDigestItems: PendingDigestItems;
   projects: Projects;
   providerCatalogue: ProviderCatalogue;
   rateLimitBuckets: RateLimitBuckets;
