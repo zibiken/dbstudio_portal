@@ -9,6 +9,19 @@ live and which can ship as v1.0 + post-launch work.
 
 ## ROADMAP STATUS (2026-05-01)
 
+### ✅ Shipped in Phase F
+
+- **Digest cadence rework** — fixed twice-daily fires (08:00 + 17:00 Atlantic/Canary), skip-if-empty at fire time. `lib/digest-cadence.js` (`nextDigestFire`), `domain/digest/repo.upsertSchedule` simplified, sliding 10/60-min window retired. Commits `6d57456`, `e8d301e`, `01cc97f`.
+- **Digest content rework** — natural-language verbs, recipient-aware copy (admin/customer split), count-aware singular/plural for COALESCING_EVENTS, dynamic subject line via `digestSubject` + per-row `subjectOverride` plumbed through `enqueue` + `renderTemplate`, per-customer grouping for admin digest, `humanDate` per-line labels, deep-link honouring, dual-mode (`prefers-color-scheme: light`) email CSS. Commits `bf472ff`, `3e937d2`, `40f142a`, `3f1973a`.
+- **Reveal credentials page consistency** — `views/admin/credentials/show.ejs` rewritten to resource-type pattern (eyebrow `ADMIN · CUSTOMERS`, title `Credential`, subtitle `<customer> · <provider>`, status pills in actions slot). Commit `b058414`.
+- **Detail-page layout pattern checker** — `scripts/check-detail-pattern.js` (advisory, non-blocking) wired into `scripts/run-tests.sh`. Commits `2c551ef`, `3548056`.
+- **Customer-questions UI completion** — admin list / detail pages, customer list page, `Questions` tab in `_admin-customer-tabs`, `Questions` entry in `_sidebar-customer`, header rewrites on existing `new.ejs` and `show.ejs`. Commit `1d0afb1`.
+- **Customer-side view-with-decrypt UI (M9.X partial)** — `service.viewByCustomer` mirrors `view()` for the customer actor (vault-unlock gate, customer-visible audit, admin-only fan-out), customer step-up route + view, customer credentials show + reveal route, list page label now links to detail, honest copy. Commit `a2f1c1c`.
+
+Test count: baseline 657 passing → Phase F final 704 passing / 3 skipped / 0 failing.
+Migration ledger unchanged at `0011_phase_d` (no schema change).
+Advisory linter has 2 pre-existing out-of-scope warnings (`customers/detail.ejs`, `projects/detail.ejs`).
+
 ### ✅ Shipped in Phase D
 
 - NDA gate (`customers.nda_signed_at` + `/customer/waiting`) — `8a03fb0`, `9bfa1c0`
@@ -26,7 +39,7 @@ live and which can ship as v1.0 + post-launch work.
 
 That fully closes the "Phase D operator feedback batch (2026-05-01)" section below (all 5 items) + the "Admin credential view UI (M7 deferred minor)" section. Those entries are kept below as historical record but should NOT be re-actioned.
 
-### 🟡 Next on the roadmap (Phase F)
+### ~~🟡 Next on the roadmap (Phase F)~~ — SHIPPED (see Phase F section above)
 
 **Digest email copy / layout / grouping rework.** Originates from the operator's original Phase D handoff (`docs/superpowers/2026-05-01-phase-d-handoff.md`, "Independent issue surfaced 2026-05-01"). The operator received a real digest email containing 23+ lines of test-fixture-flavoured noise; the test pollution itself was fixed in Phase D, but the underlying readability problems with the live digest emails are a separate ship.
 
