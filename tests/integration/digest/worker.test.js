@@ -17,7 +17,7 @@ const silentLog = { info: () => {}, warn: () => {}, error: () => {}, debug: () =
 // schedule + pending_digest_items state for our specific admin.id between
 // tick boundaries.
 
-describe.skipIf(skip)('digest worker — twice-daily fixed cadence', () => {
+describe.skipIf(skip)('digest worker — debounce cadence (10-min idle, 60-min cap)', () => {
   let db;
   const tag = `digest_test_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const adminIds = [];
@@ -45,11 +45,11 @@ describe.skipIf(skip)('digest worker — twice-daily fixed cadence', () => {
     return r.rows[0].c;
   }
 
-  async function scheduleDueAt(recipientId) {
+  async function scheduleRow(recipientId) {
     const r = await sql`
-      SELECT due_at FROM digest_schedules WHERE recipient_id = ${recipientId}::uuid
+      SELECT due_at, oldest_item_at FROM digest_schedules WHERE recipient_id = ${recipientId}::uuid
     `.execute(db);
-    return r.rows[0]?.due_at ?? null;
+    return r.rows[0] ?? null;
   }
 
   beforeAll(async () => {
@@ -64,70 +64,89 @@ describe.skipIf(skip)('digest worker — twice-daily fixed cadence', () => {
     await db.destroy();
   });
 
-  it('event at 09:00 Canary schedules due_at to 17:00 same day', async () => {
+  it('first event schedules due_at to now + 10 min and anchors oldest_item_at to now', async () => {
     const admin = await makeAdmin('a');
     await clearForRecipient(admin.id);
 
-    // 08:00 UTC == 09:00 WEST on 2026-05-01
+    const now = new Date('2026-05-01T08:00:00Z');
     await recordForDigest(db, {
       recipientType: 'admin', recipientId: admin.id,
       bucket: 'fyi', eventType: 'document.uploaded',
       title: `${tag} — New document: x.pdf`,
-    }, { now: new Date('2026-05-01T08:00:00Z') });
+    }, { now });
 
-    // Schedule due_at should be 17:00 WEST same day = 16:00 UTC.
-    const due = await scheduleDueAt(admin.id);
-    expect(due).toBeTruthy();
-    expect(new Date(due).toISOString()).toBe('2026-05-01T16:00:00.000Z');
-
-    // Pending item is queued for our admin.
+    const row = await scheduleRow(admin.id);
+    expect(row).toBeTruthy();
+    expect(new Date(row.due_at).toISOString()).toBe('2026-05-01T08:10:00.000Z');
+    expect(new Date(row.oldest_item_at).toISOString()).toBe('2026-05-01T08:00:00.000Z');
     expect(await pendingItemCount(admin.id)).toBe(1);
 
     await clearForRecipient(admin.id);
   });
 
-  it('event at 18:00 Canary schedules due_at to 08:00 next day', async () => {
+  it('second event 5 min later slides due_at to second-event + 10 min (idle reset); oldest_item_at unchanged', async () => {
     const admin = await makeAdmin('b');
-    await clearForRecipient(admin.id);
-
-    // 17:00 UTC == 18:00 WEST on 2026-05-01.
-    await recordForDigest(db, {
-      recipientType: 'admin', recipientId: admin.id,
-      bucket: 'fyi', eventType: 'document.uploaded',
-      title: `${tag} — New document: y.pdf`,
-    }, { now: new Date('2026-05-01T17:00:00Z') });
-
-    // Schedule due_at should be 08:00 WEST next day = 07:00 UTC.
-    const due = await scheduleDueAt(admin.id);
-    expect(due).toBeTruthy();
-    expect(new Date(due).toISOString()).toBe('2026-05-02T07:00:00.000Z');
-
-    // Tick BEFORE the scheduled fire — schedule must remain.
-    await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T17:01:00Z') });
-    expect(await scheduleDueAt(admin.id)).toBeTruthy();
-    expect(await pendingItemCount(admin.id)).toBe(1);
-
-    await clearForRecipient(admin.id);
-  });
-
-  it('two events for the same recipient share one schedule + one pending item per event', async () => {
-    const admin = await makeAdmin('c');
     await clearForRecipient(admin.id);
 
     await recordForDigest(db, {
       recipientType: 'admin', recipientId: admin.id,
       bucket: 'fyi', eventType: 'invoice.uploaded',
       title: `${tag} — INV-001`,
-    }, { now: new Date('2026-05-01T08:00:00Z') });
+    }, { now: new Date('2026-05-01T09:00:00Z') });
     await recordForDigest(db, {
       recipientType: 'admin', recipientId: admin.id,
       bucket: 'action_required', eventType: 'nda.created',
       title: `${tag} — New NDA`,
-    }, { now: new Date('2026-05-01T14:00:00Z') });
+    }, { now: new Date('2026-05-01T09:05:00Z') });
 
-    // Two distinct event types => two pending items.
+    const row = await scheduleRow(admin.id);
+    expect(new Date(row.due_at).toISOString()).toBe('2026-05-01T09:15:00.000Z');
+    expect(new Date(row.oldest_item_at).toISOString()).toBe('2026-05-01T09:00:00.000Z');
     expect(await pendingItemCount(admin.id)).toBe(2);
-    // One schedule row regardless (upsert).
+
+    await clearForRecipient(admin.id);
+  });
+
+  it('60-min cap: an event 65 min after the first leaves due_at clamped at oldest_item_at + 60 min', async () => {
+    const admin = await makeAdmin('c');
+    await clearForRecipient(admin.id);
+
+    await recordForDigest(db, {
+      recipientType: 'admin', recipientId: admin.id,
+      bucket: 'fyi', eventType: 'document.uploaded',
+      title: `${tag} — first.pdf`,
+    }, { now: new Date('2026-05-01T10:00:00Z') });
+    // 65 min later — naive idle reset would push due_at to 11:15, but the cap
+    // forces it to oldest_item_at + 60 min = 11:00.
+    await recordForDigest(db, {
+      recipientType: 'admin', recipientId: admin.id,
+      bucket: 'fyi', eventType: 'invoice.uploaded',
+      title: `${tag} — late.pdf`,
+    }, { now: new Date('2026-05-01T11:05:00Z') });
+
+    const row = await scheduleRow(admin.id);
+    expect(new Date(row.due_at).toISOString()).toBe('2026-05-01T11:00:00.000Z');
+    expect(new Date(row.oldest_item_at).toISOString()).toBe('2026-05-01T10:00:00.000Z');
+
+    await clearForRecipient(admin.id);
+  });
+
+  it('two events for the same recipient share one schedule + one pending item per event type', async () => {
+    const admin = await makeAdmin('d');
+    await clearForRecipient(admin.id);
+
+    await recordForDigest(db, {
+      recipientType: 'admin', recipientId: admin.id,
+      bucket: 'fyi', eventType: 'invoice.uploaded',
+      title: `${tag} — INV-002`,
+    }, { now: new Date('2026-05-01T12:00:00Z') });
+    await recordForDigest(db, {
+      recipientType: 'admin', recipientId: admin.id,
+      bucket: 'action_required', eventType: 'nda.created',
+      title: `${tag} — Another NDA`,
+    }, { now: new Date('2026-05-01T12:01:00Z') });
+
+    expect(await pendingItemCount(admin.id)).toBe(2);
     const r = await sql`
       SELECT COUNT(*)::int AS c FROM digest_schedules WHERE recipient_id = ${admin.id}::uuid
     `.execute(db);
@@ -136,22 +155,42 @@ describe.skipIf(skip)('digest worker — twice-daily fixed cadence', () => {
     await clearForRecipient(admin.id);
   });
 
+  it('tick BEFORE due_at does not fire; tick AFTER due_at drains and clears', async () => {
+    const admin = await makeAdmin('e');
+    await clearForRecipient(admin.id);
+
+    await recordForDigest(db, {
+      recipientType: 'admin', recipientId: admin.id,
+      bucket: 'fyi', eventType: 'document.uploaded',
+      title: `${tag} — y.pdf`,
+    }, { now: new Date('2026-05-01T13:00:00Z') });
+    // due_at = 13:10. Tick at 13:05 — schedule must remain.
+    await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T13:05:00Z') });
+    expect(await scheduleRow(admin.id)).toBeTruthy();
+    expect(await pendingItemCount(admin.id)).toBe(1);
+
+    // Tick at 13:11 — should claim, drain, and clear.
+    await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T13:11:00Z') });
+    expect(await scheduleRow(admin.id)).toBeNull();
+    expect(await pendingItemCount(admin.id)).toBe(0);
+
+    await clearForRecipient(admin.id);
+  });
+
   it('skip-if-empty: items retracted before fire drop the schedule on tick', async () => {
-    const admin = await makeAdmin('d');
+    const admin = await makeAdmin('f');
     await clearForRecipient(admin.id);
 
     await recordForDigest(db, {
       recipientType: 'admin', recipientId: admin.id,
       bucket: 'fyi', eventType: 'document.uploaded',
       title: `${tag} — z.pdf`,
-    }, { now: new Date('2026-05-01T08:00:00Z') });
-    // Simulate a retraction.
+    }, { now: new Date('2026-05-01T14:00:00Z') });
     await sql`DELETE FROM pending_digest_items WHERE recipient_id = ${admin.id}::uuid`.execute(db);
 
     expect(await pendingItemCount(admin.id)).toBe(0);
-    // Tick at fire time — claim+drain finds 0 items, drops the schedule row.
-    await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T16:01:00Z') });
-    expect(await scheduleDueAt(admin.id)).toBeNull();
+    await tickOnce({ db, log: silentLog, now: new Date('2026-05-01T14:11:00Z') });
+    expect(await scheduleRow(admin.id)).toBeNull();
 
     await clearForRecipient(admin.id);
   });

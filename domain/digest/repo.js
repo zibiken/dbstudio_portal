@@ -5,9 +5,13 @@
 //   2. upsertSchedule — keeps the per-recipient debounce timer current
 //   3. claimDue + drainItems + clearSchedule — the worker's drain loop
 //
-// upsertSchedule writes the next configured fire slot (08:00 / 17:00
-// Atlantic/Canary) into due_at; oldest_item_at survives across upserts
-// in the same cycle as the timestamp of the first pending item.
+// Cadence (post-Phase-G hybrid revert): each new event resets a 10-minute
+// idle timer per recipient ("send the digest 10 min after the LAST event"),
+// with a 60-minute hard cap measured from the first un-sent item so a
+// continuous activity stream still drains. Phase F's twice-daily fixed
+// fires (08:00 + 17:00 Atlantic/Canary) are reverted; the per-customer
+// admin grouping, dynamic subject and recipient-aware copy from Phase F
+// are preserved upstream in lib/digest-strings.js + emails/.
 
 import { sql } from 'kysely';
 import { v7 as uuidv7 } from 'uuid';
@@ -56,23 +60,31 @@ export async function updateCoalesced(db, { id, title, detail, metadata }) {
   `.execute(db);
 }
 
-export async function upsertSchedule(db, { recipientType, recipientId, dueAt }) {
-  // dueAt is a Date computed by nextDigestFire(); we always overwrite the
-  // schedule to the next configured fire slot. The LEAST(...) cap from the
-  // sliding-window era is gone — items now wait deterministically for the
-  // next 08:00 or 17:00 Atlantic/Canary fire.
-  // oldest_item_at is set on insert and untouched on conflict so it
-  // preserves the timestamp of the first pending item in the current cycle.
-  const dueAtIso = dueAt.toISOString();
+export async function upsertSchedule(db, {
+  recipientType, recipientId, now, windowMinutes, capMinutes,
+}) {
+  // Debounce semantics:
+  //   - INSERT (no schedule yet): due_at = now + windowMinutes,
+  //     oldest_item_at = now (anchors the cap).
+  //   - UPDATE (existing schedule): due_at slides to LEAST(now + window,
+  //     oldest_item_at + cap). oldest_item_at is preserved across upserts;
+  //     the worker drains and clears the row at fire time, after which
+  //     the next event re-INSERTs and re-anchors oldest_item_at.
+  const nowIso = (now ?? new Date()).toISOString();
+  const window = `${Number(windowMinutes)} minutes`;
+  const cap    = `${Number(capMinutes)} minutes`;
   await sql`
     INSERT INTO digest_schedules (recipient_type, recipient_id, due_at, oldest_item_at)
     VALUES (
       ${recipientType}, ${recipientId}::uuid,
-      ${dueAtIso}::timestamptz,
-      now()
+      ${nowIso}::timestamptz + ${window}::interval,
+      ${nowIso}::timestamptz
     )
     ON CONFLICT (recipient_type, recipient_id) DO UPDATE
-      SET due_at = ${dueAtIso}::timestamptz
+      SET due_at = LEAST(
+        ${nowIso}::timestamptz + ${window}::interval,
+        digest_schedules.oldest_item_at + ${cap}::interval
+      )
   `.execute(db);
 }
 
