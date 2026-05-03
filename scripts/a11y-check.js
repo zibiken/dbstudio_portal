@@ -340,16 +340,25 @@ process.stdout.write(
 if (process.env.RUN_A11Y_AXE === '1') {
   const { build } = await import('../server.js');
   const { JSDOM } = await import('jsdom');
-  const axe = (await import('axe-core')).default ?? (await import('axe-core'));
+  const axeMod = await import('axe-core');
+  const axe = axeMod.default ?? axeMod;
+  const { randomBytes } = await import('node:crypto');
 
+  const blocking = process.env.RUN_A11Y_AXE_BLOCKING === '1';
   const ROUTES = ['/login', '/reset'];
-  const app = await build({ skipSafetyCheck: true });
+  // Pass a synthetic KEK so this opt-in audit doesn't read prod secrets
+  // — server.js:73 accepts a kek override. The pages we hit are public
+  // and don't decrypt anything.
+  const app = await build({ skipSafetyCheck: true, kek: randomBytes(32) });
   const violations = [];
+  const harnessErrors = [];
 
   for (const url of ROUTES) {
     const res = await app.inject({ method: 'GET', url });
     if (res.statusCode !== 200 || !/text\/html/.test(res.headers['content-type'] ?? '')) {
-      process.stdout.write(`axe: skipping ${url} (status ${res.statusCode})\n`);
+      const msg = `axe: ${url} render failure (status ${res.statusCode})`;
+      process.stdout.write(`${msg}\n`);
+      harnessErrors.push(msg);
       continue;
     }
     const dom = new JSDOM(res.body, {
@@ -361,7 +370,9 @@ if (process.env.RUN_A11Y_AXE === '1') {
     // global. JSDOM's `runScripts: 'outside-only'` lets us eval directly.
     dom.window.eval(axe.source);
     if (!dom.window.axe) {
-      process.stdout.write(`axe: failed to attach axe to ${url}\n`);
+      const msg = `axe: failed to attach axe-core to JSDOM on ${url}`;
+      process.stdout.write(`${msg}\n`);
+      harnessErrors.push(msg);
       continue;
     }
     const result = await dom.window.axe.run(dom.window.document, {
@@ -381,9 +392,12 @@ if (process.env.RUN_A11Y_AXE === '1') {
     for (const v of violations) {
       process.stdout.write(`  [${v.impact}] ${v.url}  ${v.id} (${v.nodes} node${v.nodes === 1 ? '' : 's'}) — ${v.help}\n`);
     }
-    if (process.env.RUN_A11Y_AXE_BLOCKING === '1') {
-      process.exit(1);
-    }
+  }
+  if (blocking && (violations.length > 0 || harnessErrors.length > 0)) {
+    // Treat harness errors (every route skipped, axe failed to attach)
+    // as fatal under blocking mode — otherwise the gate silently passes
+    // when the audit didn't actually execute.
+    process.exit(1);
   }
 }
 
