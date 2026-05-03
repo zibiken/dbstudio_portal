@@ -4,7 +4,7 @@
 
 **Goal:** Build the per-project phases + checklists feature per design spec `docs/superpowers/specs/2026-05-03-phases-checklists-design.md`. Admin manages phases (free-form labels, sparse `display_order`, four-state status enum, up/down reorder) and checklists (CRUD + done-toggle + per-item `visible_to_customer`). Customer reads phases on a new project detail page and sees relevant events in their activity feed and digest.
 
-**Architecture:** Two new domain modules (`domain/phases/`, `domain/phase-checklists/`) with raw-SQL repos and transactional services. Admin extends `views/admin/projects/detail.ejs` plus two new admin route files. Customer gets a brand-new `views/customer/projects/show.ejs` plus a route. Audit rows are written with `visible_to_customer` baked at write time (per Decision 8); the activity feed and digest both honor it automatically without any change to `lib/activity-feed.js`. Digest event taxonomy extends `lib/digest-strings.js` and adds `phase_checklist.toggled` to `COALESCING_EVENTS` in `lib/digest.js`. Migration `0013_phases_and_checklists.sql`.
+**Architecture:** Two new domain modules (`domain/phases/`, `domain/phase-checklists/`) with raw-SQL repos and transactional services. Admin extends `views/admin/projects/detail.ejs` plus two new admin route files. Customer gets a brand-new `views/customer/projects/show.ejs` plus a route. Audit rows are written with `visible_to_customer` baked at write time (per Decision 8); the activity feed and digest both honor it automatically. Digest event taxonomy extends `lib/digest-strings.js` and adds `phase_checklist.toggled` to `COALESCING_EVENTS` in `lib/digest.js`. Migration `0013_phases_and_checklists.sql`. **One small change to `lib/activity-feed.js` is required**: extend `SAFE_METADATA_KEYS` to allow `phaseId`, `itemId`, `phaseLabel`, `itemLabel`, `from`, `to`, `done`, `oldLabel`, `newLabel`, `wasVisible`, `parentStatusAtDelete`, `statusAtDelete`, `swappedWith` — without that the customer activity feed strips these fields from phase/checklist audit metadata (Codex review BLOCK #6).
 
 **Tech Stack:** Node 20.19, Postgres (raw SQL templates `sql\`…\`.execute(db)` for repo queries; Kysely `db.insertInto(...)` for `writeAudit` per existing convention), Fastify, EJS, vitest. UUIDv7 PKs (`import { v7 as uuidv7 } from 'uuid'`). CSP-strict views (no inline JS).
 
@@ -22,6 +22,93 @@
 ---
 
 ## Phase A — Foundation (migration + repos + services)
+
+### Task A0: Extend `lib/activity-feed.js` SAFE_METADATA_KEYS allow-list
+
+**Files:**
+- Modify: `lib/activity-feed.js`
+
+The customer activity feed strips audit metadata through an allow-list (`SAFE_METADATA_KEYS` at lines 11–39). Without adding the new phase/checklist metadata keys, the customer-side feed would silently drop `phaseLabel`, `itemLabel`, `from`, `to`, etc., and the F1 end-to-end test assertions on `metadata.from`, `metadata.to`, and `metadata.itemLabel` would all be `undefined`. Add them up-front so every later task can rely on the field.
+
+- [ ] **A0.1 — Append the new keys.**
+
+In `lib/activity-feed.js`, extend the `SAFE_METADATA_KEYS` Set:
+
+```javascript
+const SAFE_METADATA_KEYS = new Set([
+  'customerId',
+  'provider',
+  'label',
+  'previousLabel',
+  'payloadChanged',
+  'createdBy',
+  'requestId',
+  'credentialId',
+  'fieldCount',
+  'reason',
+  // M9 additions — name + email + 2FA + sessions + projects + ndas/docs.
+  'previousName',
+  'newName',
+  'oldEmail',
+  'newEmail',
+  'restoredEmail',
+  'undoneEmail',
+  'proof',
+  'previousStatus',
+  'newStatus',
+  'projectId',
+  'ndaId',
+  'documentId',
+  'revokedCount',
+  // Post-Phase-G additions — phases + checklists feature.
+  'phaseId',
+  'itemId',
+  'phaseLabel',
+  'itemLabel',
+  'oldLabel',
+  'newLabel',
+  'from',
+  'to',
+  'done',
+  'wasVisible',
+  'parentStatusAtDelete',
+  'statusAtDelete',
+  'swappedWith',
+]);
+```
+
+- [ ] **A0.2 — Restart and run full suite.**
+
+```bash
+sudo systemctl restart portal.service
+sudo bash /opt/dbstudio_portal/scripts/run-tests.sh
+```
+
+Expected: still green. The allow-list extension is additive — no existing test reads any of these keys, so nothing breaks.
+
+- [ ] **A0.3 — Commit.**
+
+```bash
+cd /opt/dbstudio_portal
+git add lib/activity-feed.js
+git commit -m "$(cat <<'EOF'
+feat(activity-feed): extend SAFE_METADATA_KEYS for phases + checklists
+
+Allow phase/checklist metadata fields (phaseId, itemId, phaseLabel,
+itemLabel, from, to, done, oldLabel, newLabel, statusAtDelete,
+parentStatusAtDelete, wasVisible, swappedWith) through the customer
+activity-feed allow-list. Without this, the customer slice drops
+these fields and the customer-facing render of phase/checklist
+events shows only the action name.
+
+Plan: docs/superpowers/plans/2026-05-03-phases-checklists-implementation.md
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
 
 ### Task A1: Migration `0013_phases_and_checklists.sql`
 
@@ -182,12 +269,17 @@ export function makeTag() {
   return `phasestest_${randomBytes(4).toString('hex')}`;
 }
 
+// customers.create + admins.create both require ctx.kek (32-byte Buffer)
+// and ctx.portalBaseUrl (string). Without these the service throws at
+// the top of create() — see domain/customers/service.js:53-58.
 export function baseCtx(tag) {
   return {
     actorType: 'system',
     audit: { tag, reason: 'test' },
     ip: '127.0.0.1',
     userAgentHash: 'test',
+    kek: randomBytes(32),
+    portalBaseUrl: 'https://portal.test',
   };
 }
 
@@ -195,7 +287,7 @@ export async function makeAdmin(db, tag, suffix = 'a') {
   const created = await adminsService.create(db, {
     email: `${tag}+${suffix}-admin@example.com`,
     name: `Admin ${suffix}`,
-  }, { actorType: 'system', audit: { tag } });
+  }, baseCtx(tag));
   return created.id;
 }
 
@@ -225,7 +317,7 @@ export async function cleanupByTag(db, tag) {
 }
 ```
 
-(If `domain/customers/service.js` exposes a different create-helper signature, mirror what `tests/integration/credentials/auto-lock.test.js` does. The signature shown above matches the auto-lock test's `makeCustomerAndCred` helper — adapt if reality differs.)
+(`adminsService.create` may have a different signature — verify against the actual file. The customer-side ctx requirements are confirmed in `domain/customers/service.js:53-58`.)
 
 - [ ] **A2.2 — Write failing tests for the repo.**
 
@@ -686,6 +778,7 @@ import { sql } from 'kysely';
 import { writeAudit } from '../../lib/audit.js';
 import { recordForDigest } from '../../lib/digest.js';
 import { titleFor } from '../../lib/digest-strings.js';
+import { listActiveAdmins, listActiveCustomerUsers } from '../../lib/digest-fanout.js';
 import * as repo from './repo.js';
 
 const VALID_STATUSES = new Set(['not_started', 'in_progress', 'blocked', 'done']);
@@ -712,25 +805,9 @@ function baseAuditMetadata(ctx) {
   return ctx?.audit ?? {};
 }
 
-async function listActiveAdmins(db) {
-  const r = await sql`
-    SELECT id, language FROM admins
-     WHERE deactivated_at IS NULL
-  `.execute(db);
-  return r.rows.map(row => ({ id: row.id, locale: row.language || 'en' }));
-}
-
 async function findCustomerName(db, customerId) {
   const r = await sql`SELECT razon_social FROM customers WHERE id = ${customerId}::uuid`.execute(db);
   return r.rows[0]?.razon_social ?? null;
-}
-
-async function findCustomerUsersForCustomer(db, customerId) {
-  const r = await sql`
-    SELECT id, language FROM customer_users
-     WHERE customer_id = ${customerId}::uuid AND deactivated_at IS NULL
-  `.execute(db);
-  return r.rows.map(row => ({ id: row.id, locale: row.language || 'en' }));
 }
 
 async function fanOut(tx, {
@@ -745,6 +822,10 @@ async function fanOut(tx, {
   linkCustomer,
   bucket = 'fyi',
 }) {
+  // listActiveAdmins / listActiveCustomerUsers come from lib/digest-fanout.js
+  // and return { id, name, email, locale }. Admin-side has no status column
+  // (every admin is "active"); customer_users active-ness is gated on
+  // parent customers.status = 'active' — both implemented in that module.
   const admins = await listActiveAdmins(tx);
   for (const a of admins) {
     await recordForDigest(tx, {
@@ -761,10 +842,13 @@ async function fanOut(tx, {
     });
   }
   if (!visibleToCustomer) return;
-  const users = await findCustomerUsersForCustomer(tx, customerId);
+  const users = await listActiveCustomerUsers(tx, customerId);
   for (const u of users) {
     await recordForDigest(tx, {
-      recipientType: 'customer',
+      // The pending_digest_items / digest_schedules CHECK constraint
+      // restricts recipient_type to 'customer_user' or 'admin' (see
+      // migrations/0010_digest_and_payments.sql). DO NOT use 'customer'.
+      recipientType: 'customer_user',
       recipientId: u.id,
       customerId,
       bucket,
@@ -887,7 +971,8 @@ export async function reorder(db, { phaseId, customerId }, { direction }, ctx, {
       ip: ctx?.ip ?? null, userAgentHash: ctx?.userAgentHash ?? null,
     });
 
-    // Admin-only fan-out (no customer leg)
+    // Admin-only fan-out (no customer leg) — phase.reordered is admin-only
+    // per spec Decision 7.
     const admins = await listActiveAdmins(tx);
     const customerName = await findCustomerName(tx, customerId);
     for (const a of admins) {
@@ -1005,7 +1090,7 @@ export async function deletePhaseService(db, { phaseId, customerId }, ctx, { adm
 export { deletePhaseService as delete };
 ```
 
-> Note: the local helpers `listActiveAdmins`, `findCustomerName`, `findCustomerUsersForCustomer` duplicate logic that may already exist in `domain/admins/repo.js` / `domain/customers/repo.js`. If the engineer finds an existing helper with the same shape, replace the inline `sql\`…\`` with the call. The Codex review (A3.6) will surface the better choice.
+> Note: `listActiveAdmins` and `listActiveCustomerUsers` come from `lib/digest-fanout.js` (Phase B helper). Do **not** inline equivalents that query non-existent columns like `admins.deactivated_at`. `findCustomerName` is a tiny one-row SELECT used inside the service — fine to keep inline; if a `domain/customers/repo.js` export with the same shape exists, swap to the import in the Codex pass.
 
 - [ ] **A3.4 — Run tests, expect PASS.**
 
@@ -1096,9 +1181,10 @@ Capture: how `requireAdminSession` is awaited, where flash messages live (`req.s
 Create `routes/admin/project-phases.js`:
 
 ```javascript
-import { requireAdminSession } from '../../lib/auth/admin-session.js';
+import { requireAdminSession } from '../../lib/auth/middleware.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { findProjectById } from '../../domain/projects/repo.js';
+import { findPhaseById } from '../../domain/phases/repo.js';
 import * as phasesService from '../../domain/phases/service.js';
 
 const UUID_RE = /^[0-9a-f-]{36}$/i;
@@ -1146,6 +1232,20 @@ async function loadGuards(app, req, reply) {
   return { session, customer, project, adminId: session.user_id };
 }
 
+// Variant for routes with :phaseId — also resolves the phase row and 404s
+// if it doesn't belong to the URL's project. Defense-in-depth against
+// admin URL-tampering. Bake this into the very first ship; do NOT defer
+// to a later retrofit (Codex review BLOCK #4).
+async function loadGuardsWithPhase(app, req, reply) {
+  const base = await loadGuards(app, req, reply);
+  if (!base) return null;
+  const phaseId = req.params?.phaseId;
+  if (!UUID_RE.test(phaseId)) { notFound(req, reply); return null; }
+  const phase = await findPhaseById(app.db, phaseId);
+  if (!phase || phase.project_id !== base.project.id) { notFound(req, reply); return null; }
+  return { ...base, phase };
+}
+
 export function registerAdminProjectPhasesRoutes(app) {
   app.post('/admin/customers/:customerId/projects/:projectId/phases', { preHandler: app.csrfProtection }, async (req, reply) => {
     const guards = await loadGuards(app, req, reply);
@@ -1160,13 +1260,11 @@ export function registerAdminProjectPhasesRoutes(app) {
   });
 
   app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/rename', { preHandler: app.csrfProtection }, async (req, reply) => {
-    const guards = await loadGuards(app, req, reply);
+    const guards = await loadGuardsWithPhase(app, req, reply);
     if (!guards) return;
-    const phaseId = req.params.phaseId;
-    if (!UUID_RE.test(phaseId)) return notFound(req, reply);
     const label = (req.body?.label || '').toString();
     try {
-      await phasesService.rename(app.db, { phaseId, customerId: guards.customer.id }, { label }, ctxFromReq(req, guards.session), { adminId: guards.adminId });
+      await phasesService.rename(app.db, { phaseId: guards.phase.id, customerId: guards.customer.id }, { label }, ctxFromReq(req, guards.session), { adminId: guards.adminId });
     } catch (err) {
       return back(reply, guards.customer.id, guards.project.id, flashFromError(err));
     }
@@ -1174,13 +1272,11 @@ export function registerAdminProjectPhasesRoutes(app) {
   });
 
   app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/status', { preHandler: app.csrfProtection }, async (req, reply) => {
-    const guards = await loadGuards(app, req, reply);
+    const guards = await loadGuardsWithPhase(app, req, reply);
     if (!guards) return;
-    const phaseId = req.params.phaseId;
-    if (!UUID_RE.test(phaseId)) return notFound(req, reply);
     const newStatus = (req.body?.status || '').toString();
     try {
-      await phasesService.changeStatus(app.db, { phaseId, customerId: guards.customer.id }, { newStatus }, ctxFromReq(req, guards.session), { adminId: guards.adminId });
+      await phasesService.changeStatus(app.db, { phaseId: guards.phase.id, customerId: guards.customer.id }, { newStatus }, ctxFromReq(req, guards.session), { adminId: guards.adminId });
     } catch (err) {
       return back(reply, guards.customer.id, guards.project.id, flashFromError(err));
     }
@@ -1188,13 +1284,11 @@ export function registerAdminProjectPhasesRoutes(app) {
   });
 
   app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/reorder', { preHandler: app.csrfProtection }, async (req, reply) => {
-    const guards = await loadGuards(app, req, reply);
+    const guards = await loadGuardsWithPhase(app, req, reply);
     if (!guards) return;
-    const phaseId = req.params.phaseId;
-    if (!UUID_RE.test(phaseId)) return notFound(req, reply);
     const direction = (req.body?.direction || '').toString();
     try {
-      await phasesService.reorder(app.db, { phaseId, customerId: guards.customer.id }, { direction }, ctxFromReq(req, guards.session), { adminId: guards.adminId });
+      await phasesService.reorder(app.db, { phaseId: guards.phase.id, customerId: guards.customer.id }, { direction }, ctxFromReq(req, guards.session), { adminId: guards.adminId });
     } catch (err) {
       return back(reply, guards.customer.id, guards.project.id, flashFromError(err));
     }
@@ -1202,12 +1296,10 @@ export function registerAdminProjectPhasesRoutes(app) {
   });
 
   app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/delete', { preHandler: app.csrfProtection }, async (req, reply) => {
-    const guards = await loadGuards(app, req, reply);
+    const guards = await loadGuardsWithPhase(app, req, reply);
     if (!guards) return;
-    const phaseId = req.params.phaseId;
-    if (!UUID_RE.test(phaseId)) return notFound(req, reply);
     try {
-      await phasesService.delete(app.db, { phaseId, customerId: guards.customer.id }, ctxFromReq(req, guards.session), { adminId: guards.adminId });
+      await phasesService.delete(app.db, { phaseId: guards.phase.id, customerId: guards.customer.id }, ctxFromReq(req, guards.session), { adminId: guards.adminId });
     } catch (err) {
       return back(reply, guards.customer.id, guards.project.id, flashFromError(err));
     }
@@ -1847,6 +1939,7 @@ import { sql } from 'kysely';
 import { writeAudit } from '../../lib/audit.js';
 import { recordForDigest } from '../../lib/digest.js';
 import { titleFor } from '../../lib/digest-strings.js';
+import { listActiveAdmins, listActiveCustomerUsers } from '../../lib/digest-fanout.js';
 import * as repo from './repo.js';
 import * as phasesRepo from '../phases/repo.js';
 import { phaseVisible } from '../phases/service.js';
@@ -1862,22 +1955,9 @@ export class PhaseGoneError extends Error {
 
 function baseAuditMetadata(ctx) { return ctx?.audit ?? {}; }
 
-async function listActiveAdmins(db) {
-  const r = await sql`SELECT id, language FROM admins WHERE deactivated_at IS NULL`.execute(db);
-  return r.rows.map(row => ({ id: row.id, locale: row.language || 'en' }));
-}
-
 async function findCustomerName(db, customerId) {
   const r = await sql`SELECT razon_social FROM customers WHERE id = ${customerId}::uuid`.execute(db);
   return r.rows[0]?.razon_social ?? null;
-}
-
-async function findCustomerUsersForCustomer(db, customerId) {
-  const r = await sql`
-    SELECT id, language FROM customer_users
-     WHERE customer_id = ${customerId}::uuid AND deactivated_at IS NULL
-  `.execute(db);
-  return r.rows.map(row => ({ id: row.id, locale: row.language || 'en' }));
 }
 
 function audibleVisible(itemVisible, parentStatus) {
@@ -1905,10 +1985,11 @@ async function fanOut(tx, {
     });
   }
   if (!visibleToCustomer) return;
-  const users = await findCustomerUsersForCustomer(tx, customerId);
+  const users = await listActiveCustomerUsers(tx, customerId);
   for (const u of users) {
     await recordForDigest(tx, {
-      recipientType: 'customer',
+      // 'customer_user' — see CHECK constraint in 0010 migration.
+      recipientType: 'customer_user',
       recipientId: u.id,
       customerId,
       bucket,
@@ -2025,7 +2106,8 @@ export async function setVisibility(db, { itemId, customerId }, { visibleToCusto
       ip: ctx?.ip ?? null, userAgentHash: ctx?.userAgentHash ?? null,
     });
 
-    // Admin-only fan-out (no customer leg)
+    // Admin-only fan-out (no customer leg) — visibility flips are admin-only
+    // per spec Decision 7.
     const admins = await listActiveAdmins(tx);
     const customerName = await findCustomerName(tx, customerId);
     for (const a of admins) {
@@ -2166,10 +2248,11 @@ All paths share the prefix `/admin/customers/:customerId/projects/:projectId/pha
 Create `routes/admin/phase-checklist-items.js`:
 
 ```javascript
-import { requireAdminSession } from '../../lib/auth/admin-session.js';
+import { requireAdminSession } from '../../lib/auth/middleware.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { findProjectById } from '../../domain/projects/repo.js';
 import { findPhaseById } from '../../domain/phases/repo.js';
+import { findItemById } from '../../domain/phase-checklists/repo.js';
 import * as checklistService from '../../domain/phase-checklists/service.js';
 
 const UUID_RE = /^[0-9a-f-]{36}$/i;
@@ -2218,7 +2301,9 @@ async function loadItemGuards(app, req, reply) {
   if (!base) return null;
   const itemId = req.params?.itemId;
   if (!UUID_RE.test(itemId)) { notFound(req, reply); return null; }
-  return { ...base, itemId };
+  const item = await findItemById(app.db, itemId);
+  if (!item || item.phase_id !== base.phase.id) { notFound(req, reply); return null; }
+  return { ...base, itemId, item };
 }
 
 export function registerAdminPhaseChecklistItemsRoutes(app) {
@@ -2347,37 +2432,23 @@ sudo systemctl restart portal.service
 sudo bash /opt/dbstudio_portal/scripts/smoke.sh
 ```
 
-- [ ] **C3.4 — Retrofit the phase-routes cross-project check** (the small follow-up flagged above). In `routes/admin/project-phases.js`, modify `loadGuards` to also resolve the phase row when `req.params.phaseId` is present and assert `phase.project_id === projectId`. The simplest shape: split `loadGuards` (project-only, used by the "create phase" route) and `loadGuardsWithPhase` (used by all other routes that have `:phaseId` in the URL).
+- [ ] **C3.4 — Commit.**
 
-```javascript
-import { findPhaseById } from '../../domain/phases/repo.js';
-
-async function loadGuardsWithPhase(app, req, reply) {
-  const base = await loadGuards(app, req, reply);
-  if (!base) return null;
-  const phaseId = req.params?.phaseId;
-  if (!UUID_RE.test(phaseId)) { notFound(req, reply); return null; }
-  const phase = await findPhaseById(app.db, phaseId);
-  if (!phase || phase.project_id !== base.project.id) { notFound(req, reply); return null; }
-  return { ...base, phase };
-}
-```
-
-Then change every route handler that takes `:phaseId` to call `loadGuardsWithPhase` instead of `loadGuards`.
-
-- [ ] **C3.5 — Commit.**
+The cross-project ownership check on phase routes is already baked into B1's `loadGuardsWithPhase` (no retrofit needed). The item routes here use their own `loadItemGuards` which loads the item and asserts `item.phase_id === phaseId`.
 
 ```bash
 cd /opt/dbstudio_portal
-git add routes/admin/phase-checklist-items.js routes/admin/project-phases.js server.js
+git add routes/admin/phase-checklist-items.js server.js
 git commit -m "$(cat <<'EOF'
-feat(phases): admin POST routes for checklist items + cross-project guards
+feat(phases): admin POST routes for checklist items
 
 Five POST endpoints (create / rename / visibility / toggle / delete)
-under .../phases/:phaseId/items, plus a cross-project ownership check
-on the phase routes from Task B1 — every :phaseId route now resolves
-the phase row up-front and 404s if its project_id doesn't match the
-URL's projectId. Defense-in-depth against admin URL-tampering.
+under .../phases/:phaseId/items, gated on requireAdminSession +
+app.csrfProtection. loadItemGuards resolves both the parent phase
+(via loadPhaseGuards) and the item itself, asserting
+project.customer_id === customerId, phase.project_id === projectId,
+and item.phase_id === phaseId. Defense-in-depth against admin
+URL-tampering.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -3053,7 +3124,7 @@ import { createDb } from '../../../config/db.js';
 import { loadEnv } from '../../../config/env.js';
 import * as phasesService from '../../../domain/phases/service.js';
 import * as checklistService from '../../../domain/phase-checklists/service.js';
-import { listVisibleActivityForCustomer } from '../../../lib/activity-feed.js';
+import { listActivityForCustomer } from '../../../lib/activity-feed.js';
 import { makeTag, makeAdmin, makeCustomerAndProject, baseCtx, cleanupByTag } from './_helpers.js';
 
 const skip = process.env.RUN_DB_TESTS !== '1';
@@ -3091,7 +3162,7 @@ describe.skipIf(skip)('phases + checklists end-to-end', () => {
       { ...baseCtx(tag), actorType: 'admin' }, { adminId });
 
     // Customer activity feed: nothing yet.
-    let feed = await listVisibleActivityForCustomer(db, customerId, { limit: 50 });
+    let feed = await listActivityForCustomer(db, customerId, { limit: 50 });
     expect(feed.filter(r => r.action.startsWith('phase'))).toHaveLength(0);
 
     // 3. Admin opens the phase.
@@ -3099,7 +3170,7 @@ describe.skipIf(skip)('phases + checklists end-to-end', () => {
       { newStatus: 'in_progress' }, { ...baseCtx(tag), actorType: 'admin' }, { adminId });
 
     // Customer NOW sees: phase.status_changed (to in_progress).
-    feed = await listVisibleActivityForCustomer(db, customerId, { limit: 50 });
+    feed = await listActivityForCustomer(db, customerId, { limit: 50 });
     const statusChanges = feed.filter(r => r.action === 'phase.status_changed');
     expect(statusChanges).toHaveLength(1);
     expect(statusChanges[0].metadata.to).toBe('in_progress');
@@ -3111,7 +3182,7 @@ describe.skipIf(skip)('phases + checklists end-to-end', () => {
     await checklistService.toggleDone(db, { itemId: i2.itemId, customerId }, { done: true },
       { ...baseCtx(tag), actorType: 'admin' }, { adminId });
 
-    feed = await listVisibleActivityForCustomer(db, customerId, { limit: 50 });
+    feed = await listActivityForCustomer(db, customerId, { limit: 50 });
     const toggles = feed.filter(r => r.action === 'phase_checklist.toggled');
     expect(toggles).toHaveLength(1);
     expect(toggles[0].metadata.itemLabel).toBe('Spec the schema');
@@ -3120,7 +3191,7 @@ describe.skipIf(skip)('phases + checklists end-to-end', () => {
     await phasesService.changeStatus(db, { phaseId: p1.phaseId, customerId },
       { newStatus: 'done' }, { ...baseCtx(tag), actorType: 'admin' }, { adminId });
 
-    feed = await listVisibleActivityForCustomer(db, customerId, { limit: 50 });
+    feed = await listActivityForCustomer(db, customerId, { limit: 50 });
     const finalStatusChange = feed.filter(r => r.action === 'phase.status_changed').pop();
     expect(finalStatusChange.metadata.to).toBe('done');
 
@@ -3129,7 +3200,7 @@ describe.skipIf(skip)('phases + checklists end-to-end', () => {
       { newStatus: 'in_progress' }, { ...baseCtx(tag), actorType: 'admin' }, { adminId });
 
     // The customer DOES see this (still phaseVisible). Different from a → not_started revert.
-    feed = await listVisibleActivityForCustomer(db, customerId, { limit: 50 });
+    feed = await listActivityForCustomer(db, customerId, { limit: 50 });
     const reopened = feed.filter(r => r.action === 'phase.status_changed' && r.metadata.from === 'done').pop();
     expect(reopened).toBeTruthy();
     expect(reopened.metadata.to).toBe('in_progress');
@@ -3137,14 +3208,14 @@ describe.skipIf(skip)('phases + checklists end-to-end', () => {
     // 7. Admin reverts all the way to not_started — customer must NOT see it.
     await phasesService.changeStatus(db, { phaseId: p1.phaseId, customerId },
       { newStatus: 'not_started' }, { ...baseCtx(tag), actorType: 'admin' }, { adminId });
-    feed = await listVisibleActivityForCustomer(db, customerId, { limit: 50 });
+    feed = await listActivityForCustomer(db, customerId, { limit: 50 });
     const toNotStarted = feed.filter(r => r.action === 'phase.status_changed' && r.metadata.to === 'not_started');
     expect(toNotStarted).toHaveLength(0); // admin-only audit
   });
 });
 ```
 
-> The function `listVisibleActivityForCustomer` must exist in `lib/activity-feed.js` (the operator's references confirm `lib/activity-feed.js:100`). If the actual exported name differs, the engineer must use the real export — read the file's exports near the top and match.
+> Verified export: `listActivityForCustomer(db, customerId, opts)` in `lib/activity-feed.js:76` (Codex review).
 
 - [ ] **F1.2 — Run, expect PASS.**
 
@@ -3242,8 +3313,10 @@ Per `~/.claude/CLAUDE.md`, do NOT `git push` without an explicit operator instru
 - [ ] All service mutations are inside `db.transaction()`.
 - [ ] `recordForDigest` is called for both admins and customers per the visibility rule.
 - [ ] Cross-project / cross-customer integrity guards in place: every admin route with `:phaseId` resolves the phase and 404s if `phase.project_id !== projectId`; every admin route with `:itemId` resolves the item and 404s if `item.phase_id !== phaseId`.
-- [ ] `lib/activity-feed.js` export name verified — the F1 end-to-end test calls `listVisibleActivityForCustomer`; if the actual export name differs (the spec referenced lines 84-110 but didn't tell us the exported function name), update the import to match what `lib/activity-feed.js` actually exports.
+- [ ] Verified imports / exports (Codex review pass): `requireAdminSession` from `lib/auth/middleware.js`; `listActivityForCustomer` from `lib/activity-feed.js`; `listActiveAdmins` + `listActiveCustomerUsers` from `lib/digest-fanout.js`; `recipientType` is `'customer_user'` (not `'customer'`) per the CHECK constraint in migration 0010.
 - [ ] `findCustomerById` / `findProjectById` exports verified — if they don't exist in their domain repos, the routes use inline `sql\`SELECT…\`` lookups instead.
+- [ ] `lib/activity-feed.js` `SAFE_METADATA_KEYS` extended (Task A0) so phase/checklist metadata reaches the customer slice. Without this the F1 end-to-end test assertions on `metadata.from`, `metadata.to`, `metadata.itemLabel` will see `undefined`.
+- [ ] Test helper `baseCtx(tag)` includes `kek: randomBytes(32)` and `portalBaseUrl: 'https://portal.test'` — `domain/customers/service.js` aborts at line 53 without these.
 
 If any check fails, fix it before declaring the feature done.
 
