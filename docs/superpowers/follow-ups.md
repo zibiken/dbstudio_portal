@@ -177,23 +177,12 @@ violations of impact ≥ 'serious'. CI gate.
 
 ---
 
-## Vault view-with-decrypt (M9.X partial)
+## ~~Vault view-with-decrypt (M9.X partial)~~ — SHIPPED in Phase F + Bundle 4
 
-The customer vault landed list / create / delete only. Viewing the
-decrypted payload requires a customer-side vault-unlock flow:
-1. GET `/customer/credentials/:id` — if `isVaultUnlocked(sid)` false,
-   render a re-2FA prompt; on success call `vault-lock.unlockVault(sid)`
-   then render the credential.
-2. The `view` domain method (currently admin-only) must gain a
-   customer-actor branch that writes a `credential.viewed` audit with
-   `actor_type='customer'` (the existing audit assumes admin).
-3. Same for edit — `updateByCustomer` exists but the route + form do
-   not.
-
-Scope: roughly half a day. Not blocking go-live because the M7
-credential-request workflow already lets admins fulfil credentials
-on behalf of customers; the customer-vault is operator-side
-forensic-trail material in v1.
+> **Status: SHIPPED 2026-05-03.** All three sub-items closed:
+> 1. Customer reveal flow — `routes/customer/credentials.js:308-321` redirects to `/customer/step-up` when locked, calls `viewByCustomer` once unlocked.
+> 2. Customer-actor `view` branch — `viewByCustomer` writes `credential.viewed` audit with `actor_type='customer'` and admin-only fan-out (Phase F commit `a2f1c1c`).
+> 3. Customer credential edit — `routes/customer/credentials.js:161-188` (GET/POST `/customer/credentials/:id/edit`) + `views/customer/credentials/edit.ejs` (Bundle 4 2026-05-03).
 
 ---
 
@@ -213,11 +202,19 @@ side using `isStepped` / `stepUp`.
 
 ## M8 review-deferred minors that did not land in M9
 
-- M3 — defence-in-depth `customerId` arg on `cancelByAdmin` /
-  `markNeedsUpdate`. Today the routes assert via `findCredentialRequestById`
+- **M3 — defence-in-depth `customerId` arg on `cancelByAdmin` /
+  `markNeedsUpdate`.** Today the routes assert via `findCredentialRequestById`
   + `customer_id` check; the service methods themselves trust the route.
-- M6 — `routes/admin/credential-requests` renders `err.message` verbatim
-  on validation errors. Should map to a controlled error vocabulary.
+  **STILL OPEN.** Verified 2026-05-03: `domain/credential-requests/service.js:355`
+  (`cancelByAdmin`) takes `{ adminId, requestId }` only, and
+  `domain/credentials/service.js:715` (`markNeedsUpdate`) takes
+  `{ adminId, credentialId }` only.
+- ~~M6 — `routes/admin/credential-requests` renders `err.message` verbatim
+  on validation errors. Should map to a controlled error vocabulary.~~
+  **SHIPPED 2026-05-03 in Bundle 5.** `routes/admin/credential-requests.js:181`
+  cancel handler now maps `CREDENTIAL_REQUEST_NOT_FOUND` /
+  `CREDENTIAL_REQUEST_NOT_OPEN` / `CROSS_CUSTOMER` to controlled copy with
+  a generic fallback for unknown codes.
 
 ---
 
@@ -448,39 +445,13 @@ Lockout clears immediately. (30-minute natural decay also works.)
 
 
 
-`/auth/password-reset` (and the equivalent admin path) returns the
-same success page whether the entered email exists in the system or
-not, by design — this prevents account-enumeration probes. Real-world
-cost: 2026-05-01 the operator typed `info@brainzr.com` instead of
-`info@brainzr.eu`, got a "we sent you a link" page, and waited for a
-mail that was never going to arrive. No error surfaced.
+## ~~Password-reset enumeration UX (Phase E trade-off)~~ — SHIPPED
 
-**Trade-off space** (decide during Phase E brainstorm — bundle with
-the digest copy/layout rework since both are email-UX):
-- (a) Keep current behavior, but soften the wording: "If your address
-  is registered, we've sent a link" (RFC 7613 / OWASP-cheatsheet style).
-  Communicates the conditional without leaking which side is true.
-- (b) On submit, show a confirm-the-domain-spelling step in the form
-  ("Did you mean `…@dbstudio.one`?") for known-typo TLDs. Suggestion
-  layer only; no enumeration.
-- (c) Out-of-band: when a customer's actual address has been recently
-  used and a typo'd variant is submitted (e.g. `.com` for `.eu`), send
-  a one-line note to the actual address: "we received a reset request
-  with a typo'd version of your address; if it was you, try again."
-  Adds attack surface — defer.
-- (d) Per-account rate-limit on reset submissions across address
-  variants (Levenshtein-1) — reduces enumeration value without
-  changing UX.
-
-(a) is the cheap/safe baseline; (b) is the high-value low-risk add;
-(c) only worth it if the operator wants to. (d) is an orthogonal
-hardening regardless.
-
-Scope: half a day for (a)+(b). Lives well in Phase E because the same
-spec touches password-reset email copy + the digest copy/layout rework
-+ the bounce-handling story (MailerSend soft-bounces from Phase D's
-fixture pollution incident raise the same question of "what does the
-operator/customer see when a mail can't reach the inbox").
+> **Status: SHIPPED.** Option (a) and the inline-typo hint from option (b) are live in `views/public/reset-sent.ejs:4`:
+>
+> > *"If your address is registered with us, we've sent a reset link. Single-use, expires in 7 days. If nothing arrives within a few minutes, double-check the address you entered (typos are common — e.g. .com vs .eu) or check your spam folder."*
+>
+> Options (c) (out-of-band typo notification) and (d) (Levenshtein-1 rate-limit) remain explicitly deferred — operator-decision items, not blockers.
 
 ---
 
