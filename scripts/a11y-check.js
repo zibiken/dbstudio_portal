@@ -330,4 +330,61 @@ for (const f of [...byFile.keys()].sort()) {
 process.stdout.write(
   `\n${offenders.length} a11y candidate offenders across ${byFile.size} files.\n`,
 );
+
+// Optional axe-core JSDOM mode (RUN_A11Y_AXE=1). Renders a small set of
+// public pages via app.inject(), parses the HTML through JSDOM, and runs
+// axe-core to surface impact >= 'serious' violations. Advisory by
+// default; only fails the script if RUN_A11Y_AXE_BLOCKING=1. v1.1 work
+// extends the route list to cover authenticated views (a fixture login
+// flow needs to land alongside that).
+if (process.env.RUN_A11Y_AXE === '1') {
+  const { build } = await import('../server.js');
+  const { JSDOM } = await import('jsdom');
+  const axe = (await import('axe-core')).default ?? (await import('axe-core'));
+
+  const ROUTES = ['/login', '/reset'];
+  const app = await build({ skipSafetyCheck: true });
+  const violations = [];
+
+  for (const url of ROUTES) {
+    const res = await app.inject({ method: 'GET', url });
+    if (res.statusCode !== 200 || !/text\/html/.test(res.headers['content-type'] ?? '')) {
+      process.stdout.write(`axe: skipping ${url} (status ${res.statusCode})\n`);
+      continue;
+    }
+    const dom = new JSDOM(res.body, {
+      url: 'http://localhost/',
+      runScripts: 'outside-only',
+      pretendToBeVisual: true,
+    });
+    // axe-core ships a self-registering bundle that exposes `axe` on the
+    // global. JSDOM's `runScripts: 'outside-only'` lets us eval directly.
+    dom.window.eval(axe.source);
+    if (!dom.window.axe) {
+      process.stdout.write(`axe: failed to attach axe to ${url}\n`);
+      continue;
+    }
+    const result = await dom.window.axe.run(dom.window.document, {
+      resultTypes: ['violations'],
+    });
+    for (const v of result.violations) {
+      if (v.impact !== 'serious' && v.impact !== 'critical') continue;
+      violations.push({ url, id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.length });
+    }
+  }
+  await app.close();
+
+  if (violations.length === 0) {
+    process.stdout.write('axe: no serious/critical violations on scaffolded routes\n');
+  } else {
+    process.stdout.write(`\naxe: ${violations.length} serious/critical violations:\n`);
+    for (const v of violations) {
+      process.stdout.write(`  [${v.impact}] ${v.url}  ${v.id} (${v.nodes} node${v.nodes === 1 ? '' : 's'}) — ${v.help}\n`);
+    }
+    if (process.env.RUN_A11Y_AXE_BLOCKING === '1') {
+      process.exit(1);
+    }
+  }
+}
+
 process.exit(0);

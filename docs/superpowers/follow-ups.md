@@ -99,7 +99,7 @@ Specific copy/format reworks the operator suggested:
 - ~~**Customer-side view-with-decrypt UI**~~ — SHIPPED in Phase F (commit `a2f1c1c`).
 - ~~**Customer-side credential edit**~~ — SHIPPED 2026-05-03 in Bundle 4. New routes `GET/POST /customer/credentials/:id/edit` invoke `updateByCustomer` for label + (optional) full-payload overwrite; empty payload rows leave the secret untouched. New `views/customer/credentials/edit.ejs`. Edit button on `views/customer/credentials/show.ejs`.
 - ~~**Admin credential-edit UI**~~ — SHIPPED 2026-05-03 in Bundle 4. New routes `GET/POST /admin/customers/:cid/credentials/:credId/edit` invoke `updateByAdmin`; the service's unconditional step-up gate fires on every call (label-only edits also gated). On `STEP_UP_REQUIRED` the route 302s to `/admin/step-up` with a return URL pointing back to the edit form. New `views/admin/credentials/edit.ejs`. 5 new HTTP tests in `tests/integration/credentials/edit-routes.test.js`.
-- **i18n localisation grind** (~620 strings) — see section below.
+- **i18n localisation grind** (~810 strings as of 2026-05-03) — see section below.
 - **Accessibility pass** (axe-core + skip-link + heading-order) — see section below.
 - M3 / M5 / M6 / M7 / M8 / M9 / M10 review-deferred items below.
 
@@ -107,9 +107,14 @@ Specific copy/format reworks the operator suggested:
 
 ## i18n localisation (spec §2.11 / plan Task 9.5)
 
-`scripts/i18n-audit.js` reports **620 candidate offenders across 79 files**
-as of the M9 → M10 checkpoint (every user-visible string in the EJS views
-+ route layer flowing through raw template literals instead of `t()`).
+`scripts/i18n-audit.js` reports **810 candidate offenders across 118 files**
+as of 2026-05-03 (up from 620/79 at M9 → M10 — the new files come from
+phases editor partials, the `_confirm-dialog` rollout, and credential-
+request views landed in Bundles 1–4). Every user-visible string in the
+EJS views + route layer flows through raw template literals instead of
+`t()`. The localisation grind remains v1.1 work per spec §2.11. The
+audit is wired into `scripts/run-tests.sh` as advisory; promote to
+blocking when the v1.1 i18n branch lands and gets the count to zero.
 
 **Status:** the audit script lands; the localisation grind does not.
 
@@ -120,7 +125,7 @@ as of the M9 → M10 checkpoint (every user-visible string in the EJS views
 - A full i18n pass requires (a) i18next + i18next-fs-backend wired
   through render.js with per-request language resolution from
   `customer_users.language` / `admins.language` (already in schema),
-  (b) one JSON namespace per route group, (c) ~620 hand-edits to
+  (b) one JSON namespace per route group, (c) ~810 hand-edits to
   replace literals with `t('key.path', { … })`, (d) tests for missing-key
   handling.
 - Scoped honestly, that is multi-day work. Doing it badly (sed replacing
@@ -175,6 +180,32 @@ tree, write `scripts/a11y-check.js` that loads each main view via
 `app.inject()` and runs axe on the rendered HTML in a jsdom, fix any
 violations of impact ≥ 'serious'. CI gate.
 
+### CI scaffolding landed 2026-05-03 (advisory only)
+
+`scripts/a11y-check.js` now has an opt-in axe-core JSDOM mode behind
+`RUN_A11Y_AXE=1`. It builds the app via `await build({ skipSafetyCheck:
+true })`, hits a small set of public routes (`/login`, `/reset`) via
+`app.inject()`, evals `axe-core` source into a JSDOM window, and reports
+any impact ≥ 'serious' violation. Advisory by default; set
+`RUN_A11Y_AXE_BLOCKING=1` to fail the script on violations.
+
+`axe-core` and `jsdom` are now in `devDependencies`. The harness is
+deliberately minimal — it doesn't yet drive the full set of authenticated
+views (admin customers list, customer dashboard, credentials, etc.)
+because each needs a fixture login flow. That's the v1.1 a11y branch's
+first task: extend the `ROUTES` array + add a fixture login helper.
+
+**Tracked baseline as of 2026-05-03 (RUN_A11Y_AXE=1, public routes
+only):** 0 serious/critical violations on `/login`, `/reset`. Note: the
+JSDOM environment lacks `canvas`, so axe-core skips the color-contrast
+rule. The static `scripts/a11y-check.js` checks (img alt, heading
+order, label association, etc.) continue to run alongside; they
+currently report 12 input-label offenders across 4 files (3 in
+`views/admin/credential-requests/new.ejs`, 1 in
+`views/components/_input.ejs`, 4 in `views/components/_phase-row.ejs`,
+4 in `views/customer/credential-requests/detail.ejs`) — these are the
+EJS-generated dynamic ids the static checker can't match.
+
 ---
 
 ## ~~Vault view-with-decrypt (M9.X partial)~~ — SHIPPED in Phase F + Bundle 4
@@ -202,13 +233,18 @@ side using `isStepped` / `stepUp`.
 
 ## M8 review-deferred minors that did not land in M9
 
-- **M3 — defence-in-depth `customerId` arg on `cancelByAdmin` /
-  `markNeedsUpdate`.** Today the routes assert via `findCredentialRequestById`
-  + `customer_id` check; the service methods themselves trust the route.
-  **STILL OPEN.** Verified 2026-05-03: `domain/credential-requests/service.js:355`
-  (`cancelByAdmin`) takes `{ adminId, requestId }` only, and
-  `domain/credentials/service.js:715` (`markNeedsUpdate`) takes
-  `{ adminId, credentialId }` only.
+- ~~**M3 — defence-in-depth `customerId` arg on `cancelByAdmin` /
+  `markNeedsUpdate`.**~~ **SHIPPED 2026-05-03 in follow-ups cleanup
+  bundle.** Both service methods now take `customerId` and throw
+  `CrossCustomerError` (code `CROSS_CUSTOMER`) when the target row's
+  `customer_id` doesn't match. Routes (`routes/admin/credential-
+  requests.js:177` cancel handler) pass the URL `:cid` through; the
+  existing safe-error map already handled `CROSS_CUSTOMER`. New
+  cross-customer rejection tests in
+  `tests/integration/credential-requests/workflow.test.js`
+  (`cancelByAdmin > rejects when customerId does not match`) and
+  `tests/integration/credentials/view.test.js`
+  (`markNeedsUpdate > rejects when customerId does not match`).
 - ~~M6 — `routes/admin/credential-requests` renders `err.message` verbatim
   on validation errors. Should map to a controlled error vocabulary.~~
   **SHIPPED 2026-05-03 in Bundle 5.** `routes/admin/credential-requests.js:181`
@@ -220,9 +256,17 @@ side using `isStepped` / `stepUp`.
 
 ## M7 review-deferred items
 
-- Tests for the HTTP layer of `routes/admin/credential-requests` and
-  `routes/customer/credential-requests` (today these are at ~7-9%
-  coverage; service-layer is the gate).
+- ~~Tests for the HTTP layer of `routes/admin/credential-requests` and
+  `routes/customer/credential-requests`.~~ **SHIPPED 2026-05-03 in
+  follow-ups cleanup bundle.** New
+  `tests/integration/credential-requests/admin-routes.test.js` (6 tests)
+  covers admin auth gate, CSRF rejection, malformed UUID 404, cross-
+  customer 404, happy-path 302 cancel, and `CREDENTIAL_REQUEST_NOT_OPEN`
+  → safe-copy mapping. New
+  `tests/integration/credential-requests/customer-routes.test.js`
+  (5 tests) covers customer auth gate, CSRF rejection, malformed UUID
+  404, cross-customer 404, and the fulfil happy-path. Mirrors
+  `tests/integration/phases/routes.test.js` shape.
 
 ---
 
