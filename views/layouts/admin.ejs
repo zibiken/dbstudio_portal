@@ -10,7 +10,7 @@
   <link rel="icon" type="image/png" href="/static/brand/favicon-32.png" sizes="32x32">
   <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
   <link rel="manifest" href="/static/brand/site.webmanifest">
-  <link rel="stylesheet" href="/static/styles/app.css" nonce="<%= nonce %>">
+  <link rel="stylesheet" href="/static/styles/app.css?v=<%= assetVersion %>" nonce="<%= nonce %>">
 </head>
 <body class="admin">
   <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -31,8 +31,8 @@
 
   <%- include('../components/_footer', { variant: 'light' }) %>
 
-  <script src="/static/js/dialog.js" nonce="<%= nonce %>"></script>
-  <script src="/static/js/sticky-chrome.js" nonce="<%= nonce %>"></script>
+  <script src="/static/js/dialog.js?v=<%= assetVersion %>" nonce="<%= nonce %>"></script>
+  <script src="/static/js/sticky-chrome.js?v=<%= assetVersion %>" nonce="<%= nonce %>"></script>
   <script nonce="<%= nonce %>">
     (function () {
       var ham = document.querySelector('.top-bar__hamburger');

@@ -66,6 +66,12 @@ const portalVersion = (() => {
     return '';
   }
 })();
+// Per-process startup token used for `?v=<token>` cache-busting on
+// /static/* assets. The package.json version is too coarse (rarely
+// bumped between deploys) and Cloudflare/browser caches happily serve
+// stale JS for hours after a restart. A startup timestamp guarantees
+// every restart invalidates browser-side caches at the URL layer.
+const assetVersion = String(Date.now());
 
 export async function build({
   skipSafetyCheck = false,
@@ -145,7 +151,7 @@ export async function build({
     engine: { ejs },
     root: path.join(__dirname, 'views'),
     propertyName: 'view',
-    defaultContext: { env: { PORTAL_BASE_URL: env.PORTAL_BASE_URL }, portalVersion },
+    defaultContext: { env: { PORTAL_BASE_URL: env.PORTAL_BASE_URL }, portalVersion, assetVersion },
     options: {
       filename: path.join(__dirname, 'views'),
       async: false
