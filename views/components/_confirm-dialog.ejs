@@ -1,0 +1,26 @@
+<%# Confirm dialog. Locals:
+   id, title, body, triggerLabel, confirmLabel,
+   formAction, formMethod (default 'post'), csrfToken,
+   triggerVariant (default 'danger'), triggerSize (default 'sm'). %>
+<%
+  var _v   = (typeof triggerVariant !== 'undefined') ? triggerVariant : 'danger';
+  var _s   = (typeof triggerSize !== 'undefined') ? triggerSize : 'sm';
+  var _m   = (typeof formMethod !== 'undefined') ? formMethod : 'post';
+  var _cl  = (typeof confirmLabel !== 'undefined') ? confirmLabel : 'Confirm';
+%>
+<details class="confirm-dialog" data-confirm-dialog id="cd-<%= id %>">
+  <summary class="btn btn--<%= _v %> btn--<%= _s %>" aria-haspopup="dialog" aria-controls="cd-<%= id %>-dialog">
+    <%= triggerLabel %>
+  </summary>
+  <dialog class="confirm-dialog__dialog" id="cd-<%= id %>-dialog" aria-labelledby="cd-<%= id %>-title">
+    <form method="<%= _m %>" action="<%= formAction %>" class="confirm-dialog__form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <h2 class="confirm-dialog__title" id="cd-<%= id %>-title"><%= title %></h2>
+      <p class="confirm-dialog__body"><%= body %></p>
+      <div class="confirm-dialog__actions">
+        <button type="button" class="btn btn--ghost btn--sm" data-confirm-dialog-cancel>Cancel</button>
+        <%- include('./_button', { variant: _v, size: _s, type: 'submit', label: _cl }) %>
+      </div>
+    </form>
+  </dialog>
+</details>

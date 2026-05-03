@@ -1482,6 +1482,27 @@ select.cr-fields__input { padding-right: var(--s-2); }
   .checklist-create-form { grid-template-columns: 1fr; }
 }
 
+/* === Portal UX pass 2026-05-03: confirm-dialog === */
+.confirm-dialog { display: inline-block; }
+.confirm-dialog > summary { list-style: none; cursor: pointer; }
+.confirm-dialog > summary::-webkit-details-marker { display: none; }
+.confirm-dialog__dialog {
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-card);
+  background: var(--bg-dark-alt);
+  color: var(--fg-on-dark);
+  padding: 1.25rem 1.5rem;
+  max-width: min(28rem, 92vw);
+}
+.confirm-dialog__dialog::backdrop { background: rgba(0,0,0,0.5); }
+.confirm-dialog__title { margin: 0 0 0.5rem; font-size: 1.05rem; }
+.confirm-dialog__body { margin: 0 0 1rem; color: var(--fg-on-dark-muted); }
+.confirm-dialog__actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+/* No-JS fallback: when <dialog> is unsupported, the inline form becomes visible. */
+.confirm-dialog[open] > .confirm-dialog__dialog:not([open]) {
+  display: block; position: static; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
