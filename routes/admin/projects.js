@@ -7,6 +7,7 @@ import {
 } from '../../domain/projects/repo.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { listPhasesByProject } from '../../domain/phases/repo.js';
+import { listItemsByPhase } from '../../domain/phase-checklists/repo.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -129,11 +130,15 @@ export function registerAdminProjectsRoutes(app) {
     const project = await findProjectById(app.db, id);
     if (!customer || !project || project.customer_id !== cid) return notFound(req, reply);
     const phases = await listPhasesByProject(app.db, id);
+    const phasesWithItems = await Promise.all(phases.map(async (p) => ({
+      ...p,
+      items: await listItemsByPhase(app.db, p.id),
+    })));
     return renderAdmin(req, reply, 'admin/projects/detail', {
       title: project.name,
       customer,
       project,
-      phases,
+      phases: phasesWithItems,
       phaseError: typeof req.query?.phaseError === 'string' ? req.query.phaseError : null,
       csrfToken: await reply.generateCsrf(),
       mainWidth: 'wide',
