@@ -111,105 +111,14 @@
   <% } else { %>
     <ol class="phase-list">
       <% phaseList.forEach(function(p, idx) { %>
-        <li class="phase-row" data-status="<%= p.status %>">
-          <span class="phase-row__index" aria-hidden="true"><%= idx + 1 %></span>
-          <div class="phase-row__order">
-            <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/reorder">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <input type="hidden" name="direction" value="up">
-              <button class="btn btn--icon" type="submit" aria-label="Move <%= p.label %> up" <%= idx === 0 ? 'disabled' : '' %>>↑</button>
-            </form>
-            <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/reorder">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <input type="hidden" name="direction" value="down">
-              <button class="btn btn--icon" type="submit" aria-label="Move <%= p.label %> down" <%= idx === phaseList.length - 1 ? 'disabled' : '' %>>↓</button>
-            </form>
-          </div>
-
-          <form class="phase-row__rename" method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/rename">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <label class="visually-hidden" for="phase-label-<%= p.id %>">Phase label</label>
-            <input id="phase-label-<%= p.id %>" class="phase-row__label-input" name="label" type="text" maxlength="200" value="<%= p.label %>" required>
-            <button class="btn btn--ghost" type="submit">Save</button>
-          </form>
-
-          <div class="phase-row__status">
-            <%- phaseStatusPill(p.status) %>
-            <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/status">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <label class="visually-hidden" for="phase-status-<%= p.id %>">Change status for phase <%= p.label %></label>
-              <select id="phase-status-<%= p.id %>" name="status" class="phase-row__status-select">
-                <option value="not_started" <%= p.status === 'not_started' ? 'selected' : '' %>>not started</option>
-                <option value="in_progress" <%= p.status === 'in_progress' ? 'selected' : '' %>>in progress</option>
-                <option value="blocked"     <%= p.status === 'blocked'     ? 'selected' : '' %>>blocked</option>
-                <option value="done"        <%= p.status === 'done'        ? 'selected' : '' %>>done</option>
-              </select>
-              <button class="btn btn--ghost" type="submit">Set</button>
-            </form>
-          </div>
-
-          <details class="phase-row__delete">
-            <summary class="btn btn--ghost btn--danger">Delete <%= p.label %>…</summary>
-            <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/delete" aria-label="Confirm delete phase <%= p.label %>">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <p class="phase-row__delete-help">This removes the phase and any checklist items inside it. Cannot be undone.</p>
-              <button class="btn btn--danger" type="submit">Confirm delete</button>
-            </form>
-          </details>
-
-          <%
-            var items = (p.items || []);
-            var doneCount = items.filter(function(i){ return i.done_at; }).length;
-          %>
-          <details class="phase-row__checklist" <%= p.status !== 'not_started' ? 'open' : '' %>>
-            <summary>Checklist (<%= items.length %><%= items.length === 0 ? '' : ', ' + doneCount + ' done' %>)</summary>
-
-            <% if (items.length === 0) { %>
-              <p class="checklist-empty">No items yet. Add your first checklist item below.</p>
-            <% } else { %>
-              <ul class="checklist-list">
-                <% items.forEach(function(it) { %>
-                  <li class="checklist-item" data-done="<%= it.done_at ? 'true' : 'false' %>">
-                    <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/items/<%= it.id %>/toggle">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                      <input type="hidden" name="done" value="<%= it.done_at ? 'false' : 'true' %>">
-                      <button class="btn btn--icon" type="submit" aria-label="<%= it.done_at ? 'Mark ' + it.label + ' as not done' : 'Mark ' + it.label + ' as done' %>"><%= it.done_at ? '☑' : '☐' %></button>
-                    </form>
-
-                    <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/items/<%= it.id %>/rename" class="checklist-item__rename">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                      <label class="visually-hidden" for="item-label-<%= it.id %>">Item label</label>
-                      <input id="item-label-<%= it.id %>" class="phase-row__label-input" name="label" type="text" maxlength="500" value="<%= it.label %>" required>
-                      <button class="btn btn--ghost" type="submit">Save</button>
-                    </form>
-
-                    <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/items/<%= it.id %>/visibility">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                      <input type="hidden" name="visibleToCustomer" value="<%= it.visible_to_customer ? 'false' : 'true' %>">
-                      <button class="btn btn--ghost checklist-item__visibility" type="submit" aria-label="<%= it.visible_to_customer ? 'Hide ' + it.label + ' from customer' : 'Show ' + it.label + ' to customer' %>"><%= it.visible_to_customer ? 'Customer visible' : 'Admin only' %></button>
-                    </form>
-
-                    <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/items/<%= it.id %>/delete">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                      <button class="btn btn--ghost btn--danger" type="submit" aria-label="Delete <%= it.label %>">×</button>
-                    </form>
-                  </li>
-                <% }); %>
-              </ul>
-            <% } %>
-
-            <form class="checklist-create-form" method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/items">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <label class="visually-hidden" for="new-item-<%= p.id %>">New checklist item label</label>
-              <input id="new-item-<%= p.id %>" class="phase-row__label-input" name="label" type="text" maxlength="500" placeholder="New checklist item" required>
-              <label class="checklist-create-form__check">
-                <input type="checkbox" name="visibleToCustomer" value="true" checked>
-                Visible to customer
-              </label>
-              <button class="btn btn--primary" type="submit">Add item</button>
-            </form>
-          </details>
-        </li>
+        <%- include('../../components/_phase-row', {
+          phase: p,
+          idx: idx,
+          customer: customer,
+          project: project,
+          csrfToken: csrfToken,
+          phaseListLength: phaseList.length
+        }) %>
       <% }); %>
     </ol>
   <% } %>
