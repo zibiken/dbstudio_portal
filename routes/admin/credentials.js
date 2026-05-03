@@ -56,11 +56,13 @@ export function registerAdminCredentialsRoutes(app) {
       listCredentialsByCustomer(app.db, id),
       listProjectsByCustomer(app.db, id),
     ]);
+    const flashError = typeof req.query?.error === 'string' ? req.query.error : null;
     return renderAdmin(req, reply, 'admin/credentials/list', {
       title: 'Credentials · ' + customer.razon_social,
       customer,
       rows,
       projects,
+      error: flashError,
       csrfToken: await reply.generateCsrf(),
       mainWidth: 'wide',
       ...customerChrome(customer, 'credentials'),

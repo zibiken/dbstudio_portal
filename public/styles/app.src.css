@@ -1517,6 +1517,9 @@ body[data-stuck="true"] .page-header__title {
 .phase-row { scroll-margin-top: calc(var(--page-header-height) + var(--subtabs-height) + 1rem); }
 
 /* === Portal UX pass 2026-05-03: phase row two-row card === */
+.phase-row--loading { opacity: 0.6; pointer-events: none; }
+.phase-row__alert { margin: 0 0 0.5rem 0; }
+
 .phase-row.card { padding: 0.75rem 1rem; margin: 0.5rem 0; }
 .phase-row__top { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
 .phase-row__handle { color: var(--fg-on-light-muted); cursor: grab; user-select: none; font-family: monospace; }

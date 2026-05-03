@@ -27,6 +27,10 @@ export async function renderPhaseFragment(app, reply, { customerId, projectId, p
   const customer = await findCustomerById(app.db, customerId);
   const project = await findProjectById(app.db, projectId);
   if (!customer || !project) { reply.code(404); return reply.send(''); }
+  // Defence-in-depth: callers (loadGuards*) already assert this, but if a
+  // future caller ever skips that gate, we still refuse to render a row
+  // that doesn't belong to the URL's customer.
+  if (project.customer_id !== customer.id) { reply.code(404); return reply.send(''); }
   const allPhases = await listPhasesByProject(app.db, project.id);
   const idx = allPhases.findIndex(p => p.id === phaseId);
   if (idx === -1) { reply.code(404); return reply.send(''); }

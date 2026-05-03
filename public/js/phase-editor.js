@@ -4,33 +4,61 @@
   var section = document.querySelector('.phase-section');
   if (!section) return;
 
+  // Single sr-only live region announces save / error / delete outcomes
+  // so screen-reader users get feedback even though the DOM swap is silent.
+  var LIVE = document.createElement('div');
+  LIVE.setAttribute('aria-live', 'polite');
+  LIVE.setAttribute('aria-atomic', 'true');
+  LIVE.className = 'visually-hidden';
+  document.body.appendChild(LIVE);
+  function announce(msg) { LIVE.textContent = ''; setTimeout(function () { LIVE.textContent = msg; }, 50); }
+
   function getRow(form) { return form.closest('.phase-row'); }
   function getFormFragmentTarget(form) {
     if (form.dataset.fragment !== 'row') return null;
     return getRow(form);
   }
 
+  function clearRowAlert(row) {
+    var prev = row.previousElementSibling;
+    if (prev && prev.classList.contains('phase-row__alert')) prev.remove();
+  }
+
   async function submitFragment(form) {
     var row = getFormFragmentTarget(form);
     if (!row) return null;
-    var action = form.action;
+    if (form.dataset.submitting === '1') return null;
+    form.dataset.submitting = '1';
+    clearRowAlert(row);
+    row.setAttribute('aria-busy', 'true');
+    row.classList.add('phase-row--loading');
     var fd = new FormData(form);
-    var res = await fetch(action, {
-      method: form.method || 'POST',
-      headers: { 'Accept': 'text/html-fragment' },
-      body: fd,
-      credentials: 'same-origin',
-    });
-    var html = await res.text();
+    var res, html;
+    try {
+      res = await fetch(form.action, {
+        method: form.method || 'POST',
+        headers: { 'Accept': 'text/html-fragment' },
+        body: fd,
+        credentials: 'same-origin',
+      });
+      html = await res.text();
+    } finally {
+      row.removeAttribute('aria-busy');
+      row.classList.remove('phase-row--loading');
+      delete form.dataset.submitting;
+    }
     if (res.status === 204 || /^\s*<div data-phase-deleted=/.test(html)) {
       row.remove();
+      announce('Phase removed.');
       return null;
     }
     if (!res.ok) {
-      var alert = document.createElement('div');
-      alert.innerHTML = html;
-      var node = alert.firstElementChild || alert;
-      row.parentNode.insertBefore(node, row);
+      var wrap = document.createElement('div');
+      wrap.innerHTML = html;
+      var alertNode = wrap.firstElementChild || wrap;
+      alertNode.classList.add('phase-row__alert');
+      row.parentNode.insertBefore(alertNode, row);
+      announce('Error: changes could not be saved.');
       return null;
     }
     var tpl = document.createElement('template');
@@ -39,7 +67,11 @@
     if (!fresh) return null;
     row.replaceWith(fresh);
     var first = fresh.querySelector('input, button:not([disabled]), [tabindex]:not([tabindex="-1"])');
-    if (first && typeof first.focus === 'function') first.focus({ preventScroll: true });
+    if (first && typeof first.focus === 'function') {
+      first.focus();
+      if (typeof first.scrollIntoView === 'function') first.scrollIntoView({ block: 'nearest' });
+    }
+    announce('Changes saved.');
     return fresh;
   }
 
@@ -108,7 +140,10 @@
   });
 
   document.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Escape') closeAllMenus();
+    if (ev.key !== 'Escape') return;
+    var openTrigger = document.querySelector('[aria-haspopup="menu"][aria-expanded="true"]');
+    closeAllMenus();
+    if (openTrigger && typeof openTrigger.focus === 'function') openTrigger.focus();
   });
 
   function closeAllMenus() {
