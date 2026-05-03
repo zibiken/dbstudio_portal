@@ -22,6 +22,31 @@ Test count: baseline 657 passing → Phase F final 704 passing / 3 skipped / 0 f
 Migration ledger unchanged at `0011_phase_d` (no schema change).
 Advisory linter has 2 pre-existing out-of-scope warnings (`customers/detail.ejs`, `projects/detail.ejs`).
 
+### ✅ Shipped post-Phase-G — phases + checklists (2026-05-03)
+
+- Migration `0013_phases_and_checklists.sql` (two new tables, UUIDv7 PKs, DEFERRABLE order constraint).
+- New domain modules `domain/phases/` and `domain/phase-checklists/` (raw-SQL repo + transactional service per existing convention).
+- 10 admin POST routes (`routes/admin/project-phases.js` + `routes/admin/phase-checklist-items.js`), all CSRF + admin-session gated, defense-in-depth cross-customer/cross-project/cross-phase ownership checks.
+- Admin UI extension on `views/admin/projects/detail.ejs` (CSP-strict, no inline JS, accessible labels, `<details>`-confirmed deletes).
+- Brand-new customer detail page at `views/customer/projects/show.ejs` + `GET /customer/projects/:projectId` route, scoped by `requireCustomerSession` + `requireNdaSigned` + customer ownership clause.
+- Audit + digest fan-out wired with `visible_to_customer` baked at write time per design Decision 8 (admins always see; customers see iff `phaseVisible(parent)` AND `item.visible_to_customer`).
+- 10 new entries in `lib/digest-strings.js` (en/nl/es, recipient-aware) + `phase_checklist.toggled` added to `COALESCING_EVENTS`.
+- Tests: phases repo (9), phases service (8), checklist repo (7), checklist service (6), coalescing (1), end-to-end happy-path (1) — 32 new tests; full suite 740 passing / 3 skipped (was 708 baseline before this feature).
+
+Spec: `docs/superpowers/specs/2026-05-03-phases-checklists-design.md`
+Plan: `docs/superpowers/plans/2026-05-03-phases-checklists-implementation.md`
+Commits: `94c6449`, `2b76ec5`, `f4383b0`, `f5806ea`, `af92182` (Phase A); `964b6a7`, `70c39a9`, `9474d77` (Phase B); `b9b687d`, `c49f50e`, `ba1ef7e`, `aa7b96a`, `e8e67af` (Phase C); `384daab`, `b927d74` (Phase D); `3fda5b5`, `e25b87f`, `1ee6fd0` (Phase E); `a469efb` (Phase F).
+
+**Open follow-ups (deferred, non-blocking):**
+- **Coalescing key gap — `phase_checklist.toggled` collapses across phases, not per-phase** (spec Decision 5 deviation). `domain/digest/repo.js:findCoalescable` keys on `(recipientType, recipientId, eventType, customerId)` — `phaseId` is NOT in the key. A customer with two active phases that get toggles in the same window collapses into ONE digest line carrying the first phase's `phaseLabel` and `count` aggregated across phases. Real-world impact small (most projects have one active phase at a time) and the existing coalescing test only exercises one phase so the gap was not caught. Fix path: extend `findCoalescable` to accept an optional event-type-keyed extra discriminator (e.g. `phaseId` for `phase_checklist.toggled`), or add per-event-type coalescing keys server-side. Until then, the rendered phaseLabel sticks to the first event in the window because `pluraliseTitle` (`lib/digest.js:64`) prefers `existing.metadata?.vars`.
+- **Route-level integration tests for phases/checklists admin POSTs** — Codex flagged the parity gap with Phase B onwards. CSRF rejection, UUID validation, and cross-tenant guards are exercised by code paths in production but not in CI. Add `tests/integration/phases/routes.test.js` and `tests/integration/phase-checklists/routes.test.js`.
+- **N+1 in admin project detail GET** — `Promise.all(phases.map(listItemsByPhase))` is O(phases). Acceptable for the current admin tool; replace with a single JOIN if a project ever crosses ~30 phases.
+- **`notFound` in phase routes returns JSON, not styled EJS** — minor UX inconsistency with the rest of the admin surface (`routes/admin/project-phases.js`, `routes/admin/phase-checklist-items.js`). Returns `{error:'not_found'}` instead of the styled `admin/customers/not-found` page.
+- **303 vs 302 redirect inconsistency** — phase routes use 303 (POST → GET pattern), older admin POSTs use 302. Pick one convention project-wide.
+- **`flashFromError` swallows non-PHASE_* errors** — e.g. `'label required'` collapses to "Something went wrong; please try again." Add a `PhaseLabelInvalidError` class with code `PHASE_LABEL_INVALID` and surface it.
+- **`<details>` delete pattern lacks `aria-expanded` management** — Kimi flagged; the native `<details>` toggle handles ARIA but screen readers may not announce it consistently. Consider a button + dialog pattern for destructive actions.
+- **Status pill color mapping is non-obvious** — `done → paid (green)`, `blocked → pending (amber)`, `in_progress → active (blue)`. Customers may not parse the mapping intuitively. Either rename pill modifiers or add semantic-status modifiers (`status-pill--phase-done`, etc.).
+
 ### ✅ Shipped in Phase D
 
 - NDA gate (`customers.nda_signed_at` + `/customer/waiting`) — `8a03fb0`, `9bfa1c0`
