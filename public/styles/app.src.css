@@ -1347,6 +1347,12 @@ select.cr-fields__input { padding-right: var(--s-2); }
   color: var(--fg-on-light-muted);
   font-size: var(--f-sm);
 }
+.checklist-empty {
+  margin: var(--s-2) 0 0 var(--s-3);
+  font-size: var(--f-sm);
+  color: var(--fg-on-light-muted);
+  font-style: italic;
+}
 .checklist-list {
   list-style: none;
   padding: var(--s-2) 0 0 var(--s-3);

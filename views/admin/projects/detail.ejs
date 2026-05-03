@@ -164,7 +164,9 @@
           <details class="phase-row__checklist" <%= p.status !== 'not_started' ? 'open' : '' %>>
             <summary>Checklist (<%= items.length %><%= items.length === 0 ? '' : ', ' + doneCount + ' done' %>)</summary>
 
-            <% if (items.length > 0) { %>
+            <% if (items.length === 0) { %>
+              <p class="checklist-empty">No items yet. Add your first checklist item below.</p>
+            <% } else { %>
               <ul class="checklist-list">
                 <% items.forEach(function(it) { %>
                   <li class="checklist-item" data-done="<%= it.done_at ? 'true' : 'false' %>">
@@ -184,7 +186,7 @@
                     <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/items/<%= it.id %>/visibility">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                       <input type="hidden" name="visibleToCustomer" value="<%= it.visible_to_customer ? 'false' : 'true' %>">
-                      <button class="btn btn--ghost checklist-item__visibility" type="submit" aria-label="<%= it.visible_to_customer ? 'Hide ' + it.label + ' from customer' : 'Show ' + it.label + ' to customer' %>"><%= it.visible_to_customer ? 'visible' : 'admin only' %></button>
+                      <button class="btn btn--ghost checklist-item__visibility" type="submit" aria-label="<%= it.visible_to_customer ? 'Hide ' + it.label + ' from customer' : 'Show ' + it.label + ' to customer' %>"><%= it.visible_to_customer ? 'Customer visible' : 'Admin only' %></button>
                     </form>
 
                     <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/items/<%= it.id %>/delete">
