@@ -5,11 +5,11 @@
 <form method="post" action="<%= action %>" autocomplete="off" class="form-stack">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-  <%- include('../components/_input', {
-    name: 'password', type: 'password', label: 'New password',
+  <%- include('../components/_password', {
+    name: 'password', label: 'New password',
     required: true, minlength: 12, autocomplete: 'new-password',
-    showHideToggle: true,
-    helper: 'At least 12 characters. Screened against the Have I Been Pwned breach corpus.'
+    helper: 'Screened against the Have I Been Pwned breach corpus.',
+    nonce: nonce
   }) %>
 
   <fieldset class="fieldset-stack">

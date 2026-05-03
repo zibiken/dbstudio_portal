@@ -232,6 +232,77 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
   .input-field__control input { transition: none; }
 }
 
+/* _password — rule compliance + strength meter, sits under _input. */
+.password-field { display: flex; flex-direction: column; gap: var(--s-2); }
+.password-field .input-field { margin-block: 0; }
+.password-rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex; flex-direction: column; gap: var(--s-1);
+  font-size: var(--f-xs);
+  color: var(--fg-on-light-muted);
+}
+.password-rules__item {
+  display: flex; align-items: center; gap: var(--s-2);
+}
+.password-rules__icon {
+  width: 14px; height: 14px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  display: inline-block;
+  position: relative;
+}
+.password-rules__item[data-met] {
+  color: var(--c-success);
+}
+.password-rules__item[data-met] .password-rules__icon {
+  background: currentColor;
+  border-color: currentColor;
+}
+.password-rules__item[data-met] .password-rules__icon::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 4px;
+  width: 4px; height: 7px;
+  border: solid var(--c-white);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+.password-strength {
+  display: flex; align-items: center; gap: var(--s-3);
+}
+.password-strength__track {
+  flex: 1; height: 4px;
+  background: var(--c-pearl, #e5e5e5);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.password-strength__fill {
+  height: 100%; width: 0%;
+  background: transparent;
+  border-radius: inherit;
+  transition: width .15s ease, background-color .15s ease;
+}
+.password-strength__fill[data-strength="1"] { width: 25%;  background: var(--c-error); }
+.password-strength__fill[data-strength="2"] { width: 50%;  background: var(--c-warn); }
+.password-strength__fill[data-strength="3"] {
+  width: 75%;
+  background: var(--c-warn); /* fallback for browsers without color-mix */
+  background: color-mix(in oklab, var(--c-success) 65%, var(--c-warn) 35%);
+}
+.password-strength__fill[data-strength="4"] { width: 100%; background: var(--c-success); }
+.password-strength__label {
+  font-size: var(--f-xs);
+  color: var(--fg-on-light-muted);
+  min-width: 6.5rem;
+  text-align: right;
+}
+@media (prefers-reduced-motion: reduce) {
+  .password-strength__fill { transition: none; }
+}
+
 /* _card */
 .card {
   background: var(--c-white);

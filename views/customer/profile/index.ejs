@@ -66,11 +66,11 @@
       required: true, autocomplete: 'current-password', minlength: 1,
       showHideToggle: true
     }) %>
-    <%- include('../../components/_input', {
-      name: 'new_password', type: 'password', label: 'New password',
+    <%- include('../../components/_password', {
+      name: 'new_password', label: 'New password',
       required: true, autocomplete: 'new-password', minlength: 12,
-      helper: 'Minimum 12 characters. Screened against the Have I Been Pwned breach corpus.',
-      showHideToggle: true
+      helper: 'Screened against the Have I Been Pwned breach corpus.',
+      nonce: nonce
     }) %>
     <div class="form-actions">
       <%- include('../../components/_button', { variant: 'primary', size: 'sm', type: 'submit', label: 'Change password' }) %>
