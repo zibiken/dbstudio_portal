@@ -1074,6 +1074,14 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 .status-pill--rejected { background: rgba(163, 32, 32, 0.12); color: var(--c-error); }
 .status-pill--expired  { background: var(--c-pearl); color: var(--fg-on-light-muted); }
 
+/* Phase status pills (post-Phase-G feature). Semantic per-phase modifiers
+   so the colour mapping is obvious from class name — was previously
+   piggy-backing on paid/pending/active/archived which surprised readers. */
+.status-pill--phase-not-started { background: var(--c-pearl); color: var(--fg-on-light-muted); }
+.status-pill--phase-in-progress { background: rgba(143, 211, 255, 0.18); color: #1f4f6e; }
+.status-pill--phase-blocked     { background: rgba(196, 169, 122, 0.18); color: #826928; }
+.status-pill--phase-done        { background: rgba(47, 93, 80, 0.12); color: var(--c-moss); }
+
 /* status-actions block on customer detail */
 .status-actions { margin-top: var(--s-12); padding-top: var(--s-6); border-top: 1px solid var(--border-light); }
 .form-inline-action { display: inline-flex; }

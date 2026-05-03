@@ -68,10 +68,10 @@
 
 <%
   function phaseStatusPill(s) {
-    var key = s === 'done' ? 'paid'
-            : s === 'blocked' ? 'pending'
-            : s === 'in_progress' ? 'active'
-            : 'archived';
+    var key = s === 'done' ? 'phase-done'
+            : s === 'blocked' ? 'phase-blocked'
+            : s === 'in_progress' ? 'phase-in-progress'
+            : 'phase-not-started';
     var label = s === 'not_started' ? 'not started'
               : s === 'in_progress' ? 'in progress'
               : s;
@@ -149,8 +149,8 @@
           </div>
 
           <details class="phase-row__delete">
-            <summary class="btn btn--ghost btn--danger">Delete</summary>
-            <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/delete">
+            <summary class="btn btn--ghost btn--danger">Delete <%= p.label %>…</summary>
+            <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/delete" aria-label="Confirm delete phase <%= p.label %>">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <p class="phase-row__delete-help">This removes the phase and any checklist items inside it. Cannot be undone.</p>
               <button class="btn btn--danger" type="submit">Confirm delete</button>

@@ -1,9 +1,9 @@
 <%
   function customerPhaseStatusPill(s) {
-    var key = s === 'done' ? 'paid'
-            : s === 'blocked' ? 'pending'
-            : s === 'in_progress' ? 'active'
-            : 'archived';
+    var key = s === 'done' ? 'phase-done'
+            : s === 'blocked' ? 'phase-blocked'
+            : s === 'in_progress' ? 'phase-in-progress'
+            : 'phase-not-started';
     var label = s === 'in_progress' ? 'in progress'
               : s === 'blocked' ? 'blocked'
               : s; // done
