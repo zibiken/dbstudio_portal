@@ -417,7 +417,7 @@ describe.skipIf(skip)('credential-requests/service workflow (Task 7.4)', () => {
         fields: [{ name: 'token', label: 'Token', type: 'secret', required: true }],
       }, baseCtx());
 
-      await crService.cancelByAdmin(db, { adminId, requestId }, baseCtx());
+      await crService.cancelByAdmin(db, { adminId, customerId, requestId }, baseCtx());
 
       const row = await crRepo.findCredentialRequestById(db, requestId);
       expect(row.status).toBe('cancelled');
@@ -443,8 +443,27 @@ describe.skipIf(skip)('credential-requests/service workflow (Task 7.4)', () => {
       await sql`UPDATE credential_requests SET status = 'fulfilled' WHERE id = ${requestId}::uuid`.execute(db);
 
       await expect(
-        crService.cancelByAdmin(db, { adminId, requestId }, baseCtx()),
+        crService.cancelByAdmin(db, { adminId, customerId, requestId }, baseCtx()),
       ).rejects.toThrow(/open|status/i);
+    });
+
+    it('rejects when customerId does not match the request', async () => {
+      const adminId = await makeAdmin('cancel-cross');
+      const a = await makeCustomer('cancel-cross-a');
+      const b = await makeCustomer('cancel-cross-b');
+      const { requestId } = await crService.createByAdmin(db, {
+        adminId, customerId: a.customerId, provider: 'aws',
+        fields: [{ name: 'token', label: 'Token', type: 'secret', required: true }],
+      }, baseCtx());
+
+      await expect(
+        crService.cancelByAdmin(db, {
+          adminId, customerId: b.customerId, requestId,
+        }, baseCtx()),
+      ).rejects.toMatchObject({ code: 'CROSS_CUSTOMER' });
+
+      const row = await crRepo.findCredentialRequestById(db, requestId);
+      expect(row.status).toBe('open');
     });
   });
 

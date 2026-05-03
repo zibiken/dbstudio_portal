@@ -119,7 +119,7 @@ describe.skipIf(skip)('listCredentialActivityForCustomer (Task 7.5)', () => {
     }, baseCtx());
 
     await credentialsService.markNeedsUpdate(db, {
-      adminId, credentialId: fulfilled.credentialId,
+      adminId, customerId, credentialId: fulfilled.credentialId,
     }, baseCtx());
 
     await credentialsService.updateByCustomer(db, {

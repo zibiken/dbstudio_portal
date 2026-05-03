@@ -174,7 +174,7 @@ export function registerAdminCredentialRequestsRoutes(app) {
 
       try {
         await crService.cancelByAdmin(app.db, {
-          adminId: session.user_id, requestId: id,
+          adminId: session.user_id, customerId: cid, requestId: id,
         }, makeCtx(req, session));
       } catch (err) {
         // M6 (M9 review): map known service errors to controlled, customer-safe

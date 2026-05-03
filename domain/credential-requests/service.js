@@ -352,10 +352,13 @@ export async function markNotApplicableByCustomer(db, {
   });
 }
 
-export async function cancelByAdmin(db, { adminId, requestId }, ctx = {}) {
+export async function cancelByAdmin(db, { adminId, customerId, requestId }, ctx = {}) {
   return await db.transaction().execute(async (tx) => {
     const reqRow = await repo.lockCredentialRequestById(tx, requestId);
     if (!reqRow) throw new CredentialRequestNotFoundError(requestId);
+    if (customerId !== undefined && reqRow.customer_id !== customerId) {
+      throw new CrossCustomerError();
+    }
     if (reqRow.status !== 'open') throw new CredentialRequestNotOpenError(reqRow.status);
 
     await repo.setStatusCancelled(tx, requestId);

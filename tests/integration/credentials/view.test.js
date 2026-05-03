@@ -274,6 +274,7 @@ describe.skipIf(skip)('credentials/service view + markNeedsUpdate (admin-side)',
 
       await credentialsService.markNeedsUpdate(db, {
         adminId,
+        customerId,
         credentialId: created.credentialId,
       }, baseCtx());
 
@@ -303,6 +304,27 @@ describe.skipIf(skip)('credentials/service view + markNeedsUpdate (admin-side)',
           credentialId: '00000000-0000-7000-8000-000000000000',
         }, baseCtx()),
       ).rejects.toThrow(/not found|credential/i);
+    });
+
+    it('rejects when customerId does not match the credential', async () => {
+      const adminId = await makeAdmin('needs-cross');
+      const a = await makeCustomer('needs-cross-a');
+      const b = await makeCustomer('needs-cross-b');
+      const created = await makeCredential({
+        customerId: a.customerId, customerUserId: a.primaryUserId,
+        provider: 'github', label: 'CI-cross', payload: { token: 't' },
+      });
+
+      await expect(
+        credentialsService.markNeedsUpdate(db, {
+          adminId,
+          customerId: b.customerId,
+          credentialId: created.credentialId,
+        }, baseCtx()),
+      ).rejects.toMatchObject({ code: 'CROSS_CUSTOMER' });
+
+      const row = await credentialsRepo.findCredentialById(db, created.credentialId);
+      expect(row.needs_update).toBe(false);
     });
   });
 });

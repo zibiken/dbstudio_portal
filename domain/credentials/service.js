@@ -714,11 +714,15 @@ export async function viewByCustomer(db, {
 
 export async function markNeedsUpdate(db, {
   adminId,
+  customerId,
   credentialId,
 }, ctx = {}) {
   return await db.transaction().execute(async (tx) => {
     const row = await repo.findCredentialById(tx, credentialId);
     if (!row) throw new CredentialNotFoundError(credentialId);
+    if (customerId !== undefined && row.customer_id !== customerId) {
+      throw new CrossCustomerError();
+    }
     await repo.markCredentialNeedsUpdate(tx, credentialId);
 
     const a = baseAudit(ctx);
