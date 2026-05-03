@@ -970,6 +970,27 @@ export async function deleteByAdmin(db, {
       userAgentHash: a.userAgentHash,
     });
 
+    // Phase B digest fan-out to customer_users — admin-side deletes show
+    // up in the customer's Activity feed so the trust model holds.
+    const cnameRow = await sql`SELECT razon_social FROM customers WHERE id = ${row.customer_id}::uuid`.execute(tx);
+    const customerName = cnameRow.rows[0]?.razon_social ?? '';
+    const customerUsers = await listActiveCustomerUsers(tx, row.customer_id);
+    for (const u of customerUsers) {
+      const vars = { customerName, count: 1 };
+      await recordForDigest(tx, {
+        recipientType: 'customer_user',
+        recipientId:   u.id,
+        customerId:    row.customer_id,
+        bucket:        'fyi',
+        eventType:     'credential.deleted',
+        title:         titleFor('credential.deleted', u.locale, vars),
+        linkPath:      `/customer/credentials`,
+        metadata:      { credentialId, customerId: row.customer_id, deletedBy: 'admin' },
+        vars,
+        locale:        u.locale,
+      });
+    }
+
     return { credentialId };
   });
 }

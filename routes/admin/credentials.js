@@ -353,4 +353,29 @@ export function registerAdminCredentialsRoutes(app) {
     }
     reply.redirect(`/admin/customers/${cid}/credentials/${credId}`, 302);
   });
+
+  app.post('/admin/customers/:id/credentials/:credId/delete', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireAdminSession(app, req, reply);
+    if (!session) return;
+    const cid = req.params?.id;
+    const credId = req.params?.credId;
+    if (typeof cid !== 'string' || !UUID_RE.test(cid)) return notFound(req, reply);
+    if (typeof credId !== 'string' || !UUID_RE.test(credId)) return notFound(req, reply);
+
+    const credential = await findCredentialById(app.db, credId);
+    if (!credential || credential.customer_id !== cid) return notFound(req, reply);
+
+    try {
+      await credentialsService.deleteByAdmin(app.db, {
+        adminId: session.user_id,
+        credentialId: credId,
+      }, { ip: req.ip ?? null, userAgentHash: null, audit: { source: 'admin-delete' } });
+    } catch (err) {
+      const safeError =
+        err?.code === 'CREDENTIAL_NOT_FOUND' ? 'That credential no longer exists.' :
+        'Could not delete the credential — please retry.';
+      return reply.redirect(`/admin/customers/${cid}/credentials?error=${encodeURIComponent(safeError)}`, 302);
+    }
+    return reply.redirect(`/admin/customers/${cid}/credentials`, 302);
+  });
 }
