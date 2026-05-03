@@ -336,6 +336,87 @@ export async function createByAdminFromRequest(db, {
   });
 }
 
+// Admin direct-add path (no credential_request needed). Mirrors
+// createByAdminFromRequest minus the request lock + fulfilment update;
+// audit + Phase B digest fan to customer_users keep the customer's
+// Activity feed honest about admin-side mutations.
+export async function createByAdmin(db, {
+  adminId,
+  customerId,
+  provider,
+  label,
+  payload,
+  projectId = null,
+}, ctx = {}) {
+  const kek = requireKek(ctx, 'credentials.createByAdmin');
+  const { provider: p, label: l } = requireProviderLabel(provider, label);
+  const plaintext = encodePayload(payload);
+
+  return await db.transaction().execute(async (tx) => {
+    const customer = await loadCustomerDekRow(tx, customerId);
+    if (customer.status !== 'active') {
+      throw new Error(
+        `cannot create credential for customer in status '${customer.status}' — must be 'active'`,
+      );
+    }
+    await assertProjectBelongsToCustomer(tx, projectId, customerId);
+
+    const dek = unwrapDek({
+      ciphertext: customer.dek_ciphertext,
+      iv: customer.dek_iv,
+      tag: customer.dek_tag,
+    }, kek);
+    const env = encrypt(plaintext, dek);
+
+    const id = uuidv7();
+    await repo.insertCredential(tx, {
+      id,
+      customerId,
+      provider: p,
+      label: l,
+      payloadCiphertext: env.ciphertext,
+      payloadIv: env.iv,
+      payloadTag: env.tag,
+      createdBy: 'admin',
+      projectId,
+    });
+
+    const a = baseAudit(ctx);
+    await writeAudit(tx, {
+      actorType: 'admin',
+      actorId: adminId,
+      action: 'credential.created',
+      targetType: 'credential',
+      targetId: id,
+      metadata: { ...a.metadata, customerId, projectId, provider: p, label: l, createdBy: 'admin' },
+      visibleToCustomer: true,
+      ip: a.ip,
+      userAgentHash: a.userAgentHash,
+    });
+
+    const cnameRow = await sql`SELECT razon_social FROM customers WHERE id = ${customerId}::uuid`.execute(tx);
+    const customerName = cnameRow.rows[0]?.razon_social ?? '';
+    const customerUsers = await listActiveCustomerUsers(tx, customerId);
+    for (const u of customerUsers) {
+      const vars = { customerName, count: 1 };
+      await recordForDigest(tx, {
+        recipientType: 'customer_user',
+        recipientId:   u.id,
+        customerId,
+        bucket:        'fyi',
+        eventType:     'credential.created',
+        title:         titleFor('credential.created', u.locale, vars),
+        linkPath:      `/customer/credentials/${id}`,
+        metadata:      { credentialId: id, customerId, createdBy: 'admin' },
+        vars,
+        locale:        u.locale,
+      });
+    }
+
+    return { credentialId: id };
+  });
+}
+
 // Note (M7 review M4 — admin view of suspended-customer credentials):
 // `view` does NOT enforce customer.status='active'. This is intentional
 // for the admin path: an operator may need to read a customer's
