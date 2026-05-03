@@ -154,6 +154,98 @@ export function registerCustomerCredentialsRoutes(app) {
     reply.redirect('/customer/credentials', 302);
   });
 
+  // GET /customer/credentials/:id/edit — render the edit form.
+  // Customer-side edit covers the LABEL + PAYLOAD overwrite path. Project
+  // scope keeps its dedicated /scope route to preserve an audit-trail
+  // distinction between "moved between projects" and "rotated the secret".
+  app.get('/customer/credentials/:id/edit', async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
+    const scope = await customerScopeFor(app, session);
+    if (!scope) return reply.redirect('/', 302);
+    const id = req.params?.id;
+    if (typeof id !== 'string' || !UUID_RE.test(id)) { reply.code(404).send(); return; }
+    const credential = await findCredentialById(app.db, id);
+    if (!credential || credential.customer_id !== scope.customer_id) {
+      reply.code(404).send();
+      return;
+    }
+    return renderCustomer(req, reply, 'customer/credentials/edit', {
+      title: 'Edit credential',
+      scope,
+      credential,
+      form: null,
+      csrfToken: await reply.generateCsrf(),
+      activeNav: 'credentials',
+      mainWidth: 'wide',
+      sectionLabel: 'CREDENTIALS',
+    });
+  });
+
+  // POST /customer/credentials/:id/edit — apply label + (optional) full-
+  // payload overwrite. Empty payload section leaves the secret untouched.
+  app.post('/customer/credentials/:id/edit', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
+    const scope = await customerScopeFor(app, session);
+    if (!scope) return reply.redirect('/', 302);
+    const id = req.params?.id;
+    if (typeof id !== 'string' || !UUID_RE.test(id)) { reply.code(404).send(); return; }
+    const credential = await findCredentialById(app.db, id);
+    if (!credential || credential.customer_id !== scope.customer_id) {
+      reply.code(404).send();
+      return;
+    }
+
+    const body = req.body ?? {};
+    const label = typeof body.label === 'string' ? body.label.trim() : '';
+    const fieldCount = Number.parseInt(String(body.field_count ?? '0'), 10) || 0;
+    const payload = {};
+    for (let i = 0; i < fieldCount; i++) {
+      const k = typeof body[`field_name_${i}`] === 'string' ? body[`field_name_${i}`].trim() : '';
+      const v = typeof body[`field_value_${i}`] === 'string' ? body[`field_value_${i}`] : '';
+      if (k && v !== '') payload[k] = v;
+    }
+    const hasPayload = Object.keys(payload).length > 0;
+
+    const renderForm = async (errorMsg) => {
+      reply.code(422);
+      return renderCustomer(req, reply, 'customer/credentials/edit', {
+        title: 'Edit credential',
+        scope,
+        credential,
+        form: { label },
+        error: errorMsg,
+        csrfToken: await reply.generateCsrf(),
+        activeNav: 'credentials',
+        mainWidth: 'wide',
+        sectionLabel: 'CREDENTIALS',
+      });
+    };
+
+    if (!label) {
+      return renderForm('Label is required.');
+    }
+
+    try {
+      await credentialsService.updateByCustomer(
+        app.db,
+        {
+          customerUserId: session.user_id,
+          credentialId: id,
+          label,
+          ...(hasPayload ? { payload } : {}),
+        },
+        makeCtx(req, session, app),
+      );
+    } catch (err) {
+      return renderForm(err.message || 'Could not save the credential.');
+    }
+    reply.redirect(`/customer/credentials/${id}`, 303);
+  });
+
   // POST /customer/credentials/:id/scope — change project scope only.
   app.post('/customer/credentials/:id/scope', { preHandler: app.csrfProtection }, async (req, reply) => {
     const session = await requireCustomerSession(app, req, reply);

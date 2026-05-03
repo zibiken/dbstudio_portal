@@ -96,8 +96,9 @@ Specific copy/format reworks the operator suggested:
 
 ### 🟡 Other queued items (not Phase F-blocking)
 
-- **Customer-side view-with-decrypt UI** ("Vault view-with-decrypt (M9.X partial)" below) — the customer reading their own stored secret with re-2FA. Same `service.view` path with an `actor_type='customer'` branch. Smaller follow-up; can fold into Phase F brainstorm or stand alone.
-- **Admin credential-edit UI** (M7 deferred minor) — admins can already create/fulfil via credential-requests; "edit existing credential" is a nice-to-have.
+- ~~**Customer-side view-with-decrypt UI**~~ — SHIPPED in Phase F (commit `a2f1c1c`).
+- ~~**Customer-side credential edit**~~ — SHIPPED 2026-05-03 in Bundle 4. New routes `GET/POST /customer/credentials/:id/edit` invoke `updateByCustomer` for label + (optional) full-payload overwrite; empty payload rows leave the secret untouched. New `views/customer/credentials/edit.ejs`. Edit button on `views/customer/credentials/show.ejs`.
+- ~~**Admin credential-edit UI**~~ — SHIPPED 2026-05-03 in Bundle 4. New routes `GET/POST /admin/customers/:cid/credentials/:credId/edit` invoke `updateByAdmin`; the service's unconditional step-up gate fires on every call (label-only edits also gated). On `STEP_UP_REQUIRED` the route 302s to `/admin/step-up` with a return URL pointing back to the edit form. New `views/admin/credentials/edit.ejs`. 5 new HTTP tests in `tests/integration/credentials/edit-routes.test.js`.
 - **i18n localisation grind** (~620 strings) — see section below.
 - **Accessibility pass** (axe-core + skip-link + heading-order) — see section below.
 - M3 / M5 / M6 / M7 / M8 / M9 / M10 review-deferred items below.
