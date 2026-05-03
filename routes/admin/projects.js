@@ -6,6 +6,7 @@ import {
   listProjectsByCustomer,
 } from '../../domain/projects/repo.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
+import { listPhasesByProject } from '../../domain/phases/repo.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -127,10 +128,13 @@ export function registerAdminProjectsRoutes(app) {
     const customer = await findCustomerById(app.db, cid);
     const project = await findProjectById(app.db, id);
     if (!customer || !project || project.customer_id !== cid) return notFound(req, reply);
+    const phases = await listPhasesByProject(app.db, id);
     return renderAdmin(req, reply, 'admin/projects/detail', {
       title: project.name,
       customer,
       project,
+      phases,
+      phaseError: typeof req.query?.phaseError === 'string' ? req.query.phaseError : null,
       csrfToken: await reply.generateCsrf(),
       mainWidth: 'wide',
       ...customerChrome(customer, 'projects'),

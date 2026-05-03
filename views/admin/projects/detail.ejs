@@ -65,3 +65,96 @@
     </div>
   </form>
 </div>
+
+<%
+  function phaseStatusPill(s) {
+    var key = s === 'done' ? 'paid'
+            : s === 'blocked' ? 'pending'
+            : s === 'in_progress' ? 'active'
+            : 'archived';
+    var label = s === 'not_started' ? 'not started'
+              : s === 'in_progress' ? 'in progress'
+              : s;
+    return '<span class="status-pill status-pill--' + key + '">' + label + '</span>';
+  }
+  var phaseList = (typeof phases !== 'undefined' && phases) ? phases : [];
+  var phaseFlash = (typeof phaseError !== 'undefined') ? phaseError : null;
+%>
+
+<section class="card phase-section" aria-labelledby="phases-heading">
+  <header class="phase-section__header">
+    <h2 class="card__title" id="phases-heading">Project phases</h2>
+    <p class="phase-section__hint">Admin-managed milestones. Customers see phases once status is in&nbsp;progress, blocked, or done.</p>
+  </header>
+
+  <% if (phaseFlash) { %>
+    <%- include('../../components/_alert', { variant: 'error', body: phaseFlash }) %>
+  <% } %>
+
+  <form class="phase-create-form form-stack" method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="input-field">
+      <label class="input-field__label" for="phase-create-label">New phase label</label>
+      <div class="input-field__control">
+        <input id="phase-create-label" name="label" type="text" maxlength="200" placeholder="0, 0.5, 1, 1.5, …" required>
+      </div>
+    </div>
+    <div class="form-actions">
+      <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Add phase' }) %>
+    </div>
+  </form>
+
+  <% if (phaseList.length === 0) { %>
+    <p class="phase-empty">No phases yet. Add the first one above.</p>
+  <% } else { %>
+    <ol class="phase-list">
+      <% phaseList.forEach(function(p, idx) { %>
+        <li class="phase-row" data-status="<%= p.status %>">
+          <div class="phase-row__order">
+            <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/reorder">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="direction" value="up">
+              <button class="btn btn--icon" type="submit" aria-label="Move <%= p.label %> up" <%= idx === 0 ? 'disabled' : '' %>>↑</button>
+            </form>
+            <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/reorder">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="direction" value="down">
+              <button class="btn btn--icon" type="submit" aria-label="Move <%= p.label %> down" <%= idx === phaseList.length - 1 ? 'disabled' : '' %>>↓</button>
+            </form>
+          </div>
+
+          <form class="phase-row__rename" method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/rename">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <label class="visually-hidden" for="phase-label-<%= p.id %>">Phase label</label>
+            <input id="phase-label-<%= p.id %>" class="phase-row__label-input" name="label" type="text" maxlength="200" value="<%= p.label %>" required>
+            <button class="btn btn--ghost" type="submit">Save</button>
+          </form>
+
+          <div class="phase-row__status">
+            <%- phaseStatusPill(p.status) %>
+            <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/status">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <label class="visually-hidden" for="phase-status-<%= p.id %>">Change status for phase <%= p.label %></label>
+              <select id="phase-status-<%= p.id %>" name="status" class="phase-row__status-select">
+                <option value="not_started" <%= p.status === 'not_started' ? 'selected' : '' %>>not started</option>
+                <option value="in_progress" <%= p.status === 'in_progress' ? 'selected' : '' %>>in progress</option>
+                <option value="blocked"     <%= p.status === 'blocked'     ? 'selected' : '' %>>blocked</option>
+                <option value="done"        <%= p.status === 'done'        ? 'selected' : '' %>>done</option>
+              </select>
+              <button class="btn btn--ghost" type="submit">Set</button>
+            </form>
+          </div>
+
+          <details class="phase-row__delete">
+            <summary class="btn btn--ghost btn--danger">Delete</summary>
+            <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/delete">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <p class="phase-row__delete-help">This removes the phase and any checklist items inside it. Cannot be undone.</p>
+              <button class="btn btn--danger" type="submit">Confirm delete</button>
+            </form>
+          </details>
+        </li>
+      <% }); %>
+    </ol>
+  <% } %>
+</section>
