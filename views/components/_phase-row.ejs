@@ -1,67 +1,84 @@
-<%# Single phase row. Locals: phase, idx, customer, project, csrfToken, phaseListLength %>
+<%# Two-row phase card. Locals: phase, idx, customer, project, csrfToken, phaseListLength %>
 <%
-  function phaseStatusPill(s) {
-    var key = s === 'done' ? 'phase-done'
-            : s === 'blocked' ? 'phase-blocked'
-            : s === 'in_progress' ? 'phase-in-progress'
-            : 'phase-not-started';
-    var label = s === 'not_started' ? 'not started'
-              : s === 'in_progress' ? 'in progress'
-              : s;
-    return '<span class="status-pill status-pill--' + key + '">' + label + '</span>';
-  }
   var p = phase;
   var items = (p.items || []);
   var doneCount = items.filter(function(i){ return i.done_at; }).length;
+  var statusKey = p.status === 'in_progress' ? 'in-progress'
+                : p.status === 'not_started' ? 'not-started'
+                : p.status;
+  var statusLabel = p.status === 'not_started' ? 'not started'
+                  : p.status === 'in_progress' ? 'in progress'
+                  : p.status;
 %>
-<li class="phase-row" id="phase-<%= p.id %>" data-status="<%= p.status %>" data-phase-id="<%= p.id %>">
-  <span class="phase-row__index" aria-hidden="true"><%= idx + 1 %></span>
-  <div class="phase-row__order">
-    <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/reorder" data-fragment="row">
+<li class="phase-row card" id="phase-<%= p.id %>" data-status="<%= p.status %>" data-phase-id="<%= p.id %>">
+  <div class="phase-row__top">
+    <span class="phase-row__handle" aria-hidden="true">⋮⋮</span>
+    <span class="phase-row__index" aria-hidden="true"><%= idx + 1 %></span>
+
+    <form class="phase-row__rename" method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/rename" data-fragment="row">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="hidden" name="direction" value="up">
-      <button class="btn btn--icon" type="submit" aria-label="Move <%= p.label %> up" <%= idx === 0 ? 'disabled' : '' %>>↑</button>
+      <label class="visually-hidden" for="phase-label-<%= p.id %>">Phase label</label>
+      <input id="phase-label-<%= p.id %>" class="phase-row__label-input" name="label" type="text" maxlength="200" value="<%= p.label %>" data-original-value="<%= p.label %>" required>
+      <button class="btn btn--ghost btn--sm phase-row__rename-save" type="submit" hidden>Save</button>
     </form>
-    <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/reorder" data-fragment="row">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="hidden" name="direction" value="down">
-      <button class="btn btn--icon" type="submit" aria-label="Move <%= p.label %> down" <%= idx === phaseListLength - 1 ? 'disabled' : '' %>>↓</button>
-    </form>
+
+    <div class="phase-row__status-wrap" data-status-menu>
+      <button class="status-pill status-pill--phase-<%= statusKey %> status-pill--button" type="button" aria-haspopup="menu" aria-expanded="false">
+        <%= statusLabel %>
+      </button>
+      <form class="phase-row__status-form" method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/status" data-fragment="row" hidden>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="status" data-status-input>
+      </form>
+      <div class="status-menu" role="menu" hidden>
+        <% ['not_started','in_progress','blocked','done'].forEach(function(s) { %>
+          <button type="button" role="menuitem" class="status-menu__item" data-set-status="<%= s %>" <%= p.status === s ? 'aria-current="true"' : '' %>><%= s === 'not_started' ? 'not started' : (s === 'in_progress' ? 'in progress' : s) %></button>
+        <% }); %>
+      </div>
+    </div>
+
+    <div class="phase-row__overflow" data-overflow-menu>
+      <button class="btn btn--icon btn--ghost" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More actions for <%= p.label %>">⋯</button>
+      <div class="overflow-menu" role="menu" hidden>
+        <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/reorder" data-fragment="row">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="direction" value="up">
+          <button type="submit" role="menuitem" class="overflow-menu__item" <%= idx === 0 ? 'disabled' : '' %>>↑ Move up</button>
+        </form>
+        <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/reorder" data-fragment="row">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="direction" value="down">
+          <button type="submit" role="menuitem" class="overflow-menu__item" <%= idx === phaseListLength - 1 ? 'disabled' : '' %>>↓ Move down</button>
+        </form>
+        <hr class="overflow-menu__sep">
+        <%- include('./_confirm-dialog', {
+          id: 'delete-phase-' + p.id,
+          triggerLabel: 'Delete phase',
+          triggerVariant: 'danger',
+          triggerSize: 'sm',
+          confirmLabel: 'Delete phase',
+          title: 'Delete phase ' + p.label + '?',
+          body: 'This removes the phase and any checklist items inside it. Cannot be undone.',
+          formAction: '/admin/customers/' + customer.id + '/projects/' + project.id + '/phases/' + p.id + '/delete',
+          csrfToken: csrfToken
+        }) %>
+      </div>
+    </div>
+
+    <noscript>
+      <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/status" class="phase-row__status-noscript">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <select name="status">
+          <option value="not_started" <%= p.status === 'not_started' ? 'selected' : '' %>>not started</option>
+          <option value="in_progress" <%= p.status === 'in_progress' ? 'selected' : '' %>>in progress</option>
+          <option value="blocked"     <%= p.status === 'blocked'     ? 'selected' : '' %>>blocked</option>
+          <option value="done"        <%= p.status === 'done'        ? 'selected' : '' %>>done</option>
+        </select>
+        <button type="submit">Set</button>
+      </form>
+      <style>.phase-row__rename-save[hidden] { display: inline-flex !important; }</style>
+    </noscript>
   </div>
-
-  <form class="phase-row__rename" method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/rename" data-fragment="row">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <label class="visually-hidden" for="phase-label-<%= p.id %>">Phase label</label>
-    <input id="phase-label-<%= p.id %>" class="phase-row__label-input" name="label" type="text" maxlength="200" value="<%= p.label %>" required>
-    <button class="btn btn--ghost" type="submit">Save</button>
-  </form>
-
-  <div class="phase-row__status">
-    <%- phaseStatusPill(p.status) %>
-    <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/status" data-fragment="row">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <label class="visually-hidden" for="phase-status-<%= p.id %>">Change status for phase <%= p.label %></label>
-      <select id="phase-status-<%= p.id %>" name="status" class="phase-row__status-select">
-        <option value="not_started" <%= p.status === 'not_started' ? 'selected' : '' %>>not started</option>
-        <option value="in_progress" <%= p.status === 'in_progress' ? 'selected' : '' %>>in progress</option>
-        <option value="blocked"     <%= p.status === 'blocked'     ? 'selected' : '' %>>blocked</option>
-        <option value="done"        <%= p.status === 'done'        ? 'selected' : '' %>>done</option>
-      </select>
-      <button class="btn btn--ghost" type="submit">Set</button>
-    </form>
-  </div>
-
-  <%- include('./_confirm-dialog', {
-    id: 'delete-phase-' + p.id,
-    triggerLabel: 'Delete',
-    triggerVariant: 'danger',
-    triggerSize: 'sm',
-    confirmLabel: 'Delete phase',
-    title: 'Delete phase ' + p.label + '?',
-    body: 'This removes the phase and any checklist items inside it. Cannot be undone.',
-    formAction: '/admin/customers/' + customer.id + '/projects/' + project.id + '/phases/' + p.id + '/delete',
-    csrfToken: csrfToken
-  }) %>
 
   <details class="phase-row__checklist" <%= p.status !== 'not_started' ? 'open' : '' %>>
     <summary>Checklist (<%= items.length %><%= items.length === 0 ? '' : ', ' + doneCount + ' done' %>)</summary>
@@ -81,8 +98,8 @@
             <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/items/<%= it.id %>/rename" class="checklist-item__rename" data-fragment="row">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <label class="visually-hidden" for="item-label-<%= it.id %>">Item label</label>
-              <input id="item-label-<%= it.id %>" class="phase-row__label-input" name="label" type="text" maxlength="500" value="<%= it.label %>" required>
-              <button class="btn btn--ghost" type="submit">Save</button>
+              <input id="item-label-<%= it.id %>" class="phase-row__label-input" name="label" type="text" maxlength="500" value="<%= it.label %>" data-original-value="<%= it.label %>" required>
+              <button class="btn btn--ghost btn--sm" type="submit" hidden>Save</button>
             </form>
 
             <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/items/<%= it.id %>/visibility" data-fragment="row">
@@ -108,7 +125,7 @@
         <input type="checkbox" name="visibleToCustomer" value="true" checked>
         Visible to customer
       </label>
-      <button class="btn btn--primary" type="submit">Add item</button>
+      <button class="btn btn--primary btn--sm" type="submit">Add item</button>
     </form>
   </details>
 </li>

@@ -1516,6 +1516,52 @@ body[data-stuck="true"] .page-header__title {
 }
 .phase-row { scroll-margin-top: calc(var(--page-header-height) + var(--subtabs-height) + 1rem); }
 
+/* === Portal UX pass 2026-05-03: phase row two-row card === */
+.phase-row.card { padding: 0.75rem 1rem; margin: 0.5rem 0; }
+.phase-row__top { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+.phase-row__handle { color: var(--fg-on-light-muted); cursor: grab; user-select: none; font-family: monospace; }
+.phase-row__index {
+  font-variant-numeric: tabular-nums; font-weight: 600;
+  background: var(--bg-light-alt); padding: 0 0.5rem;
+  border-radius: 999px; min-width: 1.75rem; text-align: center; color: var(--fg-on-light);
+}
+.phase-row__rename { flex: 1 1 14rem; display: flex; gap: 0.5rem; align-items: center; margin: 0; }
+.phase-row__label-input {
+  flex: 1; background: transparent; border: 1px solid transparent;
+  padding: 0.35rem 0.5rem; border-radius: var(--radius-btn); color: inherit;
+}
+.phase-row__label-input:hover { border-color: var(--border-light); }
+.phase-row__label-input:focus { border-color: var(--c-moss); outline: none; background: var(--c-white); }
+
+.phase-row__status-wrap { position: relative; }
+.status-pill--button { cursor: pointer; border: 0; font-family: inherit; }
+.phase-row__status-noscript { display: inline-flex; gap: 0.25rem; align-items: center; }
+.status-menu, .overflow-menu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 25;
+  background: var(--c-white); border: 1px solid var(--border-light);
+  border-radius: var(--radius-card); box-shadow: 0 8px 24px rgba(10,10,10,0.12);
+  min-width: 12rem; padding: 0.25rem;
+}
+.status-menu__item, .overflow-menu__item {
+  display: block; width: 100%; text-align: left; padding: 0.5rem 0.75rem;
+  background: transparent; border: 0; color: inherit; cursor: pointer; border-radius: var(--radius-btn);
+  font-family: inherit; font-size: var(--f-sm);
+}
+.status-menu__item:hover, .overflow-menu__item:hover:not([disabled]) { background: var(--bg-light-alt); }
+.status-menu__item[aria-current="true"] { font-weight: 600; }
+.overflow-menu__item[disabled] { color: var(--fg-on-light-muted); cursor: not-allowed; }
+.overflow-menu__sep { border: 0; border-top: 1px solid var(--border-light); margin: 0.25rem 0; }
+.overflow-menu form { margin: 0; }
+.phase-row__overflow .confirm-dialog > summary {
+  display: block; width: 100%; text-align: left;
+  background: transparent; color: var(--c-error); border: 0; box-shadow: none;
+  padding: 0.5rem 0.75rem; border-radius: var(--radius-btn); font-size: var(--f-sm);
+}
+.phase-row__overflow .confirm-dialog > summary:hover { background: var(--bg-light-alt); }
+
+.phase-row__checklist { margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px dashed var(--border-light); }
+.phase-row__checklist > summary { cursor: pointer; padding: 0.25rem 0; user-select: none; }
+
 /* === Portal UX pass 2026-05-03: confirm-dialog === */
 .confirm-dialog { display: inline-block; }
 .confirm-dialog > summary { list-style: none; cursor: pointer; }
