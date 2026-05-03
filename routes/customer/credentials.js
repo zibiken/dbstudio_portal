@@ -276,6 +276,12 @@ export function registerCustomerCredentialsRoutes(app) {
     if (!UUID_RE.test(id)) return reply.code(404).send();
 
     // Belt-and-braces — domain method also runs assertCustomerUserBelongsTo.
+    // The pre-check reads outside the deleteByCustomer tx, so a theoretical
+    // TOCTOU exists if some future feature ever reassigns customer_id (which
+    // it can't today: the schema's RESTRICT FK on credentials.customer_id
+    // forbids it and no service method moves credentials between customers).
+    // The authoritative gate is inside the service; this read is purely
+    // defence-in-depth for the 404 surface (M9 review M10).
     const cred = await findCredentialById(app.db, id);
     if (!cred || cred.customer_id !== scope.customer_id) {
       return reply.code(404).send();

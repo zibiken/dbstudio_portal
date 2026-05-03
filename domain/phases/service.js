@@ -21,6 +21,12 @@ export class PhaseInvalidStatusError extends Error {
 export class PhaseReorderEdgeError extends Error {
   constructor() { super('phase already at edge'); this.code = 'PHASE_REORDER_EDGE'; }
 }
+export class PhaseLabelInvalidError extends Error {
+  constructor() { super('phase label is required'); this.code = 'PHASE_LABEL_INVALID'; }
+}
+export class PhaseDirectionInvalidError extends Error {
+  constructor() { super('direction must be up or down'); this.code = 'PHASE_DIRECTION_INVALID'; }
+}
 
 export function phaseVisible(status) {
   return status === 'in_progress' || status === 'blocked' || status === 'done';
@@ -85,7 +91,7 @@ async function fanOut(tx, {
 
 export async function create(db, { projectId, customerId, label }, ctx, { adminId }) {
   if (typeof label !== 'string' || !label.trim()) {
-    throw new Error('label required');
+    throw new PhaseLabelInvalidError();
   }
   const labelTrimmed = label.trim();
   return await db.transaction().execute(async (tx) => {
@@ -128,7 +134,7 @@ export async function create(db, { projectId, customerId, label }, ctx, { adminI
 }
 
 export async function rename(db, { phaseId, customerId }, { label }, ctx, { adminId }) {
-  if (typeof label !== 'string' || !label.trim()) throw new Error('label required');
+  if (typeof label !== 'string' || !label.trim()) throw new PhaseLabelInvalidError();
   const labelTrimmed = label.trim();
   return await db.transaction().execute(async (tx) => {
     const phase = await repo.findPhaseById(tx, phaseId);
@@ -169,7 +175,7 @@ export async function rename(db, { phaseId, customerId }, { label }, ctx, { admi
 }
 
 export async function reorder(db, { phaseId, customerId }, { direction }, ctx, { adminId }) {
-  if (direction !== 'up' && direction !== 'down') throw new Error('direction must be up or down');
+  if (direction !== 'up' && direction !== 'down') throw new PhaseDirectionInvalidError();
   return await db.transaction().execute(async (tx) => {
     const phase = await repo.findPhaseById(tx, phaseId);
     if (!phase) throw new PhaseNotFoundError();

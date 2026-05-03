@@ -34,9 +34,22 @@ export async function insertItem(db, {
   return id;
 }
 
+// `metadataMatch` (optional): per-event-type extra discriminators read from
+// `metadata->>'<key>'` so callers can require a row to share, e.g., the same
+// phaseId before coalescing. Without this, two phases toggled in the same
+// digest window collapsed into one row carrying the first phase's label
+// (post-Phase-G follow-up; spec Decision 5 deviation).
 export async function findCoalescable(db, {
-  recipientType, recipientId, eventType, customerId,
+  recipientType, recipientId, eventType, customerId, metadataMatch = null,
 }) {
+  const metaClauses = metadataMatch && typeof metadataMatch === 'object'
+    ? Object.entries(metadataMatch).map(([k, v]) => (
+        v == null
+          ? sql` AND (metadata->>${k}) IS NULL`
+          : sql` AND metadata->>${k} = ${String(v)}`
+      ))
+    : [];
+  const metaClause = metaClauses.length > 0 ? sql.join(metaClauses, sql``) : sql``;
   const r = await sql`
     SELECT id::text AS id, title, detail, metadata
       FROM pending_digest_items
@@ -44,6 +57,7 @@ export async function findCoalescable(db, {
        AND recipient_id   = ${recipientId}::uuid
        AND event_type     = ${eventType}
        AND customer_id IS NOT DISTINCT FROM ${customerId ? sql`${customerId}::uuid` : sql`NULL::uuid`}
+       ${metaClause}
      ORDER BY created_at DESC
      LIMIT 1
   `.execute(db);

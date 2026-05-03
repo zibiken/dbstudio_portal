@@ -16,6 +16,9 @@ export class ItemNotFoundError extends Error {
 export class PhaseGoneError extends Error {
   constructor() { super('parent phase missing'); this.code = 'ITEM_PARENT_GONE'; }
 }
+export class ItemLabelInvalidError extends Error {
+  constructor() { super('checklist item label is required'); this.code = 'ITEM_LABEL_INVALID'; }
+}
 
 function baseAuditMetadata(ctx) { return ctx?.audit ?? {}; }
 
@@ -68,7 +71,7 @@ async function fanOut(tx, {
 }
 
 export async function create(db, { phaseId, customerId }, { label, visibleToCustomer = true }, ctx, { adminId }) {
-  if (typeof label !== 'string' || !label.trim()) throw new Error('label required');
+  if (typeof label !== 'string' || !label.trim()) throw new ItemLabelInvalidError();
   const labelTrimmed = label.trim();
   return await db.transaction().execute(async (tx) => {
     const phase = await phasesRepo.findPhaseById(tx, phaseId);
@@ -112,7 +115,7 @@ export async function create(db, { phaseId, customerId }, { label, visibleToCust
 }
 
 export async function rename(db, { itemId, customerId }, { label }, ctx, { adminId }) {
-  if (typeof label !== 'string' || !label.trim()) throw new Error('label required');
+  if (typeof label !== 'string' || !label.trim()) throw new ItemLabelInvalidError();
   const labelTrimmed = label.trim();
   return await db.transaction().execute(async (tx) => {
     const item = await repo.findItemById(tx, itemId);

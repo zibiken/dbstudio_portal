@@ -71,7 +71,13 @@ function auditEjs(file) {
   }
 }
 
-const JS_LITERAL_RE = /(?:title:|reply\.send\(|throw new Error\(|`)\s*['"`]([^'"`\n]{3,})['"`]/g;
+// The original pattern included a bare backtick in the prefix alternation,
+// which matched every `${...}` template literal as if it were a user-facing
+// string and inflated the offender count by hundreds (M9 review M9). The
+// alternation now lists only real call-site contexts; backtick-delimited
+// strings still match via the closing `['"`]` character class when one of
+// the listed contexts is on the same line.
+const JS_LITERAL_RE = /(?:title:|reply\.send\(|throw new Error\()\s*['"`]([^'"`\n]{3,})['"`]/g;
 function auditJs(file) {
   const src = readFileSync(file, 'utf8');
   const lines = src.split('\n');

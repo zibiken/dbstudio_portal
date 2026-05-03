@@ -1,3 +1,4 @@
+import { renderAdmin } from '../../lib/render.js';
 import { requireAdminSession } from '../../lib/auth/middleware.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { findProjectById } from '../../domain/projects/repo.js';
@@ -18,7 +19,15 @@ function ctxFromReq(req) {
   };
 }
 
-function notFound(req, reply) { reply.code(404).send({ error: 'not_found' }); }
+async function notFound(req, reply) {
+  reply.code(404);
+  await renderAdmin(req, reply, 'admin/customers/not-found', {
+    title: 'Not found',
+    activeNav: 'customers',
+    mainWidth: 'wide',
+    sectionLabel: 'ADMIN · CUSTOMERS',
+  });
+}
 
 function back(reply, customerId, projectId, flash) {
   if (flash) {
@@ -31,9 +40,10 @@ function back(reply, customerId, projectId, flash) {
 }
 
 function flashFromError(err) {
-  if (err?.code === 'ITEM_NOT_FOUND')   return 'Checklist item not found.';
-  if (err?.code === 'ITEM_PARENT_GONE') return 'Parent phase no longer exists.';
-  if (err?.code === 'PHASE_NOT_FOUND')  return 'Phase not found.';
+  if (err?.code === 'ITEM_NOT_FOUND')    return 'Checklist item not found.';
+  if (err?.code === 'ITEM_PARENT_GONE')  return 'Parent phase no longer exists.';
+  if (err?.code === 'ITEM_LABEL_INVALID') return 'Checklist item label is required.';
+  if (err?.code === 'PHASE_NOT_FOUND')   return 'Phase not found.';
   return 'Something went wrong; please try again.';
 }
 
@@ -42,14 +52,14 @@ async function loadPhaseGuards(app, req, reply) {
   if (!session) return null;
   const { customerId, projectId, phaseId } = req.params ?? {};
   if (!UUID_RE.test(customerId) || !UUID_RE.test(projectId) || !UUID_RE.test(phaseId)) {
-    notFound(req, reply); return null;
+    await notFound(req, reply); return null;
   }
   const customer = await findCustomerById(app.db, customerId);
-  if (!customer) { notFound(req, reply); return null; }
+  if (!customer) { await notFound(req, reply); return null; }
   const project = await findProjectById(app.db, projectId);
-  if (!project || project.customer_id !== customerId) { notFound(req, reply); return null; }
+  if (!project || project.customer_id !== customerId) { await notFound(req, reply); return null; }
   const phase = await findPhaseById(app.db, phaseId);
-  if (!phase || phase.project_id !== projectId) { notFound(req, reply); return null; }
+  if (!phase || phase.project_id !== projectId) { await notFound(req, reply); return null; }
   return { session, customer, project, phase, adminId: session.user_id };
 }
 
@@ -57,9 +67,9 @@ async function loadItemGuards(app, req, reply) {
   const base = await loadPhaseGuards(app, req, reply);
   if (!base) return null;
   const itemId = req.params?.itemId;
-  if (!UUID_RE.test(itemId)) { notFound(req, reply); return null; }
+  if (!UUID_RE.test(itemId)) { await notFound(req, reply); return null; }
   const item = await findItemById(app.db, itemId);
-  if (!item || item.phase_id !== base.phase.id) { notFound(req, reply); return null; }
+  if (!item || item.phase_id !== base.phase.id) { await notFound(req, reply); return null; }
   return { ...base, itemId, item };
 }
 

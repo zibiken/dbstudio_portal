@@ -1,3 +1,4 @@
+import { renderAdmin } from '../../lib/render.js';
 import { requireAdminSession } from '../../lib/auth/middleware.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { findProjectById } from '../../domain/projects/repo.js';
@@ -17,8 +18,14 @@ function ctxFromReq(req) {
   };
 }
 
-function notFound(req, reply) {
-  reply.code(404).send({ error: 'not_found' });
+async function notFound(req, reply) {
+  reply.code(404);
+  await renderAdmin(req, reply, 'admin/customers/not-found', {
+    title: 'Not found',
+    activeNav: 'customers',
+    mainWidth: 'wide',
+    sectionLabel: 'ADMIN · CUSTOMERS',
+  });
 }
 
 function back(reply, customerId, projectId, flash) {
@@ -32,10 +39,12 @@ function back(reply, customerId, projectId, flash) {
 }
 
 function flashFromError(err) {
-  if (err?.code === 'PHASE_LABEL_CONFLICT') return 'A phase with that label already exists.';
-  if (err?.code === 'PHASE_REORDER_EDGE')   return 'That phase is already at the edge.';
-  if (err?.code === 'PHASE_INVALID_STATUS') return 'Invalid status.';
-  if (err?.code === 'PHASE_NOT_FOUND')      return 'Phase not found.';
+  if (err?.code === 'PHASE_LABEL_CONFLICT')    return 'A phase with that label already exists.';
+  if (err?.code === 'PHASE_LABEL_INVALID')     return 'Phase label is required.';
+  if (err?.code === 'PHASE_REORDER_EDGE')      return 'That phase is already at the edge.';
+  if (err?.code === 'PHASE_DIRECTION_INVALID') return 'Invalid reorder direction.';
+  if (err?.code === 'PHASE_INVALID_STATUS')    return 'Invalid status.';
+  if (err?.code === 'PHASE_NOT_FOUND')         return 'Phase not found.';
   return 'Something went wrong; please try again.';
 }
 
@@ -43,11 +52,11 @@ async function loadGuards(app, req, reply) {
   const session = await requireAdminSession(app, req, reply);
   if (!session) return null;
   const { customerId, projectId } = req.params ?? {};
-  if (!UUID_RE.test(customerId) || !UUID_RE.test(projectId)) { notFound(req, reply); return null; }
+  if (!UUID_RE.test(customerId) || !UUID_RE.test(projectId)) { await notFound(req, reply); return null; }
   const customer = await findCustomerById(app.db, customerId);
-  if (!customer) { notFound(req, reply); return null; }
+  if (!customer) { await notFound(req, reply); return null; }
   const project = await findProjectById(app.db, projectId);
-  if (!project || project.customer_id !== customerId) { notFound(req, reply); return null; }
+  if (!project || project.customer_id !== customerId) { await notFound(req, reply); return null; }
   return { session, customer, project, adminId: session.user_id };
 }
 
@@ -58,9 +67,9 @@ async function loadGuardsWithPhase(app, req, reply) {
   const base = await loadGuards(app, req, reply);
   if (!base) return null;
   const phaseId = req.params?.phaseId;
-  if (!UUID_RE.test(phaseId)) { notFound(req, reply); return null; }
+  if (!UUID_RE.test(phaseId)) { await notFound(req, reply); return null; }
   const phase = await findPhaseById(app.db, phaseId);
-  if (!phase || phase.project_id !== base.project.id) { notFound(req, reply); return null; }
+  if (!phase || phase.project_id !== base.project.id) { await notFound(req, reply); return null; }
   return { ...base, phase };
 }
 

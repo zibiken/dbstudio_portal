@@ -38,14 +38,14 @@ Plan: `docs/superpowers/plans/2026-05-03-phases-checklists-implementation.md`
 Commits: `94c6449`, `2b76ec5`, `f4383b0`, `f5806ea`, `af92182` (Phase A); `964b6a7`, `70c39a9`, `9474d77` (Phase B); `b9b687d`, `c49f50e`, `ba1ef7e`, `aa7b96a`, `e8e67af` (Phase C); `384daab`, `b927d74` (Phase D); `3fda5b5`, `e25b87f`, `1ee6fd0` (Phase E); `a469efb` (Phase F).
 
 **Open follow-ups (deferred, non-blocking):**
-- **Coalescing key gap — `phase_checklist.toggled` collapses across phases, not per-phase** (spec Decision 5 deviation). `domain/digest/repo.js:findCoalescable` keys on `(recipientType, recipientId, eventType, customerId)` — `phaseId` is NOT in the key. A customer with two active phases that get toggles in the same window collapses into ONE digest line carrying the first phase's `phaseLabel` and `count` aggregated across phases. Real-world impact small (most projects have one active phase at a time) and the existing coalescing test only exercises one phase so the gap was not caught. Fix path: extend `findCoalescable` to accept an optional event-type-keyed extra discriminator (e.g. `phaseId` for `phase_checklist.toggled`), or add per-event-type coalescing keys server-side. Until then, the rendered phaseLabel sticks to the first event in the window because `pluraliseTitle` (`lib/digest.js:64`) prefers `existing.metadata?.vars`.
-- **Route-level integration tests for phases/checklists admin POSTs** — Codex flagged the parity gap with Phase B onwards. CSRF rejection, UUID validation, and cross-tenant guards are exercised by code paths in production but not in CI. Add `tests/integration/phases/routes.test.js` and `tests/integration/phase-checklists/routes.test.js`.
+- ~~**Coalescing key gap**~~ — SHIPPED 2026-05-03 in Bundle 1. `domain/digest/repo.js:findCoalescable` now accepts an optional `metadataMatch` param; `lib/digest.js` exports `COALESCING_DISCRIMINATORS` keying `phase_checklist.toggled` on `phaseId`. New two-phase case in `tests/integration/phase-checklists/digest-coalescing.test.js`.
+- **Route-level integration tests for phases/checklists admin POSTs** — Codex flagged the parity gap with Phase B onwards. CSRF rejection, UUID validation, and cross-tenant guards are exercised by code paths in production but not in CI. Add `tests/integration/phases/routes.test.js` and `tests/integration/phase-checklists/routes.test.js`. (Bundle 2.)
 - **N+1 in admin project detail GET** — `Promise.all(phases.map(listItemsByPhase))` is O(phases). Acceptable for the current admin tool; replace with a single JOIN if a project ever crosses ~30 phases.
-- **`notFound` in phase routes returns JSON, not styled EJS** — minor UX inconsistency with the rest of the admin surface (`routes/admin/project-phases.js`, `routes/admin/phase-checklist-items.js`). Returns `{error:'not_found'}` instead of the styled `admin/customers/not-found` page.
-- **303 vs 302 redirect inconsistency** — phase routes use 303 (POST → GET pattern), older admin POSTs use 302. Pick one convention project-wide.
-- **`flashFromError` swallows non-PHASE_* errors** — e.g. `'label required'` collapses to "Something went wrong; please try again." Add a `PhaseLabelInvalidError` class with code `PHASE_LABEL_INVALID` and surface it.
-- **`<details>` delete pattern lacks `aria-expanded` management** — Kimi flagged; the native `<details>` toggle handles ARIA but screen readers may not announce it consistently. Consider a button + dialog pattern for destructive actions.
-- **Status pill color mapping is non-obvious** — `done → paid (green)`, `blocked → pending (amber)`, `in_progress → active (blue)`. Customers may not parse the mapping intuitively. Either rename pill modifiers or add semantic-status modifiers (`status-pill--phase-done`, etc.).
+- ~~**`notFound` in phase routes returns JSON, not styled EJS**~~ — SHIPPED 2026-05-03 in Bundle 1. Both `routes/admin/project-phases.js` and `routes/admin/phase-checklist-items.js` now render `admin/customers/not-found` with code 404. `notFound` is async; callers `await` before returning null from loadGuards.
+- **303 vs 302 redirect inconsistency** — phase routes use 303 (POST → GET pattern), older admin POSTs use 302. Operator decision 2026-05-03: 303 project-wide; migrate older 302s opportunistically as files are touched, no sweep PR.
+- ~~**`flashFromError` swallows non-PHASE_* errors**~~ — SHIPPED 2026-05-03 in Bundle 1. Added `PhaseLabelInvalidError` (code `PHASE_LABEL_INVALID`), `PhaseDirectionInvalidError` (`PHASE_DIRECTION_INVALID`), `ItemLabelInvalidError` (`ITEM_LABEL_INVALID`). `flashFromError` maps each to a customer-readable message.
+- **`<details>` delete pattern lacks `aria-expanded` management** — Kimi flagged; the native `<details>` toggle handles ARIA but screen readers may not announce it consistently. (Bundle 3.)
+- **Status pill color mapping is non-obvious** — `done → paid (green)`, `blocked → pending (amber)`, `in_progress → active (blue)`. Either rename pill modifiers or add semantic-status modifiers (`status-pill--phase-done`, etc.). (Bundle 3.)
 
 ### ✅ Shipped in Phase D
 
@@ -245,15 +245,14 @@ which is confusing.
 
 (b) is the lower-blast-radius choice.
 
-### M3 — LIKE pattern underscore wildcards in routes/admin/audit.js + routes/customer/activity.js
+### ~~M3 — LIKE pattern underscore wildcards~~ — SHIPPED 2026-05-03 in Bundle 1
 
-`'admin.session_'` becomes `'admin.session_%'` — PG `_` is "any single
-character". Today no action name violates the convention (every action
-uses literal `_` between segments), but a future
-`admin.sessionsRevoked`-style action would be matched unexpectedly.
-
-**Fix:** escape underscores in the prefix list or document the
-convention as a comment + lint check. v1.1.
+`lib/audit-query.js` and `lib/activity-feed.js` both gained an
+`escapeLikePrefix(p)` helper that escapes `\`, `%`, `_` so the prefix
+list now matches literal underscores (PG default LIKE escape is `\` so
+no `ESCAPE` clause needed). Future action names like
+`admin.sessionsRevoked` will no longer slip into the `admin.session_%`
+filter.
 
 ### M5 — audit_log `metadata->>'customerId'` index
 
@@ -288,23 +287,21 @@ M11 alongside the visual redesign. See
 
 ### M8 — i18n localisation already tracked above (the §11 line-item).
 
-### M9 (M9 review) — `scripts/i18n-audit.js` regex backreference bug
+### ~~M9 (M9 review) — `scripts/i18n-audit.js` regex backreference bug~~ — SHIPPED 2026-05-03 in Bundle 1
 
-`JS_LITERAL_RE` includes a bare backtick in the prefix alternation, so
-every `` `${...}` `` template literal matches as if it were a user-facing
-string. The script's stated tolerance is "false positives accepted",
-but the offender count (~620–640) is inflated. v1.1: drop the bare
-backtick OR backreference the quote to ensure open == close.
+The bare backtick is removed from the prefix alternation in
+`JS_LITERAL_RE`. Backtick-delimited strings still match via the closing
+char class when one of the listed call-site contexts is on the same
+line. Offender count is no longer inflated by every `${...}` template
+literal in the codebase.
 
-### M10 (M9 review) — TOCTOU note on routes/customer/credentials.js delete
+### ~~M10 (M9 review) — TOCTOU note on routes/customer/credentials.js delete~~ — SHIPPED 2026-05-03 in Bundle 1
 
-The pre-check `findCredentialById(app.db, id)` reads outside the tx that
-`deleteByCustomer` opens. Theoretical TOCTOU: nothing today reassigns
-`customer_id`, and the service's `assertCustomerUserBelongsTo` is the
-authoritative check. Documenting that the outer read is intentional
-defence-in-depth, not the gate. v1.1 if a future feature ever moves
-credentials between customers (currently impossible — fkey is RESTRICT
-on customer_id and there's no service method).
+Inline comment added explaining that the outer read is defence-in-depth
+for the 404 surface only, with the service's
+`assertCustomerUserBelongsTo` as the authoritative gate, and that the
+TOCTOU is theoretical because `credentials.customer_id` is RESTRICT and
+no service method moves credentials between customers.
 
 ---
 
