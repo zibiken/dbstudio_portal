@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as fsp from 'node:fs/promises';
@@ -38,6 +38,10 @@ describe('scripts/bootstrap-templates.sh', () => {
     dst = path.join(templatesDir, 'nda.html');
     fontLatin = path.join(fontsDir, 'cormorant-garamond-500.woff2');
     fontLatinExt = path.join(fontsDir, 'cormorant-garamond-500-latin-ext.woff2');
+  });
+
+  afterEach(async () => {
+    if (work) await fsp.rm(work, { recursive: true, force: true });
   });
 
   it('writes /var/lib/portal/templates/nda.html with @font-face and no remote @import', () => {
