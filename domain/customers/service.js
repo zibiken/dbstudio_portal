@@ -199,6 +199,77 @@ export async function requestCustomerPasswordReset(db, { email }, ctx = {}) {
   return { inviteToken };
 }
 
+// Admin-driven combined reset for a customer_user. Clears the user's
+// existing TOTP secret + backup codes + password hash, mints a fresh
+// invite token (7 day TTL), revokes all of the user's active sessions,
+// and enqueues a customer-pw-reset email pointing at the welcome flow.
+// The customer's DEK is unchanged so vault-encrypted data (credentials,
+// docs) survives. The user re-enrols password + TOTP via the existing
+// completeCustomerWelcome flow.
+// Audit: customer.auth_reset_by_admin, visible_to_customer = true.
+export async function adminResetCustomerUserAuth(
+  db,
+  { customerId, customerUserId, adminId },
+  ctx = {},
+) {
+  const baseUrl = requirePortalBaseUrl(ctx, 'customers.adminResetCustomerUserAuth');
+  return await db.transaction().execute(async (tx) => {
+    const r = await sql`
+      SELECT cu.id::text AS user_id, cu.customer_id::text AS customer_id,
+             cu.email::text AS email, cu.name
+        FROM customer_users cu
+       WHERE cu.id = ${customerUserId}::uuid AND cu.customer_id = ${customerId}::uuid
+       FOR UPDATE
+    `.execute(tx);
+    const row = r.rows[0];
+    if (!row) throw new Error(`customer_user ${customerUserId} not found for customer ${customerId}`);
+
+    const inviteToken = generateInviteToken();
+    const inviteTokenHash = hashToken(inviteToken);
+    const inviteExpiresAt = new Date(Date.now() + INVITE_TTL_MS);
+
+    await sql`
+      UPDATE customer_users
+         SET password_hash = NULL,
+             totp_secret_enc = NULL,
+             totp_iv = NULL,
+             totp_tag = NULL,
+             backup_codes = '[]'::jsonb,
+             invite_token_hash = ${inviteTokenHash},
+             invite_expires_at = ${inviteExpiresAt},
+             invite_consumed_at = NULL
+       WHERE id = ${customerUserId}::uuid
+    `.execute(tx);
+
+    await sql`DELETE FROM sessions WHERE user_id = ${customerUserId}::uuid`.execute(tx);
+
+    await writeAudit(tx, {
+      actorType: 'admin',
+      actorId: adminId,
+      action: 'customer.auth_reset_by_admin',
+      targetType: 'customer_user',
+      targetId: customerUserId,
+      metadata: { ...(ctx?.audit ?? {}), customerId },
+      visibleToCustomer: true,
+      ip: ctx?.ip ?? null,
+      userAgentHash: ctx?.userAgentHash ?? null,
+    });
+
+    await enqueueEmail(tx, {
+      idempotencyKey: `customer_admin_auth_reset:${customerUserId}:${inviteTokenHash.slice(0, 16)}`,
+      toAddress: row.email,
+      template: 'customer-pw-reset',
+      locals: {
+        recipientName: row.name,
+        resetUrl: `${baseUrl}/customer/welcome/${inviteToken}`,
+        expiresAt: inviteExpiresAt.toISOString(),
+      },
+    });
+
+    return { customerUserId, inviteToken };
+  });
+}
+
 async function lockCustomerById(tx, customerId) {
   const r = await sql`
     SELECT id, status FROM customers WHERE id = ${customerId}::uuid FOR UPDATE

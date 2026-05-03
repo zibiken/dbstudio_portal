@@ -113,12 +113,25 @@ export function registerAdminCredentialsRoutes(app) {
     try { projectId = parseProjectId(body.project_id); }
     catch { projectId = null; }
     const fieldCount = Number.parseInt(String(body.field_count ?? '0'), 10) || 0;
+    const ALLOWED_TYPES = ['text', 'secret', 'url', 'note'];
     const payload = {};
+    const fieldsMeta = [];
     for (let i = 0; i < fieldCount; i++) {
       const k = typeof body[`field_name_${i}`] === 'string' ? body[`field_name_${i}`].trim() : '';
       const v = typeof body[`field_value_${i}`] === 'string' ? body[`field_value_${i}`] : '';
-      if (k && v !== '') payload[k] = v;
+      const lbl = typeof body[`field_label_${i}`] === 'string' ? body[`field_label_${i}`].trim() : '';
+      const tRaw = typeof body[`field_type_${i}`] === 'string' ? body[`field_type_${i}`].trim() : 'secret';
+      const t = ALLOWED_TYPES.includes(tRaw) ? tRaw : 'secret';
+      if (k && v !== '') {
+        payload[k] = v;
+        fieldsMeta.push({ name: k, label: lbl || k, type: t });
+      }
     }
+    // Carry the field metadata inside the encrypted payload as a reserved
+    // key so the reveal page can render typed labels + type-aware masking
+    // without a schema migration. Legacy credentials (flat {name: value})
+    // remain readable since "_meta" is just absent.
+    if (fieldsMeta.length > 0) payload._meta = { fields: fieldsMeta };
 
     const renderForm = async (errorMsg) => {
       reply.code(422);

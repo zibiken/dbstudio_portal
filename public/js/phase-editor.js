@@ -32,13 +32,23 @@
     clearRowAlert(row);
     row.setAttribute('aria-busy', 'true');
     row.classList.add('phase-row--loading');
+    // Send urlencoded, NOT multipart. @fastify/csrf-protection reads _csrf
+    // from req.body, and the route layer only registers @fastify/formbody
+    // (which handles application/x-www-form-urlencoded). FormData would
+    // post as multipart/form-data — that body never lands on req.body, so
+    // the CSRF lookup misses and the route rejects with FST_CSRF_INVALID_TOKEN.
     var fd = new FormData(form);
+    var params = new URLSearchParams();
+    fd.forEach(function (value, key) { params.append(key, value); });
     var res, html;
     try {
       res = await fetch(form.action, {
         method: form.method || 'POST',
-        headers: { 'Accept': 'text/html-fragment' },
-        body: fd,
+        headers: {
+          'Accept': 'text/html-fragment',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params.toString(),
         credentials: 'same-origin',
       });
       html = await res.text();

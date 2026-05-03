@@ -93,16 +93,26 @@ export function registerCustomerCredentialsRoutes(app) {
     const provider = typeof body.provider === 'string' ? body.provider.trim() : '';
     const label = typeof body.label === 'string' ? body.label.trim() : '';
 
-    // Build payload from "field name + field value" pairs (indexed; matches
-    // the M7 admin credential-request form pattern). Empty pair rows are
-    // skipped silently.
+    // Build payload from indexed Name|Label|Type|Value rows (parity with
+    // the credential-request form shape). Empty rows are skipped silently.
+    // Field metadata is stored inside the encrypted payload under the
+    // reserved "_meta" key so the reveal page can render typed labels.
     const fieldCount = Number.parseInt(String(body.field_count ?? '0'), 10) || 0;
+    const ALLOWED_TYPES = ['text', 'secret', 'url', 'note'];
     const payload = {};
+    const fieldsMeta = [];
     for (let i = 0; i < fieldCount; i++) {
       const k = typeof body[`field_name_${i}`] === 'string' ? body[`field_name_${i}`].trim() : '';
       const v = typeof body[`field_value_${i}`] === 'string' ? body[`field_value_${i}`] : '';
-      if (k && v !== '') payload[k] = v;
+      const lbl = typeof body[`field_label_${i}`] === 'string' ? body[`field_label_${i}`].trim() : '';
+      const tRaw = typeof body[`field_type_${i}`] === 'string' ? body[`field_type_${i}`].trim() : 'secret';
+      const t = ALLOWED_TYPES.includes(tRaw) ? tRaw : 'secret';
+      if (k && v !== '') {
+        payload[k] = v;
+        fieldsMeta.push({ name: k, label: lbl || k, type: t });
+      }
     }
+    if (fieldsMeta.length > 0) payload._meta = { fields: fieldsMeta };
 
     let projectId;
     try {

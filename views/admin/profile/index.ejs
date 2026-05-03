@@ -70,6 +70,7 @@
       name: 'new_password', label: 'New password',
       required: true, autocomplete: 'new-password', minlength: 12,
       helper: 'Screened against the Have I Been Pwned breach corpus.',
+      withConfirm: true, confirmLabel: 'Confirm new password',
       nonce: nonce
     }) %>
     <div class="form-actions">

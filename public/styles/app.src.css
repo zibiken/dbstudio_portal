@@ -303,6 +303,28 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
   .password-strength__fill { transition: none; }
 }
 
+.password-match {
+  display: flex; align-items: center; gap: var(--s-2);
+  font-size: var(--f-xs); color: var(--fg-on-light-muted);
+  margin-top: var(--s-2);
+}
+.password-match__icon {
+  display: inline-block; width: 1rem; height: 1rem; border-radius: 50%;
+  border: 1px solid var(--border-light); flex-shrink: 0;
+}
+.password-match[data-match="true"] {
+  color: var(--c-success);
+}
+.password-match[data-match="true"] .password-match__icon {
+  background: var(--c-success); border-color: var(--c-success);
+}
+.password-match[data-match="false"] {
+  color: var(--c-error);
+}
+.password-match[data-match="false"] .password-match__icon {
+  background: var(--c-error); border-color: var(--c-error);
+}
+
 /* Credential list group headings (G4 — per-project scope). */
 .cred-group__heading {
   margin: var(--s-6) 0 var(--s-2);
@@ -428,14 +450,31 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 }
 @media (max-width: 768px) { .project-grid { grid-template-columns: 1fr; } }
 
-/* Customer credential / credential-request shared two-column rows (T18b).
-   Used in /customer/credentials/new where each row is name + value. */
+/* Credential field rows. Four columns on desktop:
+   Name | Label | Type | Value (with optional show/hide toggle). */
 .customer-cred-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(8rem, 1fr) minmax(8rem, 1fr) 8rem minmax(10rem, 1.4fr);
   gap: var(--s-3);
+  align-items: stretch;
 }
-@media (max-width: 640px) { .customer-cred-row { grid-template-columns: 1fr; } }
+.customer-cred-row__value-wrap { position: relative; display: flex; }
+.customer-cred-row__value-wrap > input { flex: 1; padding-right: 2.25rem; }
+.customer-cred-row__value-toggle {
+  position: absolute; right: 0.25rem; top: 50%; transform: translateY(-50%);
+  background: transparent; border: 0; cursor: pointer; padding: 0.25rem;
+  color: var(--fg-on-light-muted);
+}
+.customer-cred-row__value-toggle:hover { color: var(--fg-on-light); }
+.customer-cred-row__value-toggle[hidden] { display: none; }
+@media (max-width: 880px) {
+  .customer-cred-row { grid-template-columns: 1fr 1fr; }
+  .customer-cred-row__value-wrap, .customer-cred-row > select { grid-column: span 2; }
+}
+@media (max-width: 480px) {
+  .customer-cred-row { grid-template-columns: 1fr; }
+  .customer-cred-row__value-wrap, .customer-cred-row > select { grid-column: auto; }
+}
 
 /* Customer activity filter row (T18b). Five inline fields + actions on
    desktop, stacks vertically on mobile. */
@@ -796,6 +835,23 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: var(--s-2) var(--s-6); margin: var(--s-4) 0; }
 .kv dt { color: var(--fg-on-light-muted); font-size: var(--f-sm); }
 .kv dd { margin: 0; word-break: break-word; }
+.kv__type-tag {
+  font-size: var(--f-xs); color: var(--fg-on-light-muted);
+  font-weight: 400; margin-left: var(--s-1);
+}
+
+.customer-users { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--s-3); }
+.customer-users__item {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: var(--s-3); padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--border-light); border-radius: var(--radius-md);
+  background: var(--bg-light);
+}
+.customer-users__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); flex: 1; min-width: 0; }
+.customer-users__name { font-weight: 600; }
+.customer-users__email { color: var(--fg-on-light-muted); font-size: var(--f-sm); }
+.customer-users__meta { color: var(--fg-on-light-muted); font-size: var(--f-xs); margin-left: auto; }
+.customer-users__actions { flex-shrink: 0; }
 @media (max-width: 640px) {
   .kv { grid-template-columns: 1fr; gap: var(--s-1); }
   .kv dt { margin-top: var(--s-2); }
@@ -1482,39 +1538,38 @@ select.cr-fields__input { padding-right: var(--s-2); }
   .checklist-create-form { grid-template-columns: 1fr; }
 }
 
-/* === Portal UX pass 2026-05-03: sticky chrome === */
+/* === Portal UX pass 2026-05-03: sticky chrome ===
+   Plain position:sticky, no JS-driven size changes. The previous
+   IntersectionObserver+`data-stuck` approach toggled `.page-header`
+   min-height with a CSS transition, which created a feedback loop
+   when the size change moved the sentinel back into the viewport —
+   visible to the user as flicker at the top of the page. The static
+   sticky stack below has predictable height and lets the entire main
+   column scroll all the way to the bottom (the sticky stays at the
+   top of the viewport, never clips the bottom). */
 :root {
   --page-header-height: 96px;
   --subtabs-height: 48px;
 }
-.chrome-sentinel { height: 1px; }
+.chrome-sentinel { display: none; }
 .page-header {
   position: sticky; top: 0; z-index: 30;
   background: var(--bg-light);
-  transition: padding 120ms ease, min-height 120ms ease;
 }
 body.public .page-header { background: var(--bg-dark); }
 .subtabs {
   position: sticky; top: var(--page-header-height); z-index: 29;
   background: var(--bg-light);
-}
-body.public .subtabs { background: var(--bg-dark); }
-body[data-stuck="true"] .page-header {
-  min-height: 56px;
-  padding-bottom: var(--s-2);
-  margin-bottom: var(--s-3);
   box-shadow: 0 1px 0 rgba(10,10,10,0.06);
 }
-body[data-stuck="true"] .page-header__title {
-  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-@media (max-width: 640px) {
-  body[data-stuck="true"] .eyebrow,
-  body[data-stuck="true"] .page-header__subtitle { display: none; }
-  body[data-stuck="true"] .page-header__title { font-size: var(--f-lg); }
-  body[data-stuck="true"] .page-header { min-height: 48px; }
-}
+body.public .subtabs { background: var(--bg-dark); }
+/* Anchor scroll-into-view past the sticky stack. */
 .phase-row { scroll-margin-top: calc(var(--page-header-height) + var(--subtabs-height) + 1rem); }
+/* Safety: room beneath the last row so it isn't visually nested up
+   against the page footer / next region. Sticky positioning itself
+   doesn't truncate scroll, but a bit of breathing room helps. */
+.surface { scroll-padding-bottom: 2rem; }
+.surface > :last-child { margin-bottom: var(--s-8); }
 
 /* === Portal UX pass 2026-05-03: phase row two-row card === */
 .phase-row--loading { opacity: 0.6; pointer-events: none; }

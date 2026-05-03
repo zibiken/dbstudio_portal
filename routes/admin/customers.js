@@ -180,6 +180,7 @@ export function registerAdminCustomerRoutes(app) {
       customer,
       users,
       questions,
+      query: req.query ?? {},
       csrfToken: await reply.generateCsrf(),
       activeNav: 'customers',
       mainWidth: 'wide',
@@ -316,4 +317,53 @@ export function registerAdminCustomerRoutes(app) {
       reply.redirect(`/admin/customers/${id}`, 302);
     });
   }
+
+  // Admin-driven combined reset for one of the customer's users:
+  // clears TOTP secret + backup codes + password hash, mints a fresh
+  // welcome invite, revokes active sessions, emails the user. Used when
+  // a user lost access to their authenticator.
+  app.post('/admin/customers/:id/users/:userId/auth-reset', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireAdminSession(app, req, reply);
+    if (!session) return;
+    const { id, userId } = req.params ?? {};
+    if (typeof id !== 'string' || !UUID_RE.test(id) ||
+        typeof userId !== 'string' || !UUID_RE.test(userId)) {
+      reply.code(404);
+      return renderAdmin(req, reply, 'admin/customers/not-found', {
+        title: 'Not found', activeNav: 'customers', mainWidth: 'wide',
+        sectionLabel: 'ADMIN · CUSTOMERS',
+      });
+    }
+    const customer = await findCustomerById(app.db, id);
+    if (!customer) {
+      reply.code(404);
+      return renderAdmin(req, reply, 'admin/customers/not-found', {
+        title: 'Not found', activeNav: 'customers', mainWidth: 'wide',
+        sectionLabel: 'ADMIN · CUSTOMERS',
+      });
+    }
+    try {
+      await customersService.adminResetCustomerUserAuth(app.db, {
+        customerId: id, customerUserId: userId, adminId: session.user_id,
+      }, {
+        actorType: 'admin', actorId: session.user_id,
+        ip: req.ip ?? null, userAgentHash: null,
+        portalBaseUrl: req.server.config?.PORTAL_BASE_URL ?? process.env.PORTAL_BASE_URL,
+        audit: {},
+      });
+    } catch (err) {
+      const users = await listCustomerUsersByCustomer(app.db, customer.id);
+      reply.code(422);
+      return renderAdmin(req, reply, 'admin/customers/detail', {
+        title: customer.razon_social,
+        customer, users,
+        csrfToken: await reply.generateCsrf(),
+        error: err.message || 'Could not reset that user.',
+        activeNav: 'customers', mainWidth: 'wide',
+        sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
+        activeTab: 'detail',
+      });
+    }
+    reply.redirect(`/admin/customers/${id}?auth_reset=1`, 302);
+  });
 }

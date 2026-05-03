@@ -9,6 +9,9 @@
 <% if (typeof error !== 'undefined' && error) { %>
   <%- include('../../components/_alert', { variant: 'error', body: error }) %>
 <% } %>
+<% if (typeof query !== 'undefined' && query && query.auth_reset === '1') { %>
+  <%- include('../../components/_alert', { variant: 'success', body: 'Reset email sent. The user will receive a link to set a new password and re-enrol their authenticator.' }) %>
+<% } %>
 
 <div class="card">
   <div class="card__title-row">
@@ -33,32 +36,43 @@
 
 <div class="card">
   <h2 class="card__title">Users</h2>
-  <p class="card__subtitle">People who can sign in to this company's portal.</p>
-  <%
-    var userRows = (users || []).map(function(u) {
-      var status, pill;
-      if (u.invite_consumed_at) { status = 'active'; pill = 'active'; }
-      else if (new Date(u.invite_expires_at).getTime() <= Date.now()) { status = 'invite expired'; pill = 'expired'; }
-      else { status = 'invite pending'; pill = 'pending'; }
-      return { cells: [
-        u.name,
-        u.email,
-        '<span class="status-pill status-pill--' + pill + '">' + status + '</span>',
-        euDateTime(u.created_at)
-      ]};
-    });
-  %>
-  <%- include('../../components/_table', {
-    density: 'medium',
-    columns: [
-      { label: 'Name',    align: 'left' },
-      { label: 'Email',   align: 'left' },
-      { label: 'Status',  align: 'left' },
-      { label: 'Created', align: 'left' }
-    ],
-    rows: userRows,
-    emptyState: 'No users on this customer yet.'
-  }) %>
+  <p class="card__subtitle">People who can sign in to this company's portal. "Reset auth" clears the user's password + TOTP and emails them a fresh welcome link. Their data (credentials, documents, projects) is preserved.</p>
+  <% if (!users || users.length === 0) { %>
+    <p class="card__subtitle">No users on this customer yet.</p>
+  <% } else { %>
+    <ul class="customer-users">
+      <% users.forEach(function(u) {
+           var status, pill;
+           if (u.invite_consumed_at) { status = 'active'; pill = 'active'; }
+           else if (new Date(u.invite_expires_at).getTime() <= Date.now()) { status = 'invite expired'; pill = 'expired'; }
+           else { status = 'invite pending'; pill = 'pending'; }
+      %>
+        <li class="customer-users__item">
+          <div class="customer-users__head">
+            <span class="customer-users__name"><%= u.name %></span>
+            <span class="customer-users__email"><%= u.email %></span>
+            <span class="status-pill status-pill--<%= pill %>"><%= status %></span>
+            <span class="customer-users__meta">created <%= euDateTime(u.created_at) %></span>
+          </div>
+          <% if (customer.status !== 'archived') { %>
+            <div class="customer-users__actions">
+              <%- include('../../components/_confirm-dialog', {
+                id: 'reset-auth-' + u.id,
+                triggerLabel: 'Reset auth',
+                triggerVariant: 'danger',
+                triggerSize: 'sm',
+                confirmLabel: 'Send reset email',
+                title: 'Reset password + TOTP for ' + u.name + '?',
+                body: 'This clears the user’s password and authenticator and emails them a fresh welcome link. Active sessions are revoked. Their credentials, documents, and projects are preserved.',
+                formAction: '/admin/customers/' + customer.id + '/users/' + u.id + '/auth-reset',
+                csrfToken: csrfToken
+              }) %>
+            </div>
+          <% } %>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
 </div>
 
 <% var qs = (typeof questions !== 'undefined' && questions) ? questions : []; %>
