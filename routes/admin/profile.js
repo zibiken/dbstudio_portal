@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import { renderAdmin, renderPublic } from '../../lib/render.js';
-import { requireAdminSession, clearSessionCookie } from '../../lib/auth/middleware.js';
+import { readSession, requireAdminSession, clearSessionCookie } from '../../lib/auth/middleware.js';
 import { deriveEnrolSecret, otpauthUri } from '../../lib/auth/totp-enrol.js';
 import { checkLockout, recordFail, reset as resetBucket } from '../../lib/auth/rate-limit.js';
 import * as adminsService from '../../domain/admins/service.js';
@@ -142,6 +142,14 @@ export function registerAdminProfileRoutes(app) {
   });
 
   app.get('/admin/profile/email/verify/:token', async (req, reply) => {
+    // I3 (M9 review): see routes/customer/profile.js for the rationale.
+    // Surface the pending-email-verify hint on the sign-in surface
+    // instead of a silent bounce.
+    const raw = await readSession(app, req);
+    if (!raw || raw.user_type !== 'admin' || !raw.step_up_at) {
+      const ret = encodeURIComponent(`/admin/profile/email/verify/${req.params.token}`);
+      return reply.redirect(`/login?email_verify_pending=1&return=${ret}`, 302);
+    }
     const session = await requireAdminSession(app, req, reply);
     if (!session) return;
     return renderAdmin(req, reply, 'admin/profile/email-verify', {

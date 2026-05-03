@@ -386,6 +386,14 @@ export function registerCustomerCredentialsRoutes(app) {
         makeCtx(req, session, app),
       );
     } catch (err) {
+      // M6 (M9 review): map known service errors to controlled copy.
+      // Today CredentialNotFoundError + CrossCustomerError are both pre-
+      // empted by the route's own 404 above; this path stays strictly
+      // defensive against future service additions.
+      const safeError =
+        err?.code === 'CREDENTIAL_NOT_FOUND' ? 'That credential no longer exists.' :
+        err?.code === 'CROSS_CUSTOMER'       ? 'That credential is not part of your company.' :
+        'Could not delete the credential — please retry.';
       reply.code(422);
       const credentials = await listCredentialsByCustomer(app.db, scope.customer_id);
       return renderCustomer(req, reply, 'customer/credentials/list', {
@@ -393,7 +401,7 @@ export function registerCustomerCredentialsRoutes(app) {
         scope,
         credentials,
         csrfToken: await reply.generateCsrf(),
-        error: err.message,
+        error: safeError,
       });
     }
     reply.redirect('/customer/credentials', 302);

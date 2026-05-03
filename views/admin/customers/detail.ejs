@@ -108,11 +108,15 @@
           <%- include('../../components/_button', { variant: 'primary', size: 'sm', type: 'submit', label: 'Reactivate' }) %>
         </form>
       <% } %>
-      <form method="post" action="/admin/customers/<%= customer.id %>/archive" class="form-inline-action"
-            onsubmit="return confirm('Archive this customer? This cannot be undone from the UI.');">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <%- include('../../components/_button', { variant: 'danger', size: 'sm', type: 'submit', label: 'Archive' }) %>
-      </form>
+      <details class="phase-row__delete">
+        <summary class="btn btn--danger btn--sm">Archive <%= customer.razon_social %>…</summary>
+        <form method="post" action="/admin/customers/<%= customer.id %>/archive"
+              aria-label="Confirm archive customer <%= customer.razon_social %>">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <p class="phase-row__delete-help">Archives the customer record. This cannot be undone from the UI.</p>
+          <%- include('../../components/_button', { variant: 'danger', size: 'sm', type: 'submit', label: 'Confirm archive' }) %>
+        </form>
+      </details>
     </div>
   </div>
 <% } %>

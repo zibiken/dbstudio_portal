@@ -22,10 +22,14 @@ function emailBucket(email) {
 
 export function registerLoginRoutes(app) {
   app.get('/login', async (req, reply) => {
+    const emailVerifyPending = req.query?.email_verify_pending === '1';
     return renderPublic(req, reply, 'public/login', {
       title: 'Sign in',
       csrfToken: await reply.generateCsrf(),
       hero: { eyebrow: 'DB STUDIO PORTAL', title: 'Sign in', lead: 'Use your work email and password.' },
+      info: emailVerifyPending
+        ? 'Sign in with your CURRENT email address — we will return you to confirm the change once you are in.'
+        : null,
     });
   });
 

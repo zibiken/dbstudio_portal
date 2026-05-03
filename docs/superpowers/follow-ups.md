@@ -144,6 +144,15 @@ acknowledged as not green and tracked here.
 
 ## Accessibility pass (plan Task 9.6)
 
+**Status (2026-05-03 Bundle 5):** static `scripts/a11y-check.js` (M9
+baseline + M11 additions) gained a `checkNoConfirm` rule that forbids
+`onsubmit="return confirm(...)"` in EJS forms. The two known sites
+(`views/customer/credentials/list.ejs` per-row delete and
+`views/admin/customers/detail.ejs` archive button) were converted to
+`<details>`/`<summary>` disclosure forms. The script is now wired into
+`scripts/run-tests.sh` as advisory after `check-detail-pattern.js`.
+Remaining gaps below — promote to blocking once they're cleaned up.
+
 **Status:** scaffolding pending. The portal already uses semantic HTML
 (form labels with `for=`, table headers, role="alert" on errors,
 ARIA-labelled brand link), and the design tokens hit AA contrast on
@@ -227,7 +236,18 @@ These came out of the M9 → M10 code review. The Important findings I1
 landed in the review-fix bundle; the items below stay in v1.1 unless
 the operator escalates one.
 
-### I3 — email-verify route session-bounce UX (Important, not security)
+### ~~I3 — email-verify route session-bounce UX~~ — SHIPPED 2026-05-03 in Bundle 5
+
+`routes/customer/profile.js` and `routes/admin/profile.js` GET email-verify
+handlers now check the session manually first; on no-session (or
+wrong-user-type) they redirect to `/login?email_verify_pending=1&return=<verify-url>`
+instead of bouncing silently. `routes/public/login.js` passes an info
+banner local when the query is present; `views/public/login.ejs` renders
+it. `tests/integration/auth/email-verify-bounce.test.js` (3 tests) pins
+the new behaviour. Picked option (b) per the trade-off space below.
+
+ORIGINAL:
+### I3 (legacy notes) — design rationale
 
 `/customer/profile/email/verify/:token` and `/admin/profile/email/
 verify/:token` require an authenticated session. A user who opens the
@@ -255,27 +275,25 @@ no `ESCAPE` clause needed). Future action names like
 `admin.sessionsRevoked` will no longer slip into the `admin.session_%`
 filter.
 
-### M5 — audit_log `metadata->>'customerId'` index
+### ~~M5 — audit_log `metadata->>'customerId'` index~~ — SHIPPED 2026-05-03 in Bundle 5
 
-The customer activity feed OR-joins `metadata->>'customerId' = X`
-against `target_type='customer' AND target_id=X`. There's no expression
-index supporting the metadata path; once `audit_log` grows, every
-customer-activity page-load scans the table.
-
-**Fix (v1.1, a few months in):**
+Migration `0014_audit_metadata_customer_index.sql`:
 ```sql
-CREATE INDEX idx_audit_metadata_customer
+CREATE INDEX IF NOT EXISTS idx_audit_metadata_customer
   ON audit_log ((metadata->>'customerId'))
   WHERE visible_to_customer;
 ```
+Applied via the systemd-run pattern. Migration ledger now at 14.
 
-### M6 — raw `err.message` in routes/customer/credentials.js delete error path
+### ~~M6 — raw `err.message` in routes/customer/credentials.js delete error path~~ — SHIPPED 2026-05-03 in Bundle 5
 
-Same anti-pattern as the M8-review-deferred M6 (admin credential-
-requests). Today the only reachable messages are
-`CredentialNotFoundError` and `CrossCustomerError`, both of which the
-route already 404's pre-service. Defensive-only. v1.1: add a controlled
-error vocabulary mapping `err.code` → customer-safe label.
+Both `routes/admin/credential-requests.js` cancel handler (M8 review M6)
+and `routes/customer/credentials.js` delete handler now map known
+service errors (`CREDENTIAL_REQUEST_NOT_FOUND` / `CREDENTIAL_REQUEST_NOT_OPEN`
+/ `CROSS_CUSTOMER` and `CREDENTIAL_NOT_FOUND` / `CROSS_CUSTOMER`
+respectively) to controlled, customer-safe copy with a fall-through
+generic for unknown codes. Both routes pre-empt with their own 404
+above the service call so the typed branches only fire on TOCTOU races.
 
 ### M7 (M9 review) — TOTP regen view shows the otpauth URI as text
 

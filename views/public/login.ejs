@@ -2,6 +2,10 @@
   <%- include('../components/_alert', { variant: 'error', body: error }) %>
 <% } %>
 
+<% if (typeof info !== 'undefined' && info) { %>
+  <%- include('../components/_alert', { variant: 'info', body: info }) %>
+<% } %>
+
 <form method="post" action="/login" autocomplete="on" class="form-stack">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 

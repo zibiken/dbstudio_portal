@@ -255,6 +255,23 @@ function checkSidebarActiveAriaCurrent(file, src) {
   }
 }
 
+// Bundle 5 a11y pass: forbid native confirm() in destructive forms.
+// confirm() loses keyboard focus in some browsers, has no aria-live
+// announcement, is blocked on iOS Safari when triggered from a
+// non-user-gesture context, and gives no way to add explanatory text.
+// Replace with a `<details>`/`<summary>` disclosure or a button + dialog
+// pattern (see views/admin/projects/detail.ejs phase delete for an
+// example).
+function checkNoConfirm(file, src) {
+  const lines = src.split('\n');
+  const re = /onsubmit\s*=\s*['"]\s*return\s+confirm\s*\(/i;
+  for (let i = 0; i < lines.length; i++) {
+    if (re.test(lines[i])) {
+      flag(file, i + 1, 'destructive form uses native confirm() — replace with <details>/<summary> disclosure');
+    }
+  }
+}
+
 function checkReducedMotionPartner(file, src) {
   // CSS-only check. If a file declares any `transition:` rule, it must
   // also carry at least one @media (prefers-reduced-motion: reduce)
@@ -278,6 +295,7 @@ for (const file of walk(VIEWS)) {
   checkQrAriaLabel(file, src);
   checkModalAriaModal(file, src);
   checkSidebarActiveAriaCurrent(file, src);
+  checkNoConfirm(file, src);
 }
 
 // CSS-side partner check.

@@ -177,13 +177,21 @@ export function registerAdminCredentialRequestsRoutes(app) {
           adminId: session.user_id, requestId: id,
         }, makeCtx(req, session));
       } catch (err) {
+        // M6 (M9 review): map known service errors to controlled, customer-safe
+        // copy. Avoid surfacing raw err.message which can leak internal
+        // detail or unstable wording from validation libraries.
+        const safeError =
+          err?.code === 'CREDENTIAL_REQUEST_NOT_FOUND' ? 'That credential request no longer exists.' :
+          err?.code === 'CREDENTIAL_REQUEST_NOT_OPEN'  ? 'That credential request is not open.' :
+          err?.code === 'CROSS_CUSTOMER'               ? 'That credential request belongs to a different customer.' :
+          'Could not cancel the request — please retry.';
         reply.code(422);
         return renderAdmin(req, reply, 'admin/credential-requests/detail', {
           title: `Credential request · ${request.provider}`,
           customer,
           request,
           csrfToken: await reply.generateCsrf(),
-          error: err.message,
+          error: safeError,
           mainWidth: 'wide',
           ...customerChrome(customer, 'credential-requests'),
         });

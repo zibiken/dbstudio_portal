@@ -65,3 +65,7 @@ sudo -u portal-app -E env \
 # Phase F: advisory layout-pattern check (non-blocking, exit code 0).
 sudo -u portal-app -E env PATH="$ROOT/.node/bin:/usr/bin:/bin" \
   "$NODE" "$ROOT/scripts/check-detail-pattern.js" || true
+
+# Bundle 5: advisory a11y check (non-blocking, exit code 0).
+sudo -u portal-app -E env PATH="$ROOT/.node/bin:/usr/bin:/bin" \
+  "$NODE" "$ROOT/scripts/a11y-check.js" || true

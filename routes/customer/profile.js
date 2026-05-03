@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import { renderCustomer, renderPublic } from '../../lib/render.js';
-import { requireCustomerSession, clearSessionCookie } from '../../lib/auth/middleware.js';
+import { readSession, requireCustomerSession, clearSessionCookie } from '../../lib/auth/middleware.js';
 import { deriveEnrolSecret, otpauthUri } from '../../lib/auth/totp-enrol.js';
 import { checkLockout, recordFail, reset as resetBucket } from '../../lib/auth/rate-limit.js';
 import * as customerUsersService from '../../domain/customer-users/service.js';
@@ -369,6 +369,17 @@ export function registerCustomerProfileRoutes(app) {
   });
 
   app.get('/customer/profile/email/verify/:token', async (req, reply) => {
+    // I3 (M9 review): the verify link is most often opened on a different
+    // device than the one that requested the change, so the user lands
+    // here without a session. Don't bounce silently to "/" — surface the
+    // pending-email-verify hint on the login surface so they understand
+    // they need to sign in with their CURRENT (old) email first, then
+    // we'll bring them back to confirm.
+    const raw = await readSession(app, req);
+    if (!raw || raw.user_type !== 'customer') {
+      const ret = encodeURIComponent(`/customer/profile/email/verify/${req.params.token}`);
+      return reply.redirect(`/login?email_verify_pending=1&return=${ret}`, 302);
+    }
     const session = await requireCustomerSession(app, req, reply);
     if (!session) return;
     return renderCustomer(req, reply, 'customer/profile/email-verify', {
