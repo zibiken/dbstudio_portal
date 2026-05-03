@@ -115,6 +115,21 @@ describe.skipIf(skip)('domain/phases/service', () => {
     expect(lastForThisPhase.visible_to_customer).toBe(false);
   });
 
+  it('rename on an in_progress phase writes a customer-visible audit row', async () => {
+    const ctx = await makeCustomerAndProject(db, tag, 'rename-vis');
+    const p = await phasesService.create(db, { projectId: ctx.projectId, customerId: ctx.customerId, label: 'old' },
+      { ...baseCtx(tag), actorType: 'admin' }, { adminId });
+    await phasesService.changeStatus(db, { phaseId: p.phaseId, customerId: ctx.customerId },
+      { newStatus: 'in_progress' }, { ...baseCtx(tag), actorType: 'admin' }, { adminId });
+    await phasesService.rename(db, { phaseId: p.phaseId, customerId: ctx.customerId },
+      { label: 'renamed' }, { ...baseCtx(tag), actorType: 'admin' }, { adminId });
+    const auditRows = await getAuditRowsFor('phase.renamed');
+    const last = auditRows.filter(r => r.metadata.phaseId === p.phaseId).pop();
+    expect(last.visible_to_customer).toBe(true);
+    expect(last.metadata.oldLabel).toBe('old');
+    expect(last.metadata.newLabel).toBe('renamed');
+  });
+
   it('rename with duplicate label rejects', async () => {
     const a = await phasesService.create(db, { projectId, customerId, label: '5' },
       { ...baseCtx(tag), actorType: 'admin' }, { adminId });
