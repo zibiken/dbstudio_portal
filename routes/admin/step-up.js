@@ -44,7 +44,7 @@ export function registerAdminStepUpRoutes(app) {
       csrfToken: await reply.generateCsrf(),
       returnTo: safeReturn,
       activeNav: null,
-      mainWidth: 'content',
+      mainWidth: 'wide',
       sectionLabel: 'ADMIN · STEP-UP',
     });
   });
@@ -65,7 +65,7 @@ export function registerAdminStepUpRoutes(app) {
         returnTo: safeReturn,
         error: 'Too many attempts. Try again later.',
         activeNav: null,
-        mainWidth: 'content',
+        mainWidth: 'wide',
         sectionLabel: 'ADMIN · STEP-UP',
       });
     }
@@ -94,7 +94,7 @@ export function registerAdminStepUpRoutes(app) {
         returnTo: safeReturn,
         error: 'Authenticator code is invalid or expired. Try again with a fresh code.',
         activeNav: null,
-        mainWidth: 'content',
+        mainWidth: 'wide',
         sectionLabel: 'ADMIN · STEP-UP',
       });
     }

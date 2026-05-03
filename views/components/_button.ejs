@@ -1,4 +1,4 @@
-<%# Button. Locals: variant (primary|secondary|ghost|danger), size (md|sm), type, label, href, name, value, disabled, busy. %>
+<%# Button. Locals: variant (primary|secondary|ghost|danger|tertiary), size (md|sm), type, label, href, name, value, disabled, busy, formaction, formnovalidate. %>
 <%
   var v = (typeof variant !== 'undefined') ? variant : 'primary';
   var s = (typeof size !== 'undefined') ? size : 'md';
@@ -13,6 +13,8 @@
   <button type="<%= t %>" class="<%= classes %>"
     <% if (typeof name !== 'undefined' && name) { %>name="<%= name %>"<% } %>
     <% if (typeof value !== 'undefined' && value) { %>value="<%= value %>"<% } %>
+    <% if (typeof formaction !== 'undefined' && formaction) { %>formaction="<%= formaction %>"<% } %>
+    <% if (typeof formnovalidate !== 'undefined' && formnovalidate) { %>formnovalidate<% } %>
     <% if (d) { %>disabled<% } %>
     <% if (b) { %>aria-busy="true"<% } %>
   ><%= label %></button>

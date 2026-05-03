@@ -22,7 +22,7 @@ function notFound(req, reply) {
   return renderAdmin(req, reply, 'admin/customers/not-found', {
     title: 'Not found',
     activeNav: 'customers',
-    mainWidth: 'content',
+    mainWidth: 'wide',
     sectionLabel: 'ADMIN · CUSTOMERS',
   });
 }

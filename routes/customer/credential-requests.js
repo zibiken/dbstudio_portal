@@ -21,7 +21,7 @@ function notFound(req, reply) {
   return renderCustomer(req, reply, 'customer/credential-requests/not-found', {
     title: 'Not found',
     activeNav: 'credential-requests',
-    mainWidth: 'content',
+    mainWidth: 'wide',
     sectionLabel: 'CREDENTIAL REQUESTS',
   });
 }

@@ -12,7 +12,7 @@ function notFound(req, reply) {
   return renderAdmin(req, reply, 'admin/customers/not-found', {
     title: 'Not found',
     activeNav: 'customers',
-    mainWidth: 'content',
+    mainWidth: 'wide',
     sectionLabel: 'ADMIN · CUSTOMERS',
   });
 }
@@ -106,7 +106,7 @@ export function registerAdminCredentialsRoutes(app) {
       decryptError,
       revealed: mode === 'revealed',
       csrfToken: await reply.generateCsrf(),
-      mainWidth: 'content',
+      mainWidth: 'wide',
       ...customerChrome(customer, 'credentials'),
     });
   });

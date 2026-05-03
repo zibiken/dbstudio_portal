@@ -31,12 +31,13 @@
     <textarea id="answer" name="answer" rows="6" maxlength="8000" class="form-textarea"><%= typeof prefill !== 'undefined' ? prefill : '' %></textarea>
     <div class="form-actions">
       <%- include('../../components/_button', { variant: 'primary', size: 'md', type: 'submit', label: 'Submit answer' }) %>
+      <%- include('../../components/_button', {
+        variant: 'tertiary', size: 'md', type: 'submit',
+        formaction: '/customer/questions/' + question.id + '/skip',
+        formnovalidate: true,
+        label: 'Skip / I don\'t know'
+      }) %>
     </div>
-  </form>
-
-  <form method="post" action="/customer/questions/<%= question.id %>/skip" class="form-actions">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <%- include('../../components/_button', { variant: 'tertiary', size: 'md', type: 'submit', label: 'Skip / I don\'t know' }) %>
   </form>
 <% } else { %>
   <%- include('../../components/_alert', { variant: 'info', body: 'This question has been ' + question.status + '.' }) %>

@@ -31,7 +31,7 @@ export function registerCustomerWaitingRoutes(app) {
       user,
       customer,
       activeNav: null,
-      mainWidth: 'content',
+      mainWidth: 'wide',
       sectionLabel: customer.razon_social.toUpperCase(),
     });
   });

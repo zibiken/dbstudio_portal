@@ -164,13 +164,13 @@ export function registerAdminCustomerRoutes(app) {
     const id = req.params?.id;
     if (typeof id !== 'string' || !UUID_RE.test(id)) {
       reply.code(404);
-      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'wide', sectionLabel: 'ADMIN · CUSTOMERS' });
     }
 
     const customer = await findCustomerById(app.db, id);
     if (!customer) {
       reply.code(404);
-      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'wide', sectionLabel: 'ADMIN · CUSTOMERS' });
     }
 
     const users = await listCustomerUsersByCustomer(app.db, customer.id);
@@ -195,12 +195,12 @@ export function registerAdminCustomerRoutes(app) {
     const id = req.params?.id;
     if (typeof id !== 'string' || !UUID_RE.test(id)) {
       reply.code(404);
-      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'wide', sectionLabel: 'ADMIN · CUSTOMERS' });
     }
     const customer = await findCustomerById(app.db, id);
     if (!customer) {
       reply.code(404);
-      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'wide', sectionLabel: 'ADMIN · CUSTOMERS' });
     }
 
     return renderAdmin(req, reply, 'admin/customers/edit', {
@@ -223,12 +223,12 @@ export function registerAdminCustomerRoutes(app) {
     const id = req.params?.id;
     if (typeof id !== 'string' || !UUID_RE.test(id)) {
       reply.code(404);
-      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'wide', sectionLabel: 'ADMIN · CUSTOMERS' });
     }
     const customer = await findCustomerById(app.db, id);
     if (!customer) {
       reply.code(404);
-      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
+      return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'wide', sectionLabel: 'ADMIN · CUSTOMERS' });
     }
 
     const body = req.body ?? {};
@@ -271,7 +271,7 @@ export function registerAdminCustomerRoutes(app) {
       const id = req.params?.id;
       if (typeof id !== 'string' || !UUID_RE.test(id)) {
         reply.code(404);
-        return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
+        return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'wide', sectionLabel: 'ADMIN · CUSTOMERS' });
       }
 
       const ctx = {
@@ -296,7 +296,7 @@ export function registerAdminCustomerRoutes(app) {
         const customer = await findCustomerById(app.db, id);
         if (!customer) {
           reply.code(404);
-          return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'content', sectionLabel: 'ADMIN · CUSTOMERS' });
+          return renderAdmin(req, reply, 'admin/customers/not-found', { title: 'Not found', activeNav: 'customers', mainWidth: 'wide', sectionLabel: 'ADMIN · CUSTOMERS' });
         }
         const users = await listCustomerUsersByCustomer(app.db, customer.id);
         reply.code(422);

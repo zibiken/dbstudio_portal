@@ -46,7 +46,7 @@ export function registerCustomerOnboardingRoutes(app, { mountPath = '/customer/w
       user,
       customer,
       activeNav: 'profile',
-      mainWidth: 'content',
+      mainWidth: 'wide',
       sectionLabel: customer ? customer.razon_social.toUpperCase() : 'PORTAL',
     });
   });

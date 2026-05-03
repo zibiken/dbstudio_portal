@@ -46,7 +46,7 @@ export function registerCustomerStepUpRoutes(app) {
       csrfToken: await reply.generateCsrf(),
       returnTo: safeReturn,
       activeNav: null,
-      mainWidth: 'content',
+      mainWidth: 'wide',
     });
   });
 
@@ -67,7 +67,7 @@ export function registerCustomerStepUpRoutes(app) {
         returnTo: safeReturn,
         error: 'Too many attempts. Try again later.',
         activeNav: null,
-        mainWidth: 'content',
+        mainWidth: 'wide',
       });
     }
 
@@ -95,7 +95,7 @@ export function registerCustomerStepUpRoutes(app) {
         returnTo: safeReturn,
         error: 'Authenticator code is invalid or expired. Try again with a fresh code.',
         activeNav: null,
-        mainWidth: 'content',
+        mainWidth: 'wide',
       });
     }
 
