@@ -34,7 +34,7 @@
       <li>
         <article class="customer-phase" data-status="<%= p.status %>">
           <header class="customer-phase__header">
-            <h3 class="customer-phase__label"><%= p.label %></h3>
+            <h2 class="customer-phase__label"><%= p.label %></h2>
             <%- customerPhaseStatusPill(p.status) %>
           </header>
           <% if (p.started_at) { %>

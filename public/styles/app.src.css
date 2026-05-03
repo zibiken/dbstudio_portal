@@ -1312,7 +1312,11 @@ select.cr-fields__input { padding-right: var(--s-2); }
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
 .card--link:hover { border-color: var(--c-moss); transform: translateY(-1px); }
-.card--link:focus-visible { outline: 2px solid var(--c-moss); outline-offset: 2px; }
+.card--link:focus-visible {
+  outline: 2px solid var(--c-moss);
+  outline-offset: 2px;
+  border-radius: var(--radius-card, 8px);
+}
 
 /* phases + checklists (Phase B / C) */
 .phase-section__header { margin-bottom: var(--s-3); }
