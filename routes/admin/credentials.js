@@ -2,10 +2,18 @@ import { renderAdmin } from '../../lib/render.js';
 import { requireAdminSession } from '../../lib/auth/middleware.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { findCredentialById, listCredentialsByCustomer } from '../../domain/credentials/repo.js';
+import { listProjectsByCustomer } from '../../domain/projects/repo.js';
 import * as credentialsService from '../../domain/credentials/service.js';
 import { isVaultUnlocked } from '../../lib/auth/vault-lock.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function parseProjectId(raw) {
+  if (raw === undefined || raw === null || raw === '' || raw === '__none__') return null;
+  if (typeof raw !== 'string' || !UUID_RE.test(raw)) {
+    throw new Error('Invalid project selection.');
+  }
+  return raw;
+}
 
 function notFound(req, reply) {
   reply.code(404);
@@ -44,11 +52,15 @@ export function registerAdminCredentialsRoutes(app) {
     const customer = await findCustomerById(app.db, id);
     if (!customer) return notFound(req, reply);
 
-    const rows = await listCredentialsByCustomer(app.db, id);
+    const [rows, projects] = await Promise.all([
+      listCredentialsByCustomer(app.db, id),
+      listProjectsByCustomer(app.db, id),
+    ]);
     return renderAdmin(req, reply, 'admin/credentials/list', {
       title: 'Credentials · ' + customer.razon_social,
       customer,
       rows,
+      projects,
       mainWidth: 'wide',
       ...customerChrome(customer, 'credentials'),
     });
@@ -98,6 +110,8 @@ export function registerAdminCredentialsRoutes(app) {
       }
     }
 
+    const projects = await listProjectsByCustomer(app.db, cid);
+    const scopeError = typeof req.query?.scope_error === 'string' ? req.query.scope_error : '';
     return renderAdmin(req, reply, 'admin/credentials/show', {
       title: 'Credential · ' + customer.razon_social,
       customer,
@@ -105,6 +119,8 @@ export function registerAdminCredentialsRoutes(app) {
       payload,
       decryptError,
       revealed: mode === 'revealed',
+      projects,
+      scopeError,
       csrfToken: await reply.generateCsrf(),
       mainWidth: 'wide',
       ...customerChrome(customer, 'credentials'),
@@ -119,5 +135,45 @@ export function registerAdminCredentialsRoutes(app) {
     if (typeof cid !== 'string' || !UUID_RE.test(cid)) return notFound(req, reply);
     if (typeof credId !== 'string' || !UUID_RE.test(credId)) return notFound(req, reply);
     return reply.redirect(`/admin/customers/${cid}/credentials/${credId}?mode=reveal`, 302);
+  });
+
+  // Admin-side scope change. Step-up gated via updateByAdmin (mirrors the
+  // overwrite path). Customer-visible audit row + credential.project_changed
+  // is fanned out by the service layer.
+  app.post('/admin/customers/:id/credentials/:credId/scope', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireAdminSession(app, req, reply);
+    if (!session) return;
+    const cid = req.params?.id;
+    const credId = req.params?.credId;
+    if (typeof cid !== 'string' || !UUID_RE.test(cid)) return notFound(req, reply);
+    if (typeof credId !== 'string' || !UUID_RE.test(credId)) return notFound(req, reply);
+
+    const credential = await findCredentialById(app.db, credId);
+    if (!credential || credential.customer_id !== cid) return notFound(req, reply);
+
+    let projectId;
+    try { projectId = parseProjectId(req.body?.project_id); }
+    catch {
+      return reply.redirect(`/admin/customers/${cid}/credentials/${credId}?scope_error=invalid`, 302);
+    }
+
+    try {
+      await credentialsService.updateByAdmin(app.db, {
+        adminId: session.user_id,
+        sessionId: session.id,
+        credentialId: credId,
+        projectId,
+      }, { ip: req.ip ?? null, userAgentHash: null, audit: { source: 'admin-scope' }, kek: app.kek });
+    } catch (err) {
+      if (err?.code === 'STEP_UP_REQUIRED') {
+        const ret = encodeURIComponent(`/admin/customers/${cid}/credentials/${credId}`);
+        return reply.redirect(`/admin/step-up?return=${ret}`, 302);
+      }
+      if (err?.code === 'PROJECT_SCOPE') {
+        return reply.redirect(`/admin/customers/${cid}/credentials/${credId}?scope_error=cross-customer`, 302);
+      }
+      throw err;
+    }
+    reply.redirect(`/admin/customers/${cid}/credentials/${credId}`, 302);
   });
 }

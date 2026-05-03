@@ -303,6 +303,20 @@ body:not(.public) .eyebrow { color: var(--fg-on-light-muted); }
   .password-strength__fill { transition: none; }
 }
 
+/* Credential list group headings (G4 — per-project scope). */
+.cred-group__heading {
+  margin: var(--s-6) 0 var(--s-2);
+  font-size: var(--f-md);
+  font-weight: 600;
+  color: var(--fg-on-light);
+  letter-spacing: 0;
+}
+.cred-group__heading:first-of-type { margin-top: var(--s-2); }
+.cred-group__count {
+  color: var(--fg-on-light-muted);
+  font-weight: 500;
+}
+
 /* _card */
 .card {
   background: var(--c-white);

@@ -3,7 +3,19 @@ import { renderCustomer } from '../../lib/render.js';
 import { requireCustomerSession, requireNdaSigned } from '../../lib/auth/middleware.js';
 import * as credentialsService from '../../domain/credentials/service.js';
 import { listCredentialsByCustomer, findCredentialById } from '../../domain/credentials/repo.js';
+import { listProjectsByCustomer } from '../../domain/projects/repo.js';
 import { isVaultUnlocked } from '../../lib/auth/vault-lock.js';
+
+const UUID_RE_INNER = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function parseProjectId(raw) {
+  // Form posts an empty string for "Company-wide". Normalize to null;
+  // reject any malformed UUID shape.
+  if (raw === undefined || raw === null || raw === '' || raw === '__none__') return null;
+  if (typeof raw !== 'string' || !UUID_RE_INNER.test(raw)) {
+    throw new Error('Invalid project selection.');
+  }
+  return raw;
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -35,11 +47,15 @@ export function registerCustomerCredentialsRoutes(app) {
     if (!requireNdaSigned(req, reply, session)) return;
     const scope = await customerScopeFor(app, session);
     if (!scope) return reply.redirect('/', 302);
-    const credentials = await listCredentialsByCustomer(app.db, scope.customer_id);
+    const [credentials, projects] = await Promise.all([
+      listCredentialsByCustomer(app.db, scope.customer_id),
+      listProjectsByCustomer(app.db, scope.customer_id),
+    ]);
     return renderCustomer(req, reply, 'customer/credentials/list', {
       title: 'Credentials',
       scope,
       credentials,
+      projects,
       csrfToken: await reply.generateCsrf(),
       activeNav: 'credentials',
       mainWidth: 'wide',
@@ -53,10 +69,12 @@ export function registerCustomerCredentialsRoutes(app) {
     if (!requireNdaSigned(req, reply, session)) return;
     const scope = await customerScopeFor(app, session);
     if (!scope) return reply.redirect('/', 302);
+    const projects = await listProjectsByCustomer(app.db, scope.customer_id);
     return renderCustomer(req, reply, 'customer/credentials/new', {
       title: 'Add a credential',
       scope,
       form: null,
+      projects,
       csrfToken: await reply.generateCsrf(),
       activeNav: 'credentials',
       mainWidth: 'wide',
@@ -86,14 +104,30 @@ export function registerCustomerCredentialsRoutes(app) {
       if (k && v !== '') payload[k] = v;
     }
 
-    const renderForm = async (errorMsg) => {
+    let projectId;
+    try {
+      projectId = parseProjectId(body.project_id);
+    } catch (err) {
+      const projects = await listProjectsByCustomer(app.db, scope.customer_id);
       reply.code(422);
       return renderCustomer(req, reply, 'customer/credentials/new', {
         title: 'Add a credential',
-        scope,
+        scope, projects,
+        csrfToken: await reply.generateCsrf(),
+        error: err.message,
+        form: { provider, label, payload, projectId: body.project_id ?? null },
+      });
+    }
+
+    const renderForm = async (errorMsg) => {
+      const projects = await listProjectsByCustomer(app.db, scope.customer_id);
+      reply.code(422);
+      return renderCustomer(req, reply, 'customer/credentials/new', {
+        title: 'Add a credential',
+        scope, projects,
         csrfToken: await reply.generateCsrf(),
         error: errorMsg,
-        form: { provider, label, payload },
+        form: { provider, label, payload, projectId },
       });
     };
 
@@ -110,6 +144,7 @@ export function registerCustomerCredentialsRoutes(app) {
           provider,
           label,
           payload,
+          projectId,
         },
         makeCtx(req, session, app),
       );
@@ -117,6 +152,40 @@ export function registerCustomerCredentialsRoutes(app) {
       return renderForm(err.message);
     }
     reply.redirect('/customer/credentials', 302);
+  });
+
+  // POST /customer/credentials/:id/scope — change project scope only.
+  app.post('/customer/credentials/:id/scope', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireCustomerSession(app, req, reply);
+    if (!session) return;
+    if (!requireNdaSigned(req, reply, session)) return;
+    const scope = await customerScopeFor(app, session);
+    if (!scope) return reply.redirect('/', 302);
+
+    const id = req.params?.id;
+    if (typeof id !== 'string' || !UUID_RE.test(id)) { reply.code(404).send(); return; }
+    const cred = await findCredentialById(app.db, id);
+    if (!cred || cred.customer_id !== scope.customer_id) { reply.code(404).send(); return; }
+
+    let projectId;
+    try { projectId = parseProjectId(req.body?.project_id); }
+    catch {
+      return reply.redirect('/customer/credentials/' + id + '?scope_error=invalid', 302);
+    }
+
+    try {
+      await credentialsService.updateByCustomer(
+        app.db,
+        { customerUserId: session.user_id, credentialId: id, projectId },
+        makeCtx(req, session, app),
+      );
+    } catch (err) {
+      if (err.code === 'PROJECT_SCOPE') {
+        return reply.redirect('/customer/credentials/' + id + '?scope_error=cross-customer', 302);
+      }
+      throw err;
+    }
+    reply.redirect('/customer/credentials/' + id, 302);
   });
 
   app.get('/customer/credentials/:id', async (req, reply) => {
@@ -167,6 +236,8 @@ export function registerCustomerCredentialsRoutes(app) {
       }
     }
 
+    const projects = await listProjectsByCustomer(app.db, scope.customer_id);
+    const scopeError = typeof req.query?.scope_error === 'string' ? req.query.scope_error : '';
     return renderCustomer(req, reply, 'customer/credentials/show', {
       title: 'Credential',
       scope,
@@ -174,6 +245,8 @@ export function registerCustomerCredentialsRoutes(app) {
       payload,
       decryptError,
       revealed: mode === 'revealed',
+      projects,
+      scopeError,
       csrfToken: await reply.generateCsrf(),
       activeNav: 'credentials',
       mainWidth: 'wide',

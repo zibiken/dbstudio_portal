@@ -31,6 +31,29 @@ export class CrossCustomerError extends Error {
   }
 }
 
+export class ProjectScopeError extends Error {
+  constructor(projectId, customerId) {
+    super(`project ${projectId} does not belong to customer ${customerId}`);
+    this.name = 'ProjectScopeError';
+    this.code = 'PROJECT_SCOPE';
+  }
+}
+
+async function assertProjectBelongsToCustomer(tx, projectId, customerId) {
+  if (projectId === null || projectId === undefined) return;
+  // FOR UPDATE locks the project row for the rest of this transaction so a
+  // concurrent UPDATE on projects.customer_id can't slip through between
+  // this check and the credential INSERT/UPDATE that follows. The FK with
+  // ON DELETE RESTRICT already prevents deletion races; this covers the
+  // ownership-reassignment race DeepSeek flagged on G4 review.
+  const r = await sql`
+    SELECT 1 FROM projects
+     WHERE id = ${projectId}::uuid AND customer_id = ${customerId}::uuid
+       FOR UPDATE
+  `.execute(tx);
+  if (r.rows.length === 0) throw new ProjectScopeError(projectId, customerId);
+}
+
 export class CredentialRequestNotFoundError extends Error {
   constructor(id) {
     super(`credential_request ${id} not found`);
@@ -127,6 +150,7 @@ export async function createByCustomer(db, {
   provider,
   label,
   payload,
+  projectId = null,
 }, ctx = {}) {
   const kek = requireKek(ctx, 'credentials.createByCustomer');
   const { provider: p, label: l } = requireProviderLabel(provider, label);
@@ -140,6 +164,7 @@ export async function createByCustomer(db, {
       );
     }
     await assertCustomerUserBelongsTo(tx, customerUserId, customerId);
+    await assertProjectBelongsToCustomer(tx, projectId, customerId);
 
     const dek = unwrapDek({
       ciphertext: customer.dek_ciphertext,
@@ -158,6 +183,7 @@ export async function createByCustomer(db, {
       payloadIv: env.iv,
       payloadTag: env.tag,
       createdBy: 'customer',
+      projectId,
     });
 
     const a = baseAudit(ctx);
@@ -167,7 +193,7 @@ export async function createByCustomer(db, {
       action: 'credential.created',
       targetType: 'credential',
       targetId: id,
-      metadata: { ...a.metadata, customerId, provider: p, label: l, createdBy: 'customer' },
+      metadata: { ...a.metadata, customerId, projectId, provider: p, label: l, createdBy: 'customer' },
       visibleToCustomer: true,
       ip: a.ip,
       userAgentHash: a.userAgentHash,
@@ -202,6 +228,8 @@ async function lockOpenRequest(tx, requestId) {
   // FOR UPDATE on the request row serialises concurrent fulfilment
   // attempts on the same request — the second concurrent caller will
   // see status='fulfilled' on its post-lock re-check and bail.
+  // Note: credential_requests has NO project_id column in v1; admins
+  // rescope the resulting credential after fulfilment via the show page.
   const r = await sql`
     SELECT id, customer_id, provider, status
       FROM credential_requests
@@ -253,6 +281,9 @@ export async function createByAdminFromRequest(db, {
       payloadIv: env.iv,
       payloadTag: env.tag,
       createdBy: 'admin',
+      // credential_requests has no project_id column — admin-fulfilled
+      // credentials land company-wide and can be rescoped via the show page.
+      projectId: null,
     });
 
     await sql`
@@ -273,6 +304,7 @@ export async function createByAdminFromRequest(db, {
       metadata: {
         ...a.metadata,
         customerId: reqRow.customer_id,
+        projectId: null,
         provider: reqRow.provider,
         label: labelTrimmed,
         createdBy: 'admin',
@@ -291,6 +323,7 @@ export async function createByAdminFromRequest(db, {
       metadata: {
         ...a.metadata,
         customerId: reqRow.customer_id,
+        projectId: null,
         provider: reqRow.provider,
         credentialId,
       },
@@ -644,11 +677,11 @@ async function buildUpdatePayload({ db, customerId, payload, kek }) {
   };
 }
 
-function requireSomethingToChange(label, payload) {
+function requireSomethingToChange(label, payload, projectIdGiven = false) {
   const labelGiven = label !== undefined && label !== null;
   const payloadGiven = payload !== undefined && payload !== null;
-  if (!labelGiven && !payloadGiven) {
-    throw new Error('updateCredential: nothing to change — supply label and/or payload');
+  if (!labelGiven && !payloadGiven && !projectIdGiven) {
+    throw new Error('updateCredential: nothing to change — supply label, payload, and/or projectId');
   }
   if (labelGiven && (typeof label !== 'string' || label.trim() === '')) {
     throw new Error('label must be a non-empty string');
@@ -664,14 +697,20 @@ export async function updateByCustomer(db, {
   credentialId,
   label,
   payload,
+  projectId,
 }, ctx = {}) {
-  const { label: labelTrimmed, payload: payloadGiven } = requireSomethingToChange(label, payload);
+  const projectIdProvided = projectId !== undefined;
+  const { label: labelTrimmed, payload: payloadGiven } = requireSomethingToChange(label, payload, projectIdProvided);
   const kek = payloadGiven !== null ? requireKek(ctx, 'credentials.updateByCustomer') : null;
 
   return await db.transaction().execute(async (tx) => {
     const cred = await repo.findCredentialById(tx, credentialId);
     if (!cred) throw new CredentialNotFoundError(credentialId);
     await assertCustomerUserBelongsTo(tx, customerUserId, cred.customer_id);
+
+    if (projectIdProvided) {
+      await assertProjectBelongsToCustomer(tx, projectId, cred.customer_id);
+    }
 
     let envPatch = {};
     if (payloadGiven !== null) {
@@ -682,9 +721,12 @@ export async function updateByCustomer(db, {
     await repo.updateCredential(tx, credentialId, {
       label: labelTrimmed,
       ...envPatch,
+      projectId: projectIdProvided ? projectId : null,
+      projectIdProvided,
     });
 
     const a = baseAudit(ctx);
+    const projectChanged = projectIdProvided && (cred.project_id ?? null) !== (projectId ?? null);
     await writeAudit(tx, {
       actorType: 'customer',
       actorId: customerUserId,
@@ -698,11 +740,34 @@ export async function updateByCustomer(db, {
         label: labelTrimmed ?? cred.label,
         previousLabel: cred.label,
         payloadChanged: payloadGiven !== null,
+        projectId: projectIdProvided ? projectId : (cred.project_id ?? null),
+        previousProjectId: cred.project_id ?? null,
+        projectChanged,
       },
       visibleToCustomer: true,
       ip: a.ip,
       userAgentHash: a.userAgentHash,
     });
+    if (projectChanged) {
+      await writeAudit(tx, {
+        actorType: 'customer',
+        actorId: customerUserId,
+        action: 'credential.project_changed',
+        targetType: 'credential',
+        targetId: credentialId,
+        metadata: {
+          ...a.metadata,
+          customerId: cred.customer_id,
+          provider: cred.provider,
+          label: labelTrimmed ?? cred.label,
+          fromProjectId: cred.project_id ?? null,
+          toProjectId: projectId ?? null,
+        },
+        visibleToCustomer: true,
+        ip: a.ip,
+        userAgentHash: a.userAgentHash,
+      });
+    }
 
     return { credentialId };
   });
@@ -714,8 +779,10 @@ export async function updateByAdmin(db, {
   credentialId,
   label,
   payload,
+  projectId,
 }, ctx = {}) {
-  const { label: labelTrimmed, payload: payloadGiven } = requireSomethingToChange(label, payload);
+  const projectIdProvided = projectId !== undefined;
+  const { label: labelTrimmed, payload: payloadGiven } = requireSomethingToChange(label, payload, projectIdProvided);
   const kek = payloadGiven !== null ? requireKek(ctx, 'credentials.updateByAdmin') : null;
 
   // Step-up gate: admin overwrites of customer credentials are sensitive
@@ -730,6 +797,10 @@ export async function updateByAdmin(db, {
     const cred = await repo.findCredentialById(tx, credentialId);
     if (!cred) throw new CredentialNotFoundError(credentialId);
 
+    if (projectIdProvided) {
+      await assertProjectBelongsToCustomer(tx, projectId, cred.customer_id);
+    }
+
     let envPatch = {};
     if (payloadGiven !== null) {
       envPatch = await buildUpdatePayload({
@@ -739,9 +810,12 @@ export async function updateByAdmin(db, {
     await repo.updateCredential(tx, credentialId, {
       label: labelTrimmed,
       ...envPatch,
+      projectId: projectIdProvided ? projectId : null,
+      projectIdProvided,
     });
 
     const a = baseAudit(ctx);
+    const projectChanged = projectIdProvided && (cred.project_id ?? null) !== (projectId ?? null);
     await writeAudit(tx, {
       actorType: 'admin',
       actorId: adminId,
@@ -755,11 +829,34 @@ export async function updateByAdmin(db, {
         label: labelTrimmed ?? cred.label,
         previousLabel: cred.label,
         payloadChanged: payloadGiven !== null,
+        projectId: projectIdProvided ? projectId : (cred.project_id ?? null),
+        previousProjectId: cred.project_id ?? null,
+        projectChanged,
       },
       visibleToCustomer: true,
       ip: a.ip,
       userAgentHash: a.userAgentHash,
     });
+    if (projectChanged) {
+      await writeAudit(tx, {
+        actorType: 'admin',
+        actorId: adminId,
+        action: 'credential.project_changed',
+        targetType: 'credential',
+        targetId: credentialId,
+        metadata: {
+          ...a.metadata,
+          customerId: cred.customer_id,
+          provider: cred.provider,
+          label: labelTrimmed ?? cred.label,
+          fromProjectId: cred.project_id ?? null,
+          toProjectId: projectId ?? null,
+        },
+        visibleToCustomer: true,
+        ip: a.ip,
+        userAgentHash: a.userAgentHash,
+      });
+    }
 
     return { credentialId };
   });
