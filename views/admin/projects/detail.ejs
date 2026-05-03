@@ -88,7 +88,9 @@
   </header>
 
   <% if (phaseFlash) { %>
-    <%- include('../../components/_alert', { variant: 'error', body: phaseFlash }) %>
+    <div class="alert alert--error" role="alert">
+      <div class="alert__body"><%= phaseFlash %></div>
+    </div>
   <% } %>
 
   <form class="phase-create-form form-stack" method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases">
@@ -110,6 +112,7 @@
     <ol class="phase-list">
       <% phaseList.forEach(function(p, idx) { %>
         <li class="phase-row" data-status="<%= p.status %>">
+          <span class="phase-row__index" aria-hidden="true"><%= idx + 1 %></span>
           <div class="phase-row__order">
             <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/reorder">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
