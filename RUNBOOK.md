@@ -43,8 +43,23 @@ sudo chown -R root:portal-app /opt/dbstudio_portal
 sudo find /opt/dbstudio_portal -path /opt/dbstudio_portal/.git -prune -o -type d -exec chmod 0750 {} +
 sudo find /opt/dbstudio_portal -path /opt/dbstudio_portal/.git -prune -o -type f -exec chmod 0640 {} +
 sudo chmod g+w /opt/dbstudio_portal
+# Setgid so new files inherit portal-app group (prevents EACCES on portal.service start
+# when files get edited and accidentally drift to root:root).
+sudo find /opt/dbstudio_portal -path /opt/dbstudio_portal/node_modules -prune \
+  -o -path /opt/dbstudio_portal/.git -prune \
+  -o -path /opt/dbstudio_portal/.node -prune \
+  -o -type d -exec chmod g+s {} \;
 sudo install -d -o portal-app -g portal-app -m 0750 /opt/dbstudio_portal/node_modules
 ```
+
+> **Convention:** every file under `/opt/dbstudio_portal` (except `node_modules`, `.git`, `.node`) MUST be group-owned by `portal-app`. Two safety nets enforce this: (1) `setgid` on every directory above, and (2) a Claude Code `PostToolUse` hook in `~/.claude/settings.json` that `chgrp portal-app` after any Edit/Write/MultiEdit on this tree.
+> If `portal.service` fails with `EACCES: permission denied, open '/opt/dbstudio_portal/...'`, run:
+> ```
+> sudo find /opt/dbstudio_portal -path /opt/dbstudio_portal/node_modules -prune \
+>   -o -path /opt/dbstudio_portal/.git -prune \
+>   -o -path /opt/dbstudio_portal/.node -prune \
+>   -o -group root -exec chgrp portal-app {} \;
+> ```
 
 Verification (saved 2026-04-29):
 - `id portal-app` → uid=996(portal-app) gid=987(portal-app)
