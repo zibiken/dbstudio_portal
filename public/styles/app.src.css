@@ -1482,6 +1482,40 @@ select.cr-fields__input { padding-right: var(--s-2); }
   .checklist-create-form { grid-template-columns: 1fr; }
 }
 
+/* === Portal UX pass 2026-05-03: sticky chrome === */
+:root {
+  --page-header-height: 96px;
+  --subtabs-height: 48px;
+}
+.chrome-sentinel { height: 1px; }
+.page-header {
+  position: sticky; top: 0; z-index: 30;
+  background: var(--bg-light);
+  transition: padding 120ms ease, min-height 120ms ease;
+}
+body.public .page-header { background: var(--bg-dark); }
+.subtabs {
+  position: sticky; top: var(--page-header-height); z-index: 29;
+  background: var(--bg-light);
+}
+body.public .subtabs { background: var(--bg-dark); }
+body[data-stuck="true"] .page-header {
+  min-height: 56px;
+  padding-bottom: var(--s-2);
+  margin-bottom: var(--s-3);
+  box-shadow: 0 1px 0 rgba(10,10,10,0.06);
+}
+body[data-stuck="true"] .page-header__title {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+@media (max-width: 640px) {
+  body[data-stuck="true"] .eyebrow,
+  body[data-stuck="true"] .page-header__subtitle { display: none; }
+  body[data-stuck="true"] .page-header__title { font-size: var(--f-lg); }
+  body[data-stuck="true"] .page-header { min-height: 48px; }
+}
+.phase-row { scroll-margin-top: calc(var(--page-header-height) + var(--subtabs-height) + 1rem); }
+
 /* === Portal UX pass 2026-05-03: confirm-dialog === */
 .confirm-dialog { display: inline-block; }
 .confirm-dialog > summary { list-style: none; cursor: pointer; }

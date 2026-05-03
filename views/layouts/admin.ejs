@@ -24,6 +24,7 @@
       <% if (typeof vaultLockedBanner !== 'undefined' && vaultLockedBanner) { %>
         <%- include('../components/_alert', { variant: 'warn', sticky: true, body: 'Credential vault is locked. Re-enter your password to unlock.' }) %>
       <% } %>
+      <div class="chrome-sentinel" aria-hidden="true"></div>
       <%- body %>
     </main>
   </div>
@@ -31,6 +32,7 @@
   <%- include('../components/_footer', { variant: 'light' }) %>
 
   <script src="/static/js/dialog.js" nonce="<%= nonce %>"></script>
+  <script src="/static/js/sticky-chrome.js" nonce="<%= nonce %>"></script>
   <script nonce="<%= nonce %>">
     (function () {
       var ham = document.querySelector('.top-bar__hamburger');
