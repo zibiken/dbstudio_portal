@@ -5,6 +5,7 @@ import { findProjectById } from '../../domain/projects/repo.js';
 import { findPhaseById } from '../../domain/phases/repo.js';
 import { findItemById } from '../../domain/phase-checklists/repo.js';
 import * as checklistService from '../../domain/phase-checklists/service.js';
+import { wantsFragment, renderPhaseFragment, fragmentError } from './_phase-fragment.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -29,14 +30,19 @@ async function notFound(req, reply) {
   });
 }
 
-function back(reply, customerId, projectId, flash) {
+async function back(app, req, reply, customerId, projectId, phaseId, flash) {
+  if (wantsFragment(req)) {
+    if (flash) return fragmentError(reply, flash);
+    return renderPhaseFragment(app, reply, { customerId, projectId, phaseId });
+  }
+  const anchor = phaseId ? `#phase-${phaseId}` : '';
   if (flash) {
     return reply.redirect(
-      `/admin/customers/${customerId}/projects/${projectId}?phaseError=${encodeURIComponent(flash)}`,
+      `/admin/customers/${customerId}/projects/${projectId}?phaseError=${encodeURIComponent(flash)}${anchor}`,
       303,
     );
   }
-  return reply.redirect(`/admin/customers/${customerId}/projects/${projectId}`, 303);
+  return reply.redirect(`/admin/customers/${customerId}/projects/${projectId}${anchor}`, 303);
 }
 
 function flashFromError(err) {
@@ -90,9 +96,9 @@ export function registerAdminPhaseChecklistItemsRoutes(app) {
           { adminId: g.adminId },
         );
       } catch (err) {
-        return back(reply, g.customer.id, g.project.id, flashFromError(err));
+        return back(app, req, reply, g.customer.id, g.project.id, g.phase.id, flashFromError(err));
       }
-      return back(reply, g.customer.id, g.project.id);
+      return back(app, req, reply, g.customer.id, g.project.id, g.phase.id);
     });
 
   app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/items/:itemId/rename',
@@ -110,9 +116,9 @@ export function registerAdminPhaseChecklistItemsRoutes(app) {
           { adminId: g.adminId },
         );
       } catch (err) {
-        return back(reply, g.customer.id, g.project.id, flashFromError(err));
+        return back(app, req, reply, g.customer.id, g.project.id, g.phase.id, flashFromError(err));
       }
-      return back(reply, g.customer.id, g.project.id);
+      return back(app, req, reply, g.customer.id, g.project.id, g.phase.id);
     });
 
   app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/items/:itemId/visibility',
@@ -130,9 +136,9 @@ export function registerAdminPhaseChecklistItemsRoutes(app) {
           { adminId: g.adminId },
         );
       } catch (err) {
-        return back(reply, g.customer.id, g.project.id, flashFromError(err));
+        return back(app, req, reply, g.customer.id, g.project.id, g.phase.id, flashFromError(err));
       }
-      return back(reply, g.customer.id, g.project.id);
+      return back(app, req, reply, g.customer.id, g.project.id, g.phase.id);
     });
 
   app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/items/:itemId/toggle',
@@ -150,9 +156,9 @@ export function registerAdminPhaseChecklistItemsRoutes(app) {
           { adminId: g.adminId },
         );
       } catch (err) {
-        return back(reply, g.customer.id, g.project.id, flashFromError(err));
+        return back(app, req, reply, g.customer.id, g.project.id, g.phase.id, flashFromError(err));
       }
-      return back(reply, g.customer.id, g.project.id);
+      return back(app, req, reply, g.customer.id, g.project.id, g.phase.id);
     });
 
   app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/items/:itemId/delete',
@@ -168,8 +174,8 @@ export function registerAdminPhaseChecklistItemsRoutes(app) {
           { adminId: g.adminId },
         );
       } catch (err) {
-        return back(reply, g.customer.id, g.project.id, flashFromError(err));
+        return back(app, req, reply, g.customer.id, g.project.id, g.phase.id, flashFromError(err));
       }
-      return back(reply, g.customer.id, g.project.id);
+      return back(app, req, reply, g.customer.id, g.project.id, g.phase.id);
     });
 }

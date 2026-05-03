@@ -241,7 +241,7 @@ describe.skipIf(skip)('admin project-phases routes (HTTP)', () => {
       `/admin/customers/${customerAId}/projects/${projectAId}/phases`,
       { _csrf: csrf, label: 'happy-phase' }, { csrf });
     expect(res.statusCode).toBe(303);
-    expect(res.headers.location).toBe(`/admin/customers/${customerAId}/projects/${projectAId}`);
+    expect(res.headers.location).toMatch(new RegExp(`^/admin/customers/${customerAId}/projects/${projectAId}#phase-[0-9a-f-]{36}$`));
     const r = await sql`
       SELECT count(*)::int AS c FROM project_phases
        WHERE project_id = ${projectAId}::uuid AND label = ${'happy-phase'}

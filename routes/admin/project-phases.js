@@ -4,6 +4,7 @@ import { findCustomerById } from '../../domain/customers/repo.js';
 import { findProjectById } from '../../domain/projects/repo.js';
 import { findPhaseById } from '../../domain/phases/repo.js';
 import * as phasesService from '../../domain/phases/service.js';
+import { wantsFragment, renderPhaseFragment, fragmentError, fragmentDeleted } from './_phase-fragment.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -28,14 +29,25 @@ async function notFound(req, reply) {
   });
 }
 
-function back(reply, customerId, projectId, flash) {
+async function back(app, req, reply, customerId, projectId, phaseId, flash) {
+  if (wantsFragment(req)) {
+    if (flash) return fragmentError(reply, flash);
+    if (!phaseId) {
+      // No phase id (e.g. just deleted) — return an empty fragment;
+      // the client either removes the row or refetches list state.
+      reply.header('content-type', 'text/html; charset=utf-8');
+      return reply.send('');
+    }
+    return renderPhaseFragment(app, reply, { customerId, projectId, phaseId });
+  }
+  const anchor = phaseId ? `#phase-${phaseId}` : '';
   if (flash) {
     return reply.redirect(
-      `/admin/customers/${customerId}/projects/${projectId}?phaseError=${encodeURIComponent(flash)}`,
+      `/admin/customers/${customerId}/projects/${projectId}?phaseError=${encodeURIComponent(flash)}${anchor}`,
       303,
     );
   }
-  return reply.redirect(`/admin/customers/${customerId}/projects/${projectId}`, 303);
+  return reply.redirect(`/admin/customers/${customerId}/projects/${projectId}${anchor}`, 303);
 }
 
 function flashFromError(err) {
@@ -80,17 +92,19 @@ export function registerAdminProjectPhasesRoutes(app) {
       const guards = await loadGuards(app, req, reply);
       if (!guards) return;
       const label = (req.body?.label || '').toString();
+      let createdPhaseId = null;
       try {
-        await phasesService.create(
+        const r = await phasesService.create(
           app.db,
           { projectId: guards.project.id, customerId: guards.customer.id, label },
           ctxFromReq(req),
           { adminId: guards.adminId },
         );
+        createdPhaseId = r?.phaseId ?? null;
       } catch (err) {
-        return back(reply, guards.customer.id, guards.project.id, flashFromError(err));
+        return back(app, req, reply, guards.customer.id, guards.project.id, null, flashFromError(err));
       }
-      return back(reply, guards.customer.id, guards.project.id);
+      return back(app, req, reply, guards.customer.id, guards.project.id, createdPhaseId);
     });
 
   app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/rename',
@@ -108,9 +122,9 @@ export function registerAdminProjectPhasesRoutes(app) {
           { adminId: guards.adminId },
         );
       } catch (err) {
-        return back(reply, guards.customer.id, guards.project.id, flashFromError(err));
+        return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id, flashFromError(err));
       }
-      return back(reply, guards.customer.id, guards.project.id);
+      return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id);
     });
 
   app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/status',
@@ -128,9 +142,9 @@ export function registerAdminProjectPhasesRoutes(app) {
           { adminId: guards.adminId },
         );
       } catch (err) {
-        return back(reply, guards.customer.id, guards.project.id, flashFromError(err));
+        return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id, flashFromError(err));
       }
-      return back(reply, guards.customer.id, guards.project.id);
+      return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id);
     });
 
   app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/reorder',
@@ -148,9 +162,9 @@ export function registerAdminProjectPhasesRoutes(app) {
           { adminId: guards.adminId },
         );
       } catch (err) {
-        return back(reply, guards.customer.id, guards.project.id, flashFromError(err));
+        return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id, flashFromError(err));
       }
-      return back(reply, guards.customer.id, guards.project.id);
+      return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id);
     });
 
   app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/delete',
@@ -166,8 +180,12 @@ export function registerAdminProjectPhasesRoutes(app) {
           { adminId: guards.adminId },
         );
       } catch (err) {
-        return back(reply, guards.customer.id, guards.project.id, flashFromError(err));
+        return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id, flashFromError(err));
       }
-      return back(reply, guards.customer.id, guards.project.id);
+      // Successful delete: special-case fragment mode (return a stub div the
+      // client can use to remove the row), else redirect to project detail
+      // (no anchor — phase no longer exists).
+      if (wantsFragment(req)) return fragmentDeleted(reply, guards.phase.id);
+      return reply.redirect(`/admin/customers/${guards.customer.id}/projects/${guards.project.id}`, 303);
     });
 }
