@@ -61,9 +61,97 @@ export function registerAdminCredentialsRoutes(app) {
       customer,
       rows,
       projects,
+      csrfToken: await reply.generateCsrf(),
       mainWidth: 'wide',
       ...customerChrome(customer, 'credentials'),
     });
+  });
+
+  // Admin direct add (no credential_request needed). Step-up + vault-unlock
+  // gated; the GET surfaces the form, POST encrypts + writes audit + digest.
+  app.get('/admin/customers/:id/credentials/new', async (req, reply) => {
+    const session = await requireAdminSession(app, req, reply);
+    if (!session) return;
+    const id = req.params?.id;
+    if (typeof id !== 'string' || !UUID_RE.test(id)) return notFound(req, reply);
+    if (!(await isVaultUnlocked(app.db, session.id))) {
+      const ret = encodeURIComponent(`/admin/customers/${id}/credentials/new`);
+      return reply.redirect(`/admin/step-up?return=${ret}`, 302);
+    }
+    const customer = await findCustomerById(app.db, id);
+    if (!customer) return notFound(req, reply);
+    const projects = await listProjectsByCustomer(app.db, id);
+    return renderAdmin(req, reply, 'admin/credentials/new', {
+      title: 'Add credential · ' + customer.razon_social,
+      customer,
+      projects,
+      form: null,
+      csrfToken: await reply.generateCsrf(),
+      mainWidth: 'wide',
+      ...customerChrome(customer, 'credentials'),
+    });
+  });
+
+  app.post('/admin/customers/:id/credentials', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireAdminSession(app, req, reply);
+    if (!session) return;
+    const id = req.params?.id;
+    if (typeof id !== 'string' || !UUID_RE.test(id)) return notFound(req, reply);
+    if (!(await isVaultUnlocked(app.db, session.id))) {
+      const ret = encodeURIComponent(`/admin/customers/${id}/credentials/new`);
+      return reply.redirect(`/admin/step-up?return=${ret}`, 302);
+    }
+    const customer = await findCustomerById(app.db, id);
+    if (!customer) return notFound(req, reply);
+
+    const body = req.body ?? {};
+    const provider = typeof body.provider === 'string' ? body.provider.trim() : '';
+    const label = typeof body.label === 'string' ? body.label.trim() : '';
+    let projectId;
+    try { projectId = parseProjectId(body.project_id); }
+    catch { projectId = null; }
+    const fieldCount = Number.parseInt(String(body.field_count ?? '0'), 10) || 0;
+    const payload = {};
+    for (let i = 0; i < fieldCount; i++) {
+      const k = typeof body[`field_name_${i}`] === 'string' ? body[`field_name_${i}`].trim() : '';
+      const v = typeof body[`field_value_${i}`] === 'string' ? body[`field_value_${i}`] : '';
+      if (k && v !== '') payload[k] = v;
+    }
+
+    const renderForm = async (errorMsg) => {
+      reply.code(422);
+      const projects = await listProjectsByCustomer(app.db, id);
+      return renderAdmin(req, reply, 'admin/credentials/new', {
+        title: 'Add credential · ' + customer.razon_social,
+        customer,
+        projects,
+        form: { provider, label, projectId },
+        error: errorMsg,
+        csrfToken: await reply.generateCsrf(),
+        mainWidth: 'wide',
+        ...customerChrome(customer, 'credentials'),
+      });
+    };
+
+    if (!provider) return renderForm('Provider is required.');
+    if (!label) return renderForm('Label is required.');
+    if (Object.keys(payload).length === 0) return renderForm('At least one field/value pair is required.');
+
+    let credentialId;
+    try {
+      const r = await credentialsService.createByAdmin(app.db, {
+        adminId: session.user_id,
+        customerId: id,
+        provider,
+        label,
+        payload,
+        projectId,
+      }, { ip: req.ip ?? null, userAgentHash: null, audit: { source: 'admin-create' }, kek: app.kek });
+      credentialId = r.credentialId;
+    } catch (err) {
+      return renderForm(err.message || 'Could not save the credential.');
+    }
+    return reply.redirect(`/admin/customers/${id}/credentials/${credentialId}`, 303);
   });
 
   app.get('/admin/customers/:id/credentials/:credId', async (req, reply) => {
