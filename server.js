@@ -46,6 +46,7 @@ import { registerCustomerCredentialsRoutes } from './routes/customer/credentials
 import { registerCustomerDocumentsRoutes } from './routes/customer/documents.js';
 import { registerCustomerProjectsRoutes } from './routes/customer/projects.js';
 import { registerAdminProjectsRoutes } from './routes/admin/projects.js';
+import { registerAdminProjectPhasesRoutes } from './routes/admin/project-phases.js';
 import { registerAdminCredentialsRoutes } from './routes/admin/credentials.js';
 import { registerAdminCredentialRequestsRoutes } from './routes/admin/credential-requests.js';
 import { registerCustomerCredentialRequestsRoutes } from './routes/customer/credential-requests.js';
@@ -183,6 +184,7 @@ export async function build({
   registerCustomerDocumentsRoutes(app);
   registerCustomerProjectsRoutes(app);
   registerAdminProjectsRoutes(app);
+  registerAdminProjectPhasesRoutes(app);
   registerAdminCredentialsRoutes(app);
   registerAdminCredentialRequestsRoutes(app);
   registerCustomerCredentialRequestsRoutes(app);
