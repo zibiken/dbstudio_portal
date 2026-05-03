@@ -1,0 +1,64 @@
+<%
+  function customerPhaseStatusPill(s) {
+    var key = s === 'done' ? 'paid'
+            : s === 'blocked' ? 'pending'
+            : s === 'in_progress' ? 'active'
+            : 'archived';
+    var label = s === 'in_progress' ? 'in progress'
+              : s === 'blocked' ? 'blocked'
+              : s; // done
+    return '<span class="status-pill status-pill--' + key + '">' + label + '</span>';
+  }
+%>
+
+<%- include('../../components/_page-header', {
+  eyebrow: 'PROJECTS',
+  title: project.name,
+  subtitle: project.objeto_proyecto || ''
+}) %>
+
+<p class="customer-back">
+  <a class="link" href="/customer/projects">← Back to projects</a>
+</p>
+
+<% if (!phases || phases.length === 0) { %>
+  <%- include('../../components/_empty-state', {
+    headline: 'No active phases yet',
+    lead: 'Once we start work on a phase, you will see it here with its progress and any checklist items.',
+    secondaryHref: '/customer/projects',
+    secondaryLabel: 'Back to projects'
+  }) %>
+<% } else { %>
+  <ol class="customer-phase-list">
+    <% phases.forEach(function(p) { %>
+      <li>
+        <article class="customer-phase" data-status="<%= p.status %>">
+          <header class="customer-phase__header">
+            <h3 class="customer-phase__label"><%= p.label %></h3>
+            <%- customerPhaseStatusPill(p.status) %>
+          </header>
+          <% if (p.started_at) { %>
+            <p class="customer-phase__meta">
+              In progress since <%= euDate(p.started_at) %>
+              <% if (p.completed_at) { %> · completed <%= euDate(p.completed_at) %><% } %>
+            </p>
+          <% } %>
+
+          <% if (p.items && p.items.length > 0) { %>
+            <ul class="customer-checklist">
+              <% p.items.forEach(function(it) { %>
+                <li class="customer-checklist__item" data-done="<%= it.done_at ? 'true' : 'false' %>">
+                  <span class="customer-checklist__icon" aria-hidden="true"><%= it.done_at ? '☑' : '☐' %></span>
+                  <span class="customer-checklist__label"><%= it.label %></span>
+                  <% if (it.done_at) { %>
+                    <span class="customer-checklist__when">done <%= euDate(it.done_at) %></span>
+                  <% } %>
+                </li>
+              <% }); %>
+            </ul>
+          <% } %>
+        </article>
+      </li>
+    <% }); %>
+  </ol>
+<% } %>

@@ -7,7 +7,7 @@
 <% if (projects && projects.length) { %>
   <div class="project-grid">
     <% projects.forEach(function(p) { %>
-      <article class="card">
+      <a class="card card--link" href="/customer/projects/<%= p.id %>">
         <p class="card__eyebrow eyebrow"><%= p.status %></p>
         <h2 class="card__title"><%= p.name %></h2>
         <% if (p.objeto_proyecto) { %>
@@ -16,7 +16,7 @@
         <p class="card__count">
           <span class="card__count-meta">Created <%= euDate(p.created_at) %></span>
         </p>
-      </article>
+      </a>
     <% }) %>
   </div>
 <% } else { %>
