@@ -51,4 +51,27 @@
       close(dlg);
     }
   });
+
+  // showModal() puts the dialog in the top layer but doesn't trap Tab
+  // focus by default — Tab can escape to the rest of the document. Wrap
+  // focus between the first and last focusable elements inside the open
+  // dialog so screen-reader and keyboard users stay in context.
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Tab') return;
+    var dlg = document.querySelector('dialog.confirm-dialog__dialog[open]');
+    if (!dlg) return;
+    var focusable = dlg.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length === 0) return;
+    var first = focusable[0];
+    var last = focusable[focusable.length - 1];
+    if (ev.shiftKey && document.activeElement === first) {
+      ev.preventDefault();
+      last.focus();
+    } else if (!ev.shiftKey && document.activeElement === last) {
+      ev.preventDefault();
+      first.focus();
+    }
+  });
 })();
