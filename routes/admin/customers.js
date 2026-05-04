@@ -401,6 +401,7 @@ export function registerAdminCustomerRoutes(app) {
       }, {
         actorType: 'admin', actorId: session.user_id,
         ip: req.ip ?? null, userAgentHash: null,
+        portalBaseUrl: req.server.config?.PORTAL_BASE_URL ?? process.env.PORTAL_BASE_URL,
         audit: {},
       });
     } catch (err) {

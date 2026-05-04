@@ -272,22 +272,29 @@ export async function adminResetCustomerUserAuth(
 
 // Change a customer_user's email. Common case: the admin made a typo
 // when creating the user and the customer hasn't consumed the invite
-// yet — the existing welcome link should keep working, the customer
-// just needs the link delivered to the corrected address.
+// yet.
 //
 // Behaviour:
 //   - Updates customer_users.email to newEmail (citext UNIQUE conflict
 //     surfaces as a typed error so the route can render a friendly
 //     422 instead of a 500).
-//   - Leaves invite_token_hash + invite_expires_at + invite_consumed_at
-//     untouched: the original link in the outbox row is still hash-
-//     valid against the user row.
-//   - If the invite is still unconsumed AND not expired, resends a
-//     copy of the original customer-invitation email (reading the
-//     plaintext inviteUrl out of the source outbox row's locals so
-//     no fresh token is minted) to newEmail. The same `customer-pw-
-//     reset` flow applies for users who got an admin auth-reset email
-//     pending consumption — the resend picks up whichever row exists.
+//   - If the invite is still unconsumed AND not expired, mints a
+//     FRESH invite token + 7-day expiry, overwriting the old hash on
+//     the row, and enqueues a new customer-invitation email to the
+//     corrected address with the new URL.
+//
+// Why a fresh token (security note): the email-outbox worker
+// scrubs URL-bearing locals after delivery (`markSent` strips
+// `inviteUrl` from `locals` — see domain/email-outbox/repo.js), so
+// the plaintext from the original send is no longer recoverable
+// once the wrong-address email has shipped. Minting a new token
+// also has a security benefit: the link sitting in the wrong
+// inbox (info@ vs the intended maarten@) is invalidated, which
+// matters when the corrected address belongs to a different person
+// than the typo'd one. The customer experience is identical — they
+// receive a working link at their real address — only the URL bytes
+// changed.
+//
 //   - Audit: customer.email_changed_by_admin, visible_to_customer=true.
 //
 // Returns: { customerUserId, oldEmail, newEmail, resentInvite }.
@@ -305,6 +312,7 @@ export async function adminUpdateCustomerUserEmail(
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
     throw new Error('email: invalid format');
   }
+  const baseUrl = requirePortalBaseUrl(ctx, 'customers.adminUpdateCustomerUserEmail');
 
   return await db.transaction().execute(async (tx) => {
     const r = await sql`
@@ -341,36 +349,31 @@ export async function adminUpdateCustomerUserEmail(
       throw err;
     }
 
-    // Resend the most recent unconsumed invite-flavoured email if one
-    // exists. Look up by idempotency_key prefix so we cover both the
-    // initial customer_welcome:* and the admin-auth-reset
-    // customer_admin_auth_reset:${userId}:* keys. We keep the original
-    // locals (including the inviteUrl with the plaintext token) so the
-    // existing link in the customer's mailbox keeps working.
     let resentInvite = false;
     const inviteUnconsumed = !row.invite_consumed_at
       && row.has_invite
       && new Date(row.invite_expires_at).getTime() > Date.now();
     if (inviteUnconsumed) {
-      const src = await sql`
-        SELECT template, locale, locals
-          FROM email_outbox
-         WHERE (idempotency_key = ${'customer_welcome:' + customerId}
-                OR idempotency_key LIKE ${'customer_admin_auth_reset:' + customerUserId + ':%'})
-         ORDER BY created_at DESC
-         LIMIT 1
+      const newToken = generateInviteToken();
+      const newHash = hashToken(newToken);
+      const newExpiresAt = new Date(Date.now() + INVITE_TTL_MS);
+      await sql`
+        UPDATE customer_users
+           SET invite_token_hash = ${newHash},
+               invite_expires_at = ${newExpiresAt}
+         WHERE id = ${customerUserId}::uuid
       `.execute(tx);
-      const sourceRow = src.rows[0];
-      if (sourceRow) {
-        await enqueueEmail(tx, {
-          idempotencyKey: `customer_email_change_resend:${customerUserId}:${Date.now()}`,
-          toAddress: trimmed,
-          template: sourceRow.template,
-          locale: sourceRow.locale,
-          locals: sourceRow.locals,
-        });
-        resentInvite = true;
-      }
+      await enqueueEmail(tx, {
+        idempotencyKey: `customer_email_change_resend:${customerUserId}:${Date.now()}`,
+        toAddress: trimmed,
+        template: 'customer-invitation',
+        locals: {
+          recipientName: row.name,
+          inviteUrl: `${baseUrl}/customer/welcome/${newToken}`,
+          expiresAt: newExpiresAt.toISOString(),
+        },
+      });
+      resentInvite = true;
     }
 
     await writeAudit(tx, {

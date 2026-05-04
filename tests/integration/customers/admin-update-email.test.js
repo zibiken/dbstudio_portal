@@ -60,7 +60,7 @@ describe.skipIf(skip)('customers/service.adminUpdateCustomerUserEmail', () => {
     return r;
   }
 
-  it('updates the email and preserves the original invite token + expires_at', async () => {
+  it('updates the email and rotates the invite token + expires_at on the customer_user row', async () => {
     const created = await makeCustomer('a');
     const before = await sql`
       SELECT email::text AS email, invite_token_hash, invite_expires_at
@@ -85,21 +85,16 @@ describe.skipIf(skip)('customers/service.adminUpdateCustomerUserEmail', () => {
     `.execute(db);
     const afterRow = after.rows[0];
     expect(afterRow.email).toBe(tagEmail('a-new'));
-    // Token hash + expiry must match the pre-update values byte-for-byte.
-    expect(afterRow.invite_token_hash).toBe(beforeRow.invite_token_hash);
+    // Token hash MUST rotate — the old link in the wrong inbox is
+    // invalidated. Expiry is also reset to a fresh 7-day window.
+    expect(afterRow.invite_token_hash).not.toBe(beforeRow.invite_token_hash);
     expect(new Date(afterRow.invite_expires_at).getTime())
-      .toBe(new Date(beforeRow.invite_expires_at).getTime());
+      .toBeGreaterThan(new Date(beforeRow.invite_expires_at).getTime() - 1000);
   });
 
-  it('resends the original welcome email body (same inviteUrl) to the new address', async () => {
+  it('enqueues a fresh customer-invitation email to the new address with a brand-new inviteUrl', async () => {
     const created = await makeCustomer('b');
-    const original = await sql`
-      SELECT locals->>'inviteUrl' AS invite_url
-        FROM email_outbox
-       WHERE idempotency_key = ${'customer_welcome:' + created.customerId}
-    `.execute(db);
-    const originalUrl = original.rows[0].invite_url;
-    expect(originalUrl).toContain(created.inviteToken);
+    const originalUrl = `https://portal.example.test/customer/welcome/${created.inviteToken}`;
 
     await service.adminUpdateCustomerUserEmail(db, {
       customerId: created.customerId,
@@ -115,8 +110,12 @@ describe.skipIf(skip)('customers/service.adminUpdateCustomerUserEmail', () => {
     `.execute(db);
     expect(resent.rows).toHaveLength(1);
     expect(resent.rows[0].to_addr).toBe(tagEmail('b-new'));
-    expect(resent.rows[0].invite_url).toBe(originalUrl);
     expect(resent.rows[0].template).toBe('customer-invitation');
+    // URL is a freshly minted token, NOT the original one — so the
+    // wrong-address link can no longer be redeemed even if a malicious
+    // recipient on info@... clicks it.
+    expect(resent.rows[0].invite_url).toMatch(/\/customer\/welcome\/[a-zA-Z0-9_-]+$/);
+    expect(resent.rows[0].invite_url).not.toBe(originalUrl);
   });
 
   it('does NOT resend when the invite is already consumed (admin override case)', async () => {
