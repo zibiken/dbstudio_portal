@@ -84,7 +84,7 @@
     <noscript>
       <form method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/status" class="phase-row__status-noscript">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <select name="status">
+        <select name="status" aria-label="Phase status">
           <option value="not_started" <%= p.status === 'not_started' ? 'selected' : '' %>>not started</option>
           <option value="in_progress" <%= p.status === 'in_progress' ? 'selected' : '' %>>in progress</option>
           <option value="blocked"     <%= p.status === 'blocked'     ? 'selected' : '' %>>blocked</option>

@@ -84,12 +84,23 @@ function checkHeadingOrder(file, src) {
 }
 
 function checkInputLabels(file, src) {
+  // Strip EJS expressions before scanning so a `>` inside <%= … %> doesn't
+  // truncate the attrs capture for self-closing-style tags. Preserve
+  // newlines + length so line numbers stay accurate. The stripped form is
+  // used for BOTH the input-tag scan AND the label-target collection so
+  // that dynamic ids like `for="phase-label-<%= p.id %>"` /
+  // `id="phase-label-<%= p.id %>"` reconcile (both reduce to the same
+  // post-strip token).
+  const stripped = src.replace(/<%[-=]?[\s\S]*?%>/g, (s) =>
+    s.replace(/[<>]/g, '_'),
+  );
+
   // Collect every for= target referenced anywhere in the file.
   const labelTargets = new Set();
   const labelRe = /<label\b[^>]*\bfor\s*=\s*["']([^"']+)["']/gi;
   let lm;
   labelRe.lastIndex = 0;
-  while ((lm = labelRe.exec(src))) labelTargets.add(lm[1]);
+  while ((lm = labelRe.exec(stripped))) labelTargets.add(lm[1]);
 
   // Track ranges where we are inside a <label>…</label>; inputs nested
   // inside such ranges have an implicit label association and pass.
@@ -99,10 +110,10 @@ function checkInputLabels(file, src) {
   const opens = [];
   let mm;
   openRe.lastIndex = 0;
-  while ((mm = openRe.exec(src))) opens.push(mm.index);
+  while ((mm = openRe.exec(stripped))) opens.push(mm.index);
   const closes = [];
   closeRe.lastIndex = 0;
-  while ((mm = closeRe.exec(src))) closes.push(mm.index);
+  while ((mm = closeRe.exec(stripped))) closes.push(mm.index);
   // Pair them naively (works for non-nested labels — which is the EJS
   // norm here; nested labels are an HTML error anyway).
   for (let i = 0; i < Math.min(opens.length, closes.length); i++) {
@@ -113,12 +124,6 @@ function checkInputLabels(file, src) {
     return false;
   }
 
-  // Strip EJS expressions before scanning so a `>` inside <%= … %> doesn't
-  // truncate the attrs capture for self-closing-style tags. Preserve
-  // newlines + length so line numbers stay accurate.
-  const stripped = src.replace(/<%[-=]?[\s\S]*?%>/g, (s) =>
-    s.replace(/[<>]/g, '_'),
-  );
   const re = /<(input|select|textarea)\b([^>]*)>/gi;
   let m;
   re.lastIndex = 0;
