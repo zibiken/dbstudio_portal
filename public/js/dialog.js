@@ -15,6 +15,17 @@
     ev.preventDefault();
     details.open = false;
     dlg.__cdTrigger = summary;
+    // Some layouts (flex containers, sticky-positioned ancestors) and
+    // some browser builds end up with the <dialog> still constrained by
+    // the closed <details>'s `display: none` rule for non-summary
+    // children, so showModal() opens at the top layer but renders zero-
+    // sized / invisible while still trapping focus. Re-parent the dialog
+    // to <body> for the duration it's open, then restore on close. This
+    // bypasses every ancestor stacking / containment / display quirk.
+    if (dlg.parentElement !== document.body) {
+      dlg.__cdParent = dlg.parentElement;
+      document.body.appendChild(dlg);
+    }
     if (typeof dlg.showModal === 'function') dlg.showModal();
     else dlg.setAttribute('open', '');
     var first = dlg.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
@@ -24,6 +35,10 @@
   function close(dlg) {
     if (typeof dlg.close === 'function') dlg.close();
     else dlg.removeAttribute('open');
+    if (dlg.__cdParent && dlg.parentElement === document.body) {
+      dlg.__cdParent.appendChild(dlg);
+      delete dlg.__cdParent;
+    }
     var trigger = dlg.__cdTrigger;
     if (trigger && typeof trigger.focus === 'function') trigger.focus();
   }
