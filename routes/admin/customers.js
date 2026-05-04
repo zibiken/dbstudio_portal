@@ -261,7 +261,7 @@ export function registerAdminCustomerRoutes(app) {
         activeTab: 'edit',
       });
     }
-    reply.redirect(`/admin/customers/${id}`, 302);
+    reply.redirect(`/admin/customers/${id}`, 303);
   });
 
   for (const action of ['suspend', 'reactivate', 'archive']) {
@@ -314,7 +314,7 @@ export function registerAdminCustomerRoutes(app) {
         });
       }
 
-      reply.redirect(`/admin/customers/${id}`, 302);
+      reply.redirect(`/admin/customers/${id}`, 303);
     });
   }
 
@@ -364,6 +364,6 @@ export function registerAdminCustomerRoutes(app) {
         activeTab: 'detail',
       });
     }
-    reply.redirect(`/admin/customers/${id}?auth_reset=1`, 302);
+    reply.redirect(`/admin/customers/${id}?auth_reset=1`, 303);
   });
 }

@@ -494,7 +494,7 @@ describe.skipIf(skip)('documents upload', () => {
       expect(c.rows[0].c).toBe(0);
     });
 
-    it('happy path: admin uploads a real PDF, gets 302 to /admin/customers/:id, row inserted, file on disk', async () => {
+    it('happy path: admin uploads a real PDF, gets 303 to /admin/customers/:id, row inserted, file on disk', async () => {
       const customerId = await makeCustomer('http-happy');
       const jar = await loginAdminFully('http-happy');
       const csrf = await fetchUploadCsrf(jar, customerId);
@@ -515,7 +515,7 @@ describe.skipIf(skip)('documents upload', () => {
         },
         payload: body,
       });
-      expect(r.statusCode).toBe(302);
+      expect(r.statusCode).toBe(303);
       expect(r.headers.location).toBe(`/admin/customers/${customerId}`);
 
       const rows = await sql`

@@ -154,7 +154,7 @@ export function registerAdminDocumentsRoutes(app) {
         });
       }
 
-      reply.redirect(`/admin/customers/${id}`, 302);
+      reply.redirect(`/admin/customers/${id}`, 303);
     },
   );
 

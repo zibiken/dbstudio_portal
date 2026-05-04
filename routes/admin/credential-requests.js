@@ -140,7 +140,7 @@ export function registerAdminCredentialRequestsRoutes(app) {
       } catch (err) {
         return rerenderErr(err);
       }
-      reply.redirect(`/admin/customers/${cid}/credential-requests/${requestId}`, 302);
+      reply.redirect(`/admin/customers/${cid}/credential-requests/${requestId}`, 303);
     });
 
   app.get('/admin/customers/:cid/credential-requests/:id', async (req, reply) => {
@@ -196,6 +196,6 @@ export function registerAdminCredentialRequestsRoutes(app) {
           ...customerChrome(customer, 'credential-requests'),
         });
       }
-      reply.redirect(`/admin/customers/${cid}/credential-requests/${id}`, 302);
+      reply.redirect(`/admin/customers/${cid}/credential-requests/${id}`, 303);
     });
 }

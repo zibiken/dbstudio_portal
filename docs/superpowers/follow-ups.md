@@ -25,11 +25,17 @@ below); `i18n-audit.js` reports 810 candidate offenders across 118 files.
   `Promise.all(phases.map(listItemsByPhase))` is O(phases). Acceptable
   for the current admin tool; replace with a single JOIN if a project
   ever crosses ~30 phases.
-- **303 vs 302 redirect inconsistency** — phase routes use 303 (POST →
-  GET pattern), older admin POSTs use 302. Operator decision 2026-05-03:
-  303 project-wide; migrate older 302s opportunistically as files are
-  touched, no sweep PR. (**In flight 2026-05-04** — bundled sweep
-  underway as Phase C of the current ship.)
+- ~~**303 vs 302 redirect inconsistency**~~ — SHIPPED 2026-05-04 in
+  the bundled accessibility ship. Admin POST → GET handlers across
+  `routes/admin/credential-requests.js`, `customers.js`,
+  `customer-questions.js`, `documents.js`, `invoices.js`, `ndas.js`,
+  `profile.js`, `projects.js`, `step-up.js`, and `credentials.js`
+  (the latter via blanket replace because three GET-handler step-up
+  auth gates were textually identical to POST-handler ones — 302→303
+  on auth gates is functionally a no-op) now return 303. The
+  GET-handler `/login` auth-fail bounces in `profile.js` and
+  `_index.js` and the signed-URL handoff in `documents.js` remain
+  302 — out of the "admin POST routes" sweep scope.
 - **`setPhaseOrder` digest fan-out gap** (surfaced by Codex review
   2026-05-04) — `domain/phases/service.js:361` writes a
   `phase.reordered` audit row but does not fan out an admin digest

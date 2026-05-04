@@ -350,7 +350,7 @@ describe.skipIf(skip)('projects CRUD', () => {
         headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
         payload: `name=${encodeURIComponent('HTTP project')}&objeto_proyecto=${encodeURIComponent('Build the thing')}&_csrf=${encodeURIComponent(csrf)}`,
       });
-      expect(post.statusCode).toBe(302);
+      expect(post.statusCode).toBe(303);
       expect(post.headers.location).toMatch(`/admin/customers/${cust.customerId}/projects/`);
 
       const list1 = await app.inject({
@@ -397,7 +397,7 @@ describe.skipIf(skip)('projects CRUD', () => {
         headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
         payload: `name=${encodeURIComponent('New name')}&objeto_proyecto=${encodeURIComponent('corrected purpose')}&_csrf=${encodeURIComponent(csrf)}`,
       });
-      expect(post.statusCode).toBe(302);
+      expect(post.statusCode).toBe(303);
 
       const row = await findProjectById(db, created.projectId);
       expect(row.name).toBe('New name');

@@ -115,7 +115,7 @@ export function registerAdminNdasRoutes(app) {
           adminId: session.user_id,
           projectId,
         }, ctxFromSession(app, req, session));
-        reply.redirect(`/admin/ndas/${r.ndaId}`, 302);
+        reply.redirect(`/admin/ndas/${r.ndaId}`, 303);
       } catch (err) {
         const customer = await findCustomerById(app.db, customerId);
         if (!customer) return notFound(req, reply);
@@ -206,7 +206,7 @@ export function registerAdminNdasRoutes(app) {
           return await renderDetailWithError(req, reply, app, id, err.message);
         }
 
-        reply.redirect(`/admin/ndas/${id}`, 302);
+        reply.redirect(`/admin/ndas/${id}`, 303);
       },
     );
   }

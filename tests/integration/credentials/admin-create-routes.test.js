@@ -120,7 +120,7 @@ describe.skipIf(skip)('admin add-credential routes', () => {
       url: `/admin/customers/${c.customerId}/credentials/new`,
       headers: { cookie: 'sid=' + signed },
     });
-    expect(res.statusCode).toBe(302);
+    expect(res.statusCode).toBe(303);
     expect(res.headers.location).toMatch(/^\/admin\/step-up\?return=/);
   });
 

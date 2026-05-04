@@ -78,7 +78,7 @@ export function registerAdminCredentialsRoutes(app) {
     if (typeof id !== 'string' || !UUID_RE.test(id)) return notFound(req, reply);
     if (!(await isVaultUnlocked(app.db, session.id))) {
       const ret = encodeURIComponent(`/admin/customers/${id}/credentials/new`);
-      return reply.redirect(`/admin/step-up?return=${ret}`, 302);
+      return reply.redirect(`/admin/step-up?return=${ret}`, 303);
     }
     const customer = await findCustomerById(app.db, id);
     if (!customer) return notFound(req, reply);
@@ -101,7 +101,7 @@ export function registerAdminCredentialsRoutes(app) {
     if (typeof id !== 'string' || !UUID_RE.test(id)) return notFound(req, reply);
     if (!(await isVaultUnlocked(app.db, session.id))) {
       const ret = encodeURIComponent(`/admin/customers/${id}/credentials/new`);
-      return reply.redirect(`/admin/step-up?return=${ret}`, 302);
+      return reply.redirect(`/admin/step-up?return=${ret}`, 303);
     }
     const customer = await findCustomerById(app.db, id);
     if (!customer) return notFound(req, reply);
@@ -191,7 +191,7 @@ export function registerAdminCredentialsRoutes(app) {
       const unlocked = await isVaultUnlocked(app.db, session.id);
       if (!unlocked) {
         const ret = encodeURIComponent(`/admin/customers/${cid}/credentials/${credId}?mode=reveal`);
-        return reply.redirect(`/admin/step-up?return=${ret}`, 302);
+        return reply.redirect(`/admin/step-up?return=${ret}`, 303);
       }
       try {
         const r = await credentialsService.view(app.db, {
@@ -203,7 +203,7 @@ export function registerAdminCredentialsRoutes(app) {
       } catch (err) {
         if (err?.name === 'StepUpRequiredError' || err?.code === 'STEP_UP_REQUIRED') {
           const ret = encodeURIComponent(`/admin/customers/${cid}/credentials/${credId}?mode=reveal`);
-          return reply.redirect(`/admin/step-up?return=${ret}`, 302);
+          return reply.redirect(`/admin/step-up?return=${ret}`, 303);
         }
         if (err?.name === 'DecryptFailureError' || err?.code === 'CREDENTIAL_DECRYPT_FAILED') {
           decryptError = 'Could not decrypt this credential. The forensic log has been updated; contact engineering to investigate.';
@@ -237,7 +237,7 @@ export function registerAdminCredentialsRoutes(app) {
     const credId = req.params?.credId;
     if (typeof cid !== 'string' || !UUID_RE.test(cid)) return notFound(req, reply);
     if (typeof credId !== 'string' || !UUID_RE.test(credId)) return notFound(req, reply);
-    return reply.redirect(`/admin/customers/${cid}/credentials/${credId}?mode=reveal`, 302);
+    return reply.redirect(`/admin/customers/${cid}/credentials/${credId}?mode=reveal`, 303);
   });
 
   // GET /admin/customers/:id/credentials/:credId/edit — admin edit form
@@ -322,7 +322,7 @@ export function registerAdminCredentialsRoutes(app) {
       } catch (err) {
         if (err?.code === 'STEP_UP_REQUIRED') {
           const ret = encodeURIComponent(`/admin/customers/${cid}/credentials/${credId}/edit`);
-          return reply.redirect(`/admin/step-up?return=${ret}`, 302);
+          return reply.redirect(`/admin/step-up?return=${ret}`, 303);
         }
         return renderForm(err.message || 'Could not save the credential.');
       }
@@ -346,7 +346,7 @@ export function registerAdminCredentialsRoutes(app) {
     let projectId;
     try { projectId = parseProjectId(req.body?.project_id); }
     catch {
-      return reply.redirect(`/admin/customers/${cid}/credentials/${credId}?scope_error=invalid`, 302);
+      return reply.redirect(`/admin/customers/${cid}/credentials/${credId}?scope_error=invalid`, 303);
     }
 
     try {
@@ -359,14 +359,14 @@ export function registerAdminCredentialsRoutes(app) {
     } catch (err) {
       if (err?.code === 'STEP_UP_REQUIRED') {
         const ret = encodeURIComponent(`/admin/customers/${cid}/credentials/${credId}`);
-        return reply.redirect(`/admin/step-up?return=${ret}`, 302);
+        return reply.redirect(`/admin/step-up?return=${ret}`, 303);
       }
       if (err?.code === 'PROJECT_SCOPE') {
-        return reply.redirect(`/admin/customers/${cid}/credentials/${credId}?scope_error=cross-customer`, 302);
+        return reply.redirect(`/admin/customers/${cid}/credentials/${credId}?scope_error=cross-customer`, 303);
       }
       throw err;
     }
-    reply.redirect(`/admin/customers/${cid}/credentials/${credId}`, 302);
+    reply.redirect(`/admin/customers/${cid}/credentials/${credId}`, 303);
   });
 
   app.post('/admin/customers/:id/credentials/:credId/delete', { preHandler: app.csrfProtection }, async (req, reply) => {
@@ -389,8 +389,8 @@ export function registerAdminCredentialsRoutes(app) {
       const safeError =
         err?.code === 'CREDENTIAL_NOT_FOUND' ? 'That credential no longer exists.' :
         'Could not delete the credential — please retry.';
-      return reply.redirect(`/admin/customers/${cid}/credentials?error=${encodeURIComponent(safeError)}`, 302);
+      return reply.redirect(`/admin/customers/${cid}/credentials?error=${encodeURIComponent(safeError)}`, 303);
     }
-    return reply.redirect(`/admin/customers/${cid}/credentials`, 302);
+    return reply.redirect(`/admin/customers/${cid}/credentials`, 303);
   });
 }

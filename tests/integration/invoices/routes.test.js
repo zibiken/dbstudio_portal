@@ -186,7 +186,7 @@ describe.skipIf(skip)('invoice routes (HTTP)', () => {
       },
       payload: body,
     });
-    expect(post.statusCode).toBe(302);
+    expect(post.statusCode).toBe(303);
     expect(post.headers.location).toMatch(/^\/admin\/invoices\/[0-9a-f-]{36}$/);
     const invoiceId = post.headers.location.split('/').pop();
 

@@ -112,6 +112,6 @@ export function registerAdminStepUpRoutes(app) {
       ip: req.ip ?? null,
     });
 
-    return reply.redirect(safeReturn, 302);
+    return reply.redirect(safeReturn, 303);
   });
 }

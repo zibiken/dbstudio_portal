@@ -218,14 +218,14 @@ describe.skipIf(skip)('admin credential-requests routes (HTTP)', () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it('POST /:cid/credential-requests/:id/cancel happy-path 302 to detail', async () => {
+  it('POST /:cid/credential-requests/:id/cancel happy-path 303 to detail', async () => {
     const { jar, adminId } = await loginAdmin('happy');
     const requestId = await makeRequest(customerAId, adminId, 'happy');
     const csrf = await csrfFromDetail(jar, customerAId, requestId);
     const res = await postForm(jar,
       `/admin/customers/${customerAId}/credential-requests/${requestId}/cancel`,
       { _csrf: csrf }, { csrf });
-    expect(res.statusCode).toBe(302);
+    expect(res.statusCode).toBe(303);
     expect(res.headers.location).toBe(
       `/admin/customers/${customerAId}/credential-requests/${requestId}`,
     );

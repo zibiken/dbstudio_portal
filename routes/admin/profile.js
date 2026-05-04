@@ -81,7 +81,7 @@ export function registerAdminProfileRoutes(app) {
       reply.code(422);
       return renderIndex(req, reply, app, session, { nameError: err.message, nameDraft: name });
     }
-    reply.redirect('/admin/profile', 302);
+    reply.redirect('/admin/profile', 303);
   });
 
   app.post('/admin/profile/password', { preHandler: app.csrfProtection }, async (req, reply) => {
@@ -113,7 +113,7 @@ export function registerAdminProfileRoutes(app) {
       });
     }
     await resetBucket(app.db, bucket);
-    reply.redirect('/admin/profile?password_changed=1', 302);
+    reply.redirect('/admin/profile?password_changed=1', 303);
   });
 
   app.post('/admin/profile/email', { preHandler: app.csrfProtection }, async (req, reply) => {
@@ -138,7 +138,7 @@ export function registerAdminProfileRoutes(app) {
       return renderIndex(req, reply, app, session, { emailError: err.message, emailDraft: newEmail });
     }
     await recordFail(app.db, bucket, RL_EMAIL_REQUEST);
-    reply.redirect('/admin/profile?email_change=requested', 302);
+    reply.redirect('/admin/profile?email_change=requested', 303);
   });
 
   app.get('/admin/profile/email/verify/:token', async (req, reply) => {
@@ -188,7 +188,7 @@ export function registerAdminProfileRoutes(app) {
       });
     }
     await resetBucket(app.db, bucket);
-    reply.redirect('/admin/profile?email_change=verified', 302);
+    reply.redirect('/admin/profile?email_change=verified', 303);
   });
 
   // Revert is intentionally not session-gated: the link arrives at the
@@ -255,7 +255,7 @@ export function registerAdminProfileRoutes(app) {
     const session = await requireAdminSession(app, req, reply);
     if (!session) return;
     const profile = await loadProfile(app, session);
-    if (!profile) return reply.redirect('/login', 302);
+    if (!profile) return reply.redirect('/login', 303);
     const newSecret = deriveEnrolSecret(session.id + TOTP_REGEN_SALT, app.env.SESSION_SIGNING_SECRET);
     const bucket = `totp_regen:admin:${session.user_id}`;
     const lock = await checkLockout(app.db, bucket);
@@ -291,7 +291,7 @@ export function registerAdminProfileRoutes(app) {
       });
     }
     await resetBucket(app.db, bucket);
-    reply.redirect('/admin/profile?totp_regenerated=1', 302);
+    reply.redirect('/admin/profile?totp_regenerated=1', 303);
   });
 
   app.get('/admin/profile/backup-codes', async (req, reply) => {
@@ -310,7 +310,7 @@ export function registerAdminProfileRoutes(app) {
     const session = await requireAdminSession(app, req, reply);
     if (!session) return;
     const profile = await loadProfile(app, session);
-    if (!profile) return reply.redirect('/login', 302);
+    if (!profile) return reply.redirect('/login', 303);
     const bucket = `backup_regen:admin:${session.user_id}`;
     const lock = await checkLockout(app.db, bucket);
     if (lock.locked) {
@@ -392,9 +392,9 @@ export function registerAdminProfileRoutes(app) {
     }
     if (target === session.id) {
       clearSessionCookie(reply, app.env);
-      return reply.redirect('/login', 302);
+      return reply.redirect('/login', 303);
     }
-    reply.redirect('/admin/profile/sessions', 302);
+    reply.redirect('/admin/profile/sessions', 303);
   });
 
   app.post('/admin/profile/sessions/revoke-all', { preHandler: app.csrfProtection }, async (req, reply) => {
@@ -408,8 +408,8 @@ export function registerAdminProfileRoutes(app) {
     );
     if (includeCurrent) {
       clearSessionCookie(reply, app.env);
-      return reply.redirect('/login', 302);
+      return reply.redirect('/login', 303);
     }
-    reply.redirect('/admin/profile/sessions', 302);
+    reply.redirect('/admin/profile/sessions', 303);
   });
 }

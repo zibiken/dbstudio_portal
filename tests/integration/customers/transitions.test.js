@@ -253,7 +253,7 @@ describe.skipIf(skip)('customers/service transitions + admin route wiring', () =
         headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
         payload: `_csrf=${encodeURIComponent(csrf)}`,
       });
-      expect(ok.statusCode).toBe(302);
+      expect(ok.statusCode).toBe(303);
       expect(ok.headers.location).toBe(`/admin/customers/${customerId}`);
 
       const c = await findCustomerById(db, customerId);
@@ -269,7 +269,7 @@ describe.skipIf(skip)('customers/service transitions + admin route wiring', () =
       expect(ses.rows[0].revoked_at).not.toBeNull();
     });
 
-    it('POST /admin/customers/:id/archive happy path: 302 detail page, status=archived, sessions revoked', async () => {
+    it('POST /admin/customers/:id/archive happy path: 303 detail page, status=archived, sessions revoked', async () => {
       const { customerId, primaryUserId } = await seedActiveCustomerSession('routearch');
 
       const { jar } = await loginAdmin('routearch');
@@ -287,7 +287,7 @@ describe.skipIf(skip)('customers/service transitions + admin route wiring', () =
         headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
         payload: `_csrf=${encodeURIComponent(csrf)}`,
       });
-      expect(ok.statusCode).toBe(302);
+      expect(ok.statusCode).toBe(303);
       expect(ok.headers.location).toBe(`/admin/customers/${customerId}`);
 
       const c = await findCustomerById(db, customerId);
@@ -420,7 +420,7 @@ describe.skipIf(skip)('customers/service transitions + admin route wiring', () =
       }
     });
 
-    it('POST /admin/customers/:id/suspend → 302 detail page; CSRF + admin gate enforced', async () => {
+    it('POST /admin/customers/:id/suspend → 303 detail page; CSRF + admin gate enforced', async () => {
       const { customerId } = await seedCustomer('routesusp');
       const { jar } = await loginAdmin('routesusp');
 
@@ -457,14 +457,14 @@ describe.skipIf(skip)('customers/service transitions + admin route wiring', () =
       expect(unauth.statusCode).toBe(302);
       expect(unauth.headers.location).toBe('/login');
 
-      // Authed + CSRF → 302 to detail page
+      // Authed + CSRF → 303 to detail page
       const ok = await app.inject({
         method: 'POST',
         url: `/admin/customers/${customerId}/suspend`,
         headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
         payload: `_csrf=${encodeURIComponent(csrf)}`,
       });
-      expect(ok.statusCode).toBe(302);
+      expect(ok.statusCode).toBe(303);
       expect(ok.headers.location).toBe(`/admin/customers/${customerId}`);
 
       const customer = await findCustomerById(db, customerId);

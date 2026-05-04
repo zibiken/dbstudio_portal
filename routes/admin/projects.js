@@ -118,7 +118,7 @@ export function registerAdminProjectsRoutes(app) {
           ...customerChrome(customer, 'projects'),
         });
       }
-      reply.redirect(`/admin/customers/${cid}/projects/${projectId}`, 302);
+      reply.redirect(`/admin/customers/${cid}/projects/${projectId}`, 303);
     });
 
   app.get('/admin/customers/:cid/projects/:id', async (req, reply) => {
@@ -190,7 +190,7 @@ export function registerAdminProjectsRoutes(app) {
           ...customerChrome(customer, 'projects'),
         });
       }
-      reply.redirect(`/admin/customers/${cid}/projects/${id}`, 302);
+      reply.redirect(`/admin/customers/${cid}/projects/${id}`, 303);
     });
 
   app.post('/admin/customers/:cid/projects/:id/status',
@@ -221,6 +221,6 @@ export function registerAdminProjectsRoutes(app) {
           ...customerChrome(customer, 'projects'),
         });
       }
-      reply.redirect(`/admin/customers/${cid}/projects/${id}`, 302);
+      reply.redirect(`/admin/customers/${cid}/projects/${id}`, 303);
     });
 }

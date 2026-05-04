@@ -88,7 +88,7 @@ describe.skipIf(skip)('credentials admin delete', () => {
       headers: { cookie: 'sid=' + f.signed + (cookies ? '; ' + cookies : ''), 'content-type': 'application/x-www-form-urlencoded' },
       payload: new URLSearchParams({ _csrf: token }).toString(),
     });
-    expect(res.statusCode).toBe(302);
+    expect(res.statusCode).toBe(303);
     expect(res.headers.location).toBe(`/admin/customers/${f.customerId}/credentials`);
 
     const after = await sql`SELECT id FROM credentials WHERE id = ${f.credentialId}::uuid`.execute(db);

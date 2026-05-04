@@ -115,7 +115,7 @@ describe.skipIf(skip)('admin step-up route', () => {
     return { cookieHeader, csrfToken };
   }
 
-  it('POST with valid TOTP refreshes step-up + vault, 302s to validated return', async () => {
+  it('POST with valid TOTP refreshes step-up + vault, 303s to validated return', async () => {
     const { sid, signed } = await makeAdminSession();
     const { cookieHeader, csrfToken } = await getWithCsrf(signed, '/admin/customers');
     const code = generateToken(totpSecret);
@@ -129,7 +129,7 @@ describe.skipIf(skip)('admin step-up route', () => {
       },
       payload: `_csrf=${encodeURIComponent(csrfToken)}&return=${encodeURIComponent('/admin/customers')}&totp_code=${code}`,
     });
-    expect(res.statusCode).toBe(302);
+    expect(res.statusCode).toBe(303);
     expect(res.headers.location).toBe('/admin/customers');
 
     const sRow = await sql`

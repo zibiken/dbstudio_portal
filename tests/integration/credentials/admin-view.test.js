@@ -135,7 +135,7 @@ describe.skipIf(skip)('admin credential detail + reveal flow', () => {
       url: `/admin/customers/${customerId}/credentials/${cred.credentialId}?mode=reveal`,
       headers: { cookie: 'sid=' + signed },
     });
-    expect(res.statusCode).toBe(302);
+    expect(res.statusCode).toBe(303);
     expect(res.headers.location).toMatch(/^\/admin\/step-up\?return=/);
     const decoded = decodeURIComponent(res.headers.location.replace(/^\/admin\/step-up\?return=/, ''));
     expect(decoded).toContain(`/credentials/${cred.credentialId}?mode=reveal`);

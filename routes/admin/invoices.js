@@ -183,7 +183,7 @@ export function registerAdminInvoicesRoutes(app) {
           dueOn,
           notes,
         }, ctx);
-        reply.redirect(`/admin/invoices/${r.invoiceId}`, 302);
+        reply.redirect(`/admin/invoices/${r.invoiceId}`, 303);
       } catch (err) {
         const customer = await findCustomerById(app.db, customerId);
         if (!customer) return notFound(req, reply);
@@ -249,7 +249,7 @@ export function registerAdminInvoicesRoutes(app) {
       } catch (err) {
         return reply.code(422).send({ error: err.message });
       }
-      return reply.redirect(`/admin/invoices/${id}?flash=Payment%20recorded`, 302);
+      return reply.redirect(`/admin/invoices/${id}?flash=Payment%20recorded`, 303);
     },
   );
 
@@ -268,7 +268,7 @@ export function registerAdminInvoicesRoutes(app) {
       } catch (err) {
         return reply.code(422).send({ error: err.message });
       }
-      return reply.redirect(`/admin/invoices/${id}?flash=Payment%20deleted`, 302);
+      return reply.redirect(`/admin/invoices/${id}?flash=Payment%20deleted`, 303);
     },
   );
 
@@ -289,7 +289,7 @@ export function registerAdminInvoicesRoutes(app) {
           invoiceId: id,
           newStatus,
         }, ctxFromSession(app, req, session));
-        reply.redirect(`/admin/invoices/${id}?flash=Status%20updated`, 302);
+        reply.redirect(`/admin/invoices/${id}?flash=Status%20updated`, 303);
       } catch (err) {
         if (err.code === 'INVOICE_NOT_FOUND') return notFound(req, reply);
         const row = await invoicesService.findById(app.db, id);

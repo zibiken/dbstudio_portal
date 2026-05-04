@@ -117,6 +117,6 @@ export function registerAdminCustomerQuestionRoutes(app) {
       question,
     }, { ip: req.ip, userAgentHash: null });
 
-    return reply.redirect(`/admin/customers/${cid}/questions`, 302);
+    return reply.redirect(`/admin/customers/${cid}/questions`, 303);
   });
 }
