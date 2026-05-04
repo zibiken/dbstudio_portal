@@ -167,7 +167,7 @@ describe.skipIf(skip)('invoice routes (HTTP)', () => {
     const body = buildMultipart(boundary, {
       _csrf: csrf,
       invoice_number: 'INV-2026-100',
-      amount_cents: '24750',
+      amount_eur: '247.50',
       currency: 'EUR',
       issued_on: '2026-04-15',
       due_on: '2026-05-15',
@@ -230,7 +230,7 @@ describe.skipIf(skip)('invoice routes (HTTP)', () => {
     const body = buildMultipart(boundary, {
       _csrf: csrf,
       invoice_number: 'INV-X',
-      amount_cents: '100',
+      amount_eur: '1.00',
       currency: 'EUR',
       issued_on: '2026-04-01',
       due_on: '2026-05-01',

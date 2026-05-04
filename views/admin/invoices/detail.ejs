@@ -82,7 +82,7 @@
     <h3>Record a payment</h3>
     <form method="post" action="/admin/invoices/<%= row.id %>/payments" class="form-stack">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <%- include('../../components/_input', { name: 'amount_cents', type: 'number', label: 'Amount (cents)', required: true, value: '' }) %>
+      <%- include('../../components/_input', { name: 'amount_eur',  type: 'number', label: 'Amount (€)', required: true, inputmode: 'decimal', step: '0.01', min: '0', placeholder: '12.50', value: '' }) %>
       <%- include('../../components/_input', { name: 'paid_on',      type: 'date',   label: 'Paid on',        required: true, value: '' }) %>
       <div class="input-field">
         <label class="input-field__label" for="pay_note">Note (optional)</label>

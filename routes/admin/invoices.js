@@ -1,6 +1,7 @@
 import { renderAdmin } from '../../lib/render.js';
 import { requireAdminSession } from '../../lib/auth/middleware.js';
 import * as invoicesService from '../../domain/invoices/service.js';
+import { euroToCents, centsToEuroString } from '../../lib/money.js';
 import * as documentsService from '../../domain/documents/service.js';
 import { findCustomerById } from '../../domain/customers/repo.js';
 import { parseInvoicePdf } from '../../lib/invoice-parser.js';
@@ -98,7 +99,10 @@ export function registerAdminInvoicesRoutes(app) {
       // every metadata field). Fields submitted after the file are
       // ignored.
       let invoiceNumber = '';
-      let amountCents = '';
+      // amountEurRaw is the user-typed string; we re-display it on
+      // re-render so a 422 (e.g. invalid format, missing other field)
+      // doesn't lose what they typed.
+      let amountEurRaw = '';
       let currency = 'EUR';
       let issuedOn = '';
       let dueOn = '';
@@ -128,8 +132,8 @@ export function registerAdminInvoicesRoutes(app) {
             documentId = r.documentId;
           } else if (part.fieldname === 'invoice_number') {
             invoiceNumber = String(part.value);
-          } else if (part.fieldname === 'amount_cents') {
-            amountCents = String(part.value);
+          } else if (part.fieldname === 'amount_eur') {
+            amountEurRaw = String(part.value);
           } else if (part.fieldname === 'currency') {
             currency = String(part.value).toUpperCase();
           } else if (part.fieldname === 'issued_on') {
@@ -149,7 +153,7 @@ export function registerAdminInvoicesRoutes(app) {
           title: 'Upload invoice',
           customer,
           csrfToken: await reply.generateCsrf(),
-          form: { invoice_number: invoiceNumber, amount_cents: amountCents, currency, issued_on: issuedOn, due_on: dueOn, notes },
+          form: { invoice_number: invoiceNumber, amount_eur: amountEurRaw, currency, issued_on: issuedOn, due_on: dueOn, notes },
           error: err.message,
           mainWidth: 'wide',
           ...customerChrome(customer, 'invoices'),
@@ -164,8 +168,26 @@ export function registerAdminInvoicesRoutes(app) {
           title: 'Upload invoice',
           customer,
           csrfToken: await reply.generateCsrf(),
-          form: { invoice_number: invoiceNumber, amount_cents: amountCents, currency, issued_on: issuedOn, due_on: dueOn, notes },
+          form: { invoice_number: invoiceNumber, amount_eur: amountEurRaw, currency, issued_on: issuedOn, due_on: dueOn, notes },
           error: 'No file received.',
+          mainWidth: 'wide',
+          ...customerChrome(customer, 'invoices'),
+        });
+      }
+
+      let amountCents;
+      try {
+        amountCents = euroToCents(amountEurRaw);
+      } catch (err) {
+        const customer = await findCustomerById(app.db, customerId);
+        if (!customer) return notFound(req, reply);
+        reply.code(422);
+        return renderAdmin(req, reply, 'admin/invoices/new', {
+          title: 'Upload invoice',
+          customer,
+          csrfToken: await reply.generateCsrf(),
+          form: { invoice_number: invoiceNumber, amount_eur: amountEurRaw, currency, issued_on: issuedOn, due_on: dueOn, notes },
+          error: err.message,
           mainWidth: 'wide',
           ...customerChrome(customer, 'invoices'),
         });
@@ -177,7 +199,7 @@ export function registerAdminInvoicesRoutes(app) {
           customerId,
           documentId,
           invoiceNumber,
-          amountCents: Number(amountCents),
+          amountCents,
           currency,
           issuedOn,
           dueOn,
@@ -192,7 +214,7 @@ export function registerAdminInvoicesRoutes(app) {
           title: 'Upload invoice',
           customer,
           csrfToken: await reply.generateCsrf(),
-          form: { invoice_number: invoiceNumber, amount_cents: amountCents, currency, issued_on: issuedOn, due_on: dueOn, notes },
+          form: { invoice_number: invoiceNumber, amount_eur: amountEurRaw, currency, issued_on: issuedOn, due_on: dueOn, notes },
           error: err.message,
           mainWidth: 'wide',
           ...customerChrome(customer, 'invoices'),
@@ -239,9 +261,14 @@ export function registerAdminInvoicesRoutes(app) {
       const id = req.params?.id;
       if (!UUID_RE.test(id)) return notFound(req, reply);
       const body = req.body ?? {};
-      const amountCents = Number(body.amount_cents);
       const paidOn = String(body.paid_on || '');
       const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim() : null;
+      let amountCents;
+      try {
+        amountCents = euroToCents(body.amount_eur);
+      } catch (err) {
+        return reply.code(422).send({ error: err.message });
+      }
       try {
         await paymentsService.record(app.db, {
           adminId: session.user_id, invoiceId: id, amountCents, paidOn, note,
@@ -349,6 +376,12 @@ export function registerAdminInvoicesRoutes(app) {
       if (!sawFile) return reply.code(400).send({ ok: false, reason: 'no_file' });
 
       const result = await parseInvoicePdf(Buffer.concat(chunks));
+      // Internal parser contract uses amount_cents; the form is now
+      // euro-decimal so we project amount_cents → amount_eur on the
+      // boundary. Keeps parseInvoicePdf agnostic of the form layer.
+      if (result?.fields && typeof result.fields.amount_cents === 'number') {
+        result.fields.amount_eur = centsToEuroString(result.fields.amount_cents);
+      }
       return reply.send(result);
     },
   );

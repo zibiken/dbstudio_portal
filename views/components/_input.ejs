@@ -1,4 +1,4 @@
-<%# Input. Locals: name, type, label, value, required, autocomplete, inputmode, pattern, minlength, maxlength, autofocus, placeholder, helper, error, showHideToggle. %>
+<%# Input. Locals: name, type, label, value, required, autocomplete, inputmode, pattern, minlength, maxlength, step, min, max, autofocus, placeholder, helper, error, showHideToggle. %>
 <%
   var t = (typeof type !== 'undefined') ? type : 'text';
   var v = (typeof value !== 'undefined' && value !== null) ? value : '';
@@ -16,6 +16,9 @@
       <% if (typeof pattern !== 'undefined' && pattern) { %>pattern="<%= pattern %>"<% } %>
       <% if (typeof minlength !== 'undefined' && minlength !== null) { %>minlength="<%= minlength %>"<% } %>
       <% if (typeof maxlength !== 'undefined' && maxlength !== null) { %>maxlength="<%= maxlength %>"<% } %>
+      <% if (typeof step !== 'undefined' && step !== null) { %>step="<%= step %>"<% } %>
+      <% if (typeof min !== 'undefined' && min !== null) { %>min="<%= min %>"<% } %>
+      <% if (typeof max !== 'undefined' && max !== null) { %>max="<%= max %>"<% } %>
       <% if (typeof autofocus !== 'undefined' && autofocus) { %>autofocus<% } %>
       <% if (typeof placeholder !== 'undefined' && placeholder) { %>placeholder="<%= placeholder %>"<% } %>
       <% if (hasErr) { %>aria-invalid="true" aria-describedby="<%= inputId %>_err"<% } else if (typeof helper !== 'undefined' && helper) { %>aria-describedby="<%= inputId %>_help"<% } %>

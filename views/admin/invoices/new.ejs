@@ -38,7 +38,7 @@
   </div>
 
   <%- include('../../components/_input', { name: 'invoice_number', type: 'text', label: 'Invoice number', required: true, maxlength: 64, value: (form && form.invoice_number) || '' }) %>
-  <%- include('../../components/_input', { name: 'amount_cents',   type: 'number', label: 'Amount (cents)', required: true, value: (form && form.amount_cents) || '' }) %>
+  <%- include('../../components/_input', { name: 'amount_eur',    type: 'number', label: 'Amount (€)', required: true, inputmode: 'decimal', step: '0.01', min: '0', placeholder: '12.50', value: (form && form.amount_eur) || '' }) %>
   <%- include('../../components/_input', { name: 'currency',       type: 'text', label: 'Currency', required: true, pattern: '[A-Z]{3}', maxlength: 3, value: (form && form.currency) || 'EUR' }) %>
   <%- include('../../components/_input', { name: 'issued_on',      type: 'date', label: 'Issued on', required: true, value: (form && form.issued_on) || '' }) %>
   <%- include('../../components/_input', { name: 'due_on',         type: 'date', label: 'Due on',    required: true, value: (form && form.due_on) || '' }) %>
@@ -99,7 +99,7 @@
         if (!j || !j.ok) return;
         var fields = j.fields || {};
         if (fields.invoice_number) setField('invoice_number', fields.invoice_number);
-        if (fields.amount_cents !== undefined) setField('amount_cents', String(fields.amount_cents));
+        if (fields.amount_eur !== undefined) setField('amount_eur', fields.amount_eur);
         setField('currency', fields.currency || 'EUR');
         if (fields.issued_on) setField('issued_on', fields.issued_on);
         if (fields.due_on)    setField('due_on',    fields.due_on);
