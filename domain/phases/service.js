@@ -237,15 +237,23 @@ export async function changeStatus(db, { phaseId, customerId }, { newStatus }, c
     let startedAt = phase.started_at;
     let completedAt = phase.completed_at;
     if (newStatus === 'in_progress') {
+      // Auto-set started_at only if it's never been set; an explicit
+      // override (typed by an admin via setPhaseDates) wins forever.
       if (!startedAt) startedAt = now;
+      // Going back to in_progress from done clears the completed mark
+      // — the work is no longer done.
       completedAt = null;
     } else if (newStatus === 'done') {
-      completedAt = now;
+      // Same rule: explicit completed_at wins. Only auto-stamp on the
+      // first transition into done.
+      if (!completedAt) completedAt = now;
     } else if (newStatus === 'not_started') {
+      // Reverting to not_started clears both — the work effectively
+      // never happened.
       startedAt = null;
       completedAt = null;
     } else if (newStatus === 'blocked') {
-      // keep started_at; clear completed_at
+      // keep started_at; clear completed_at (work isn't done while blocked).
       completedAt = null;
     }
     await repo.setPhaseStatus(tx, phaseId, { status: newStatus, startedAt, completedAt });

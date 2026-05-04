@@ -102,6 +102,36 @@ describe.skipIf(skip)('domain/phases/service', () => {
     expect(row.completed_at).toBeNull();
   });
 
+  it('does not overwrite an explicit started_at when transitioning to in_progress', async () => {
+    const { phaseId } = await phasesService.create(db, { projectId, customerId, label: 'explicit-start' },
+      { ...baseCtx(tag), actorType: 'admin' }, { adminId });
+    await sql`UPDATE project_phases
+                SET started_at = '2024-01-15 10:00:00+00'::timestamptz
+              WHERE id = ${phaseId}::uuid`.execute(db);
+
+    await phasesService.changeStatus(db, { phaseId, customerId },
+      { newStatus: 'in_progress' }, { ...baseCtx(tag), actorType: 'admin' }, { adminId });
+
+    const row = await phasesRepo.findPhaseById(db, phaseId);
+    expect(row.started_at.toISOString()).toMatch(/^2024-01-15/);
+    expect(row.completed_at).toBeNull();
+  });
+
+  it('does not overwrite an explicit completed_at when transitioning to done', async () => {
+    const { phaseId } = await phasesService.create(db, { projectId, customerId, label: 'explicit-done' },
+      { ...baseCtx(tag), actorType: 'admin' }, { adminId });
+    await sql`UPDATE project_phases
+                SET started_at = '2024-02-01 10:00:00+00'::timestamptz,
+                    completed_at = '2024-04-30 18:00:00+00'::timestamptz
+              WHERE id = ${phaseId}::uuid`.execute(db);
+
+    await phasesService.changeStatus(db, { phaseId, customerId },
+      { newStatus: 'done' }, { ...baseCtx(tag), actorType: 'admin' }, { adminId });
+
+    const row = await phasesRepo.findPhaseById(db, phaseId);
+    expect(row.completed_at.toISOString()).toMatch(/^2024-04-30/);
+  });
+
   it('changeStatus → not_started is admin-only audit (visible_to_customer = false)', async () => {
     const { phaseId } = await phasesService.create(db, { projectId, customerId, label: '4' },
       { ...baseCtx(tag), actorType: 'admin' }, { adminId });
