@@ -241,6 +241,60 @@ describe.skipIf(skip)('domain/phases/service', () => {
     });
   });
 
+  describe('setPhaseOrder', () => {
+    it('moves a phase to a target index, renumbering siblings 0..N-1', async () => {
+      const ctx = await makeCustomerAndProject(db, tag, 'so1');
+      const a = (await phasesService.create(db,
+        { projectId: ctx.projectId, customerId: ctx.customerId, label: 'A' },
+        { ...baseCtx(tag), actorType: 'admin' }, { adminId })).phaseId;
+      const b = (await phasesService.create(db,
+        { projectId: ctx.projectId, customerId: ctx.customerId, label: 'B' },
+        { ...baseCtx(tag), actorType: 'admin' }, { adminId })).phaseId;
+      const c = (await phasesService.create(db,
+        { projectId: ctx.projectId, customerId: ctx.customerId, label: 'C' },
+        { ...baseCtx(tag), actorType: 'admin' }, { adminId })).phaseId;
+
+      await phasesService.setPhaseOrder(db,
+        { phaseId: c, customerId: ctx.customerId },
+        { targetIndex: 0 },
+        { ...baseCtx(tag), actorType: 'admin' }, { adminId });
+
+      const rows = await sql`SELECT id::text AS id, display_order
+                               FROM project_phases
+                              WHERE project_id = ${ctx.projectId}::uuid
+                              ORDER BY display_order`.execute(db);
+      expect(rows.rows.map(r => r.id)).toEqual([c, a, b]);
+      expect(rows.rows.map(r => r.display_order)).toEqual([0, 1, 2]);
+    });
+
+    it('rejects targetIndex out of range', async () => {
+      const ctx = await makeCustomerAndProject(db, tag, 'so2');
+      const a = (await phasesService.create(db,
+        { projectId: ctx.projectId, customerId: ctx.customerId, label: 'A' },
+        { ...baseCtx(tag), actorType: 'admin' }, { adminId })).phaseId;
+      await expect(
+        phasesService.setPhaseOrder(db,
+          { phaseId: a, customerId: ctx.customerId },
+          { targetIndex: 5 },
+          { ...baseCtx(tag), actorType: 'admin' }, { adminId })
+      ).rejects.toMatchObject({ code: 'PHASE_ORDER_OUT_OF_RANGE' });
+    });
+
+    it('rejects when phase belongs to a different customer', async () => {
+      const a = await makeCustomerAndProject(db, tag, 'so3a');
+      const b = await makeCustomerAndProject(db, tag, 'so3b');
+      const phaseInA = (await phasesService.create(db,
+        { projectId: a.projectId, customerId: a.customerId, label: 'X' },
+        { ...baseCtx(tag), actorType: 'admin' }, { adminId })).phaseId;
+      await expect(
+        phasesService.setPhaseOrder(db,
+          { phaseId: phaseInA, customerId: b.customerId },
+          { targetIndex: 0 },
+          { ...baseCtx(tag), actorType: 'admin' }, { adminId })
+      ).rejects.toMatchObject({ code: 'CROSS_CUSTOMER' });
+    });
+  });
+
   it('delete on a customer-visible phase writes a customer-visible audit; on not_started phase writes admin-only audit', async () => {
     const ctx = await makeCustomerAndProject(db, tag, 'del');
     const visible = await phasesService.create(db, { projectId: ctx.projectId, customerId: ctx.customerId, label: 'V' },

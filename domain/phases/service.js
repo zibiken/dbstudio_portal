@@ -347,6 +347,74 @@ export async function setPhaseDates(
   });
 }
 
+export class PhaseOrderOutOfRangeError extends Error {
+  constructor() {
+    super('targetIndex is out of range');
+    this.name = 'PhaseOrderOutOfRangeError';
+    this.code = 'PHASE_ORDER_OUT_OF_RANGE';
+  }
+}
+
+// Atomically renumber project phases so the moved phase lands at
+// targetIndex (0-based) and all siblings keep contiguous 0..N-1
+// display_order values. Used by the drag-to-reorder UI.
+export async function setPhaseOrder(
+  db,
+  { phaseId, customerId },
+  { targetIndex },
+  ctx = {},
+  { adminId } = {},
+) {
+  if (!Number.isInteger(targetIndex) || targetIndex < 0) throw new PhaseOrderOutOfRangeError();
+  return await db.transaction().execute(async (tx) => {
+    const phase = await repo.findPhaseById(tx, phaseId);
+    if (!phase) throw new PhaseNotFoundError();
+    const own = await sql`
+      SELECT 1 FROM project_phases pp
+        JOIN projects p ON p.id = pp.project_id
+       WHERE pp.id = ${phaseId}::uuid
+         AND p.customer_id = ${customerId}::uuid
+    `.execute(tx);
+    if (own.rows.length === 0) throw new CrossCustomerError();
+
+    // Lock siblings to serialise concurrent drag operations.
+    const siblings = await sql`
+      SELECT id::text AS id FROM project_phases
+       WHERE project_id = ${phase.project_id}::uuid
+       ORDER BY display_order
+       FOR UPDATE
+    `.execute(tx);
+    const ids = siblings.rows.map(r => r.id);
+    if (targetIndex >= ids.length) throw new PhaseOrderOutOfRangeError();
+
+    const without = ids.filter(id => id !== phaseId);
+    without.splice(targetIndex, 0, phaseId);
+
+    for (let i = 0; i < without.length; i++) {
+      await sql`UPDATE project_phases
+                   SET display_order = ${i}, updated_at = now()
+                 WHERE id = ${without[i]}::uuid`.execute(tx);
+    }
+
+    const auditMeta = baseAuditMetadata(ctx);
+    await writeAudit(tx, {
+      actorType: 'admin', actorId: adminId,
+      action: 'phase.reordered',
+      targetType: 'project_phase', targetId: phaseId,
+      metadata: {
+        ...auditMeta, customerId,
+        projectId: phase.project_id, phaseId,
+        targetIndex,
+      },
+      visibleToCustomer: false,
+      ip: ctx?.ip ?? null,
+      userAgentHash: ctx?.userAgentHash ?? null,
+    });
+
+    return { phaseId, targetIndex };
+  });
+}
+
 async function deletePhaseService(db, { phaseId, customerId }, ctx, { adminId }) {
   return await db.transaction().execute(async (tx) => {
     const phase = await repo.findPhaseById(tx, phaseId);

@@ -10,7 +10,7 @@
                   : p.status === 'in_progress' ? 'in progress'
                   : p.status;
 %>
-<li class="phase-row card" id="phase-<%= p.id %>" data-status="<%= p.status %>" data-phase-id="<%= p.id %>">
+<li class="phase-row card" id="phase-<%= p.id %>" data-status="<%= p.status %>" data-phase-id="<%= p.id %>" draggable="true">
   <div class="phase-row__top">
     <span class="phase-row__handle" aria-hidden="true">⋮⋮</span>
     <span class="phase-row__index" aria-hidden="true"><%= idx + 1 %></span>

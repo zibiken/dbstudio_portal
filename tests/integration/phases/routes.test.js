@@ -294,6 +294,31 @@ describe.skipIf(skip)('admin project-phases routes (HTTP)', () => {
     expect(row.rows[0].c).toMatch(/^2024-03-30/);
   });
 
+  it('POST /set-order moves a phase to the requested index and 303-redirects', async () => {
+    const jar = await loginAdmin('order-http');
+    const csrf = await csrfFromProjectDetail(jar, customerAId, projectAId);
+    for (const lbl of ['A2', 'B2', 'C2']) {
+      const r = await postPhaseForm(jar,
+        `/admin/customers/${customerAId}/projects/${projectAId}/phases`,
+        { _csrf: csrf, label: lbl }, { csrf });
+      expect(r.statusCode).toBe(303);
+    }
+    const phases = await sql`SELECT id::text AS id, label FROM project_phases
+                              WHERE project_id = ${projectAId}::uuid AND label IN ('A2','B2','C2')
+                              ORDER BY display_order`.execute(db);
+    const cId = phases.rows.find(r => r.label === 'C2').id;
+
+    const res = await postPhaseForm(jar,
+      `/admin/customers/${customerAId}/projects/${projectAId}/phases/${cId}/set-order`,
+      { _csrf: csrf, target_index: '0' }, { csrf });
+    expect(res.statusCode).toBe(303);
+
+    const after = await sql`SELECT label FROM project_phases
+                             WHERE project_id = ${projectAId}::uuid AND label IN ('A2','B2','C2')
+                             ORDER BY display_order`.execute(db);
+    expect(after.rows.map(r => r.label)).toEqual(['C2', 'A2', 'B2']);
+  });
+
   it('POST /dates with completed_at < started_at flashes safe copy via phaseError', async () => {
     const jar = await loginAdmin('dates-bad-range');
     const csrf = await csrfFromProjectDetail(jar, customerAId, projectAId);

@@ -124,4 +124,8 @@
   <% } %>
 </section>
 
+<script nonce="<%= nonce %>">
+  window.__phaseSectionCustomerId = <%- JSON.stringify(customer.id) %>;
+  window.__phaseSectionProjectId = <%- JSON.stringify(project.id) %>;
+</script>
 <script src="/static/js/phase-editor.js?v=<%= assetVersion %>" nonce="<%= nonce %>"></script>

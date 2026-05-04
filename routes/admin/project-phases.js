@@ -207,6 +207,30 @@ export function registerAdminProjectPhasesRoutes(app) {
       return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id);
     });
 
+  app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/set-order',
+    { preHandler: app.csrfProtection },
+    async (req, reply) => {
+      const guards = await loadGuardsWithPhase(app, req, reply);
+      if (!guards) return;
+      const targetIndex = Number.parseInt(String(req.body?.target_index ?? ''), 10);
+      if (!Number.isInteger(targetIndex)) {
+        return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id, 'Invalid target position.');
+      }
+      try {
+        await phasesService.setPhaseOrder(app.db,
+          { phaseId: guards.phase.id, customerId: guards.customer.id },
+          { targetIndex },
+          ctxFromReq(req),
+          { adminId: guards.adminId });
+      } catch (err) {
+        const safe =
+          err?.code === 'PHASE_ORDER_OUT_OF_RANGE' ? 'That position is out of range.' :
+          flashFromError(err);
+        return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id, safe);
+      }
+      return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id);
+    });
+
   app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/delete',
     { preHandler: app.csrfProtection },
     async (req, reply) => {

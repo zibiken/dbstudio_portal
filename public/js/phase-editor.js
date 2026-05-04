@@ -160,4 +160,86 @@
     document.querySelectorAll('.status-menu, .overflow-menu').forEach(function (m) { m.setAttribute('hidden', ''); });
     document.querySelectorAll('[aria-haspopup="menu"][aria-expanded="true"]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
   }
+
+  // Drag-to-reorder phases via the HTML5 Drag and Drop API. The 6-dot
+  // handle (.phase-row__handle) signals draggability via CSS; the row
+  // root carries draggable=true so the whole card is the drag target.
+  // On drop, compute the new index and POST to the /set-order route.
+  var draggingId = null;
+  var draggingEl = null;
+
+  section.addEventListener('dragstart', function (ev) {
+    var row = ev.target.closest('li.phase-row[data-phase-id]');
+    if (!row) return;
+    draggingEl = row;
+    draggingId = row.getAttribute('data-phase-id');
+    if (ev.dataTransfer) {
+      ev.dataTransfer.effectAllowed = 'move';
+      ev.dataTransfer.setData('text/plain', draggingId);
+    }
+    setTimeout(function () { row.classList.add('phase-row--dragging'); }, 0);
+  });
+
+  function clearDropMarkers() {
+    section.querySelectorAll('.phase-row--drop-before, .phase-row--drop-after').forEach(function (r) {
+      r.classList.remove('phase-row--drop-before', 'phase-row--drop-after');
+    });
+  }
+
+  section.addEventListener('dragend', function () {
+    if (draggingEl) draggingEl.classList.remove('phase-row--dragging');
+    clearDropMarkers();
+    draggingEl = null; draggingId = null;
+  });
+
+  section.addEventListener('dragover', function (ev) {
+    var target = ev.target.closest('li.phase-row[data-phase-id]');
+    if (!target || target === draggingEl) return;
+    ev.preventDefault();
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+    var rect = target.getBoundingClientRect();
+    var before = (ev.clientY - rect.top) < rect.height / 2;
+    clearDropMarkers();
+    target.classList.add(before ? 'phase-row--drop-before' : 'phase-row--drop-after');
+  });
+
+  section.addEventListener('drop', function (ev) {
+    var target = ev.target.closest('li.phase-row[data-phase-id]');
+    if (!target || !draggingId || target === draggingEl) return;
+    ev.preventDefault();
+    var rect = target.getBoundingClientRect();
+    var before = (ev.clientY - rect.top) < rect.height / 2;
+    var allRows = Array.prototype.slice.call(section.querySelectorAll('li.phase-row[data-phase-id]'));
+    var withoutDragged = allRows.filter(function (r) { return r !== draggingEl; });
+    var targetIdx = withoutDragged.indexOf(target);
+    var insertAt = before ? targetIdx : targetIdx + 1;
+
+    var anyForm = section.querySelector('form input[name="_csrf"]');
+    var csrf = anyForm ? anyForm.value : '';
+    var url = '/admin/customers/' + window.__phaseSectionCustomerId
+            + '/projects/' + window.__phaseSectionProjectId
+            + '/phases/' + draggingId + '/set-order';
+
+    var params = new URLSearchParams();
+    params.append('_csrf', csrf);
+    params.append('target_index', String(insertAt));
+
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'text/html',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params.toString(),
+      credentials: 'same-origin',
+    }).then(function (res) {
+      if (res.redirected || res.ok) {
+        window.location.reload();
+      } else {
+        announce('Could not reorder — please retry.');
+      }
+    }).catch(function () {
+      announce('Could not reorder — please retry.');
+    });
+  });
 })();
