@@ -42,6 +42,7 @@ describe.skipIf(skip)('lib/customer-summary — getCustomerDashboardSummary', ()
     await sql`DELETE FROM credential_requests WHERE requested_by_admin_id = ${adminId}::uuid`.execute(db);
     await sql`DELETE FROM credentials WHERE customer_id IN (SELECT id FROM customers WHERE razon_social LIKE ${tag + '%'})`.execute(db);
     await sql`DELETE FROM ndas WHERE customer_id IN (SELECT id FROM customers WHERE razon_social LIKE ${tag + '%'})`.execute(db);
+    await sql`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE customer_id IN (SELECT id FROM customers WHERE razon_social LIKE ${tag + '%'}))`.execute(db);
     await sql`DELETE FROM invoices WHERE customer_id IN (SELECT id FROM customers WHERE razon_social LIKE ${tag + '%'})`.execute(db);
     await sql`DELETE FROM documents WHERE customer_id IN (SELECT id FROM customers WHERE razon_social LIKE ${tag + '%'})`.execute(db);
     await sql`DELETE FROM projects WHERE customer_id IN (SELECT id FROM customers WHERE razon_social LIKE ${tag + '%'})`.execute(db);
@@ -59,6 +60,7 @@ describe.skipIf(skip)('lib/customer-summary — getCustomerDashboardSummary', ()
     await sql`DELETE FROM credential_requests WHERE requested_by_admin_id = ${adminId}::uuid`.execute(db);
     await sql`DELETE FROM credentials WHERE customer_id IN (SELECT id FROM customers WHERE razon_social LIKE ${tag + '%'})`.execute(db);
     await sql`DELETE FROM ndas WHERE customer_id IN (SELECT id FROM customers WHERE razon_social LIKE ${tag + '%'})`.execute(db);
+    await sql`DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE customer_id IN (SELECT id FROM customers WHERE razon_social LIKE ${tag + '%'}))`.execute(db);
     await sql`DELETE FROM invoices WHERE customer_id IN (SELECT id FROM customers WHERE razon_social LIKE ${tag + '%'})`.execute(db);
     await sql`DELETE FROM documents WHERE customer_id IN (SELECT id FROM customers WHERE razon_social LIKE ${tag + '%'})`.execute(db);
     await sql`DELETE FROM projects WHERE customer_id IN (SELECT id FROM customers WHERE razon_social LIKE ${tag + '%'})`.execute(db);
@@ -122,7 +124,7 @@ describe.skipIf(skip)('lib/customer-summary — getCustomerDashboardSummary', ()
     return id;
   }
 
-  async function insertInvoice(customerId, { status = 'open', invoiceNumber = null } = {}) {
+  async function insertInvoice(customerId, { status = 'open', invoiceNumber = null, amountCents = 10000 } = {}) {
     // Invoices require a document FK — seed a backing invoice doc first.
     const docId = await insertDocument(customerId, { category: 'invoice', filename: 'inv.pdf' });
     const id = uuidv7();
@@ -131,9 +133,17 @@ describe.skipIf(skip)('lib/customer-summary — getCustomerDashboardSummary', ()
       INSERT INTO invoices (id, customer_id, document_id, invoice_number,
                             amount_cents, currency, issued_on, due_on, status)
       VALUES (${id}::uuid, ${customerId}::uuid, ${docId}::uuid, ${number},
-              10000, 'EUR', CURRENT_DATE - 1, CURRENT_DATE + 14, ${status})
+              ${amountCents}, 'EUR', CURRENT_DATE - 1, CURRENT_DATE + 14, ${status})
     `.execute(db);
     return id;
+  }
+
+  async function insertPayment(invoiceId, { amountCents }) {
+    await sql`
+      INSERT INTO invoice_payments (id, invoice_id, amount_cents, currency, paid_on, recorded_by)
+      VALUES (${uuidv7()}::uuid, ${invoiceId}::uuid, ${amountCents}, 'EUR',
+              CURRENT_DATE, ${adminId}::uuid)
+    `.execute(db);
   }
 
   async function insertNda(customerId, { signed = false } = {}) {
@@ -224,6 +234,42 @@ describe.skipIf(skip)('lib/customer-summary — getCustomerDashboardSummary', ()
     // documents + projects don't have a meaningful unread surface yet.
     expect(r.documents.unreadCount).toBe(0);
     expect(r.projects.unreadCount).toBe(0);
+  });
+
+  it('invoices.unreadCount is payment-driven: an open invoice with payments meeting the total drops out, partially-paid stays in', async () => {
+    const customerId = await makeCustomer('inv-paid');
+    // Three invoices, all status='open' (admin never flipped status):
+    //   A — fully paid via invoice_payments (paid_cents == amount)
+    //   B — half paid via invoice_payments (paid_cents < amount)
+    //   C — no payments at all
+    const a = await insertInvoice(customerId, { status: 'open', amountCents: 10000 });
+    const b = await insertInvoice(customerId, { status: 'open', amountCents: 10000 });
+    /* unused */ await insertInvoice(customerId, { status: 'open', amountCents: 10000 });
+    await insertPayment(a, { amountCents: 10000 });
+    await insertPayment(b, { amountCents: 4000 });
+
+    const r = await getCustomerDashboardSummary(db, { customerId });
+    // A drops out (fully paid); B + C stay in.
+    expect(r.invoices.unreadCount).toBe(2);
+    expect(r.invoices.count).toBe(3);
+  });
+
+  it('invoices.unreadCount: status=void invoices never count, even with no payments', async () => {
+    const customerId = await makeCustomer('inv-void');
+    await insertInvoice(customerId, { status: 'void', amountCents: 10000 });
+    await insertInvoice(customerId, { status: 'open', amountCents: 10000 });
+
+    const r = await getCustomerDashboardSummary(db, { customerId });
+    expect(r.invoices.unreadCount).toBe(1);
+  });
+
+  it('invoices.unreadCount: status=paid invoices never count even if payments are missing (admin override)', async () => {
+    const customerId = await makeCustomer('inv-paid-override');
+    await insertInvoice(customerId, { status: 'paid', amountCents: 10000 });
+    await insertInvoice(customerId, { status: 'open', amountCents: 10000 });
+
+    const r = await getCustomerDashboardSummary(db, { customerId });
+    expect(r.invoices.unreadCount).toBe(1);
   });
 
   it('isolates customers — one customer cannot see another customer\'s rows', async () => {
