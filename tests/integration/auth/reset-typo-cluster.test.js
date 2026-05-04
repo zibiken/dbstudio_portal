@@ -1,13 +1,18 @@
 // Integration test for the Levenshtein-1 typo cluster bucket on
-// /reset. Validates that 5 different-but-similar emails from the same
-// or different IPs cluster into a single rate-limit bucket and trigger
-// the 429 lockout — closing the gap surfaced by the 2026-05-01
-// brainzr.eu / brainzr.com incident in follow-ups.md.
+// /reset. Validates that 5 different-but-similar emails cluster into a
+// single rate-limit bucket and trigger the 429 lockout — closing the
+// gap surfaced by the 2026-05-01 brainzr.eu / brainzr.com incident in
+// follow-ups.md. Also validates the cluster-aging fix: when an early
+// attempt's reset:email row's reset_at expires while the cluster bucket
+// is still locked, a fresh attempt against a Lev-1 typo must STILL
+// resolve to the active cluster representative (not invent a new one).
 //
-// The cluster representative is computed as the lex-smallest email
-// within Levenshtein-1 of the current attempt across recent reset
-// buckets, so all 5 attempts in this test share the same
-// `reset:cluster:*` bucket key.
+// Test isolation: requests are tagged with a deterministic test-only
+// IP via x-forwarded-for (RFC 5737 TEST-NET-2 198.51.100.1). The
+// portal's trustProxy includes 127.0.0.1, so the bucket key becomes
+// 'reset:ip:198.51.100.1' — distinct from any production traffic IP.
+// Cleanup deletes only that exact IP key plus tagged email/cluster
+// rows; we never touch other users' rate_limit_buckets state.
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'kysely';
@@ -17,6 +22,9 @@ import { loadEnv } from '../../../config/env.js';
 
 const skip = !process.env.RUN_DB_TESTS;
 const tag = `resetcluster_${Date.now()}`;
+// RFC 5737 TEST-NET-2 — never globally routed; safe for test isolation.
+const TEST_IP = '198.51.100.1';
+const TEST_IP_KEY = `reset:ip:${TEST_IP}`;
 
 function parseSetCookies(res) {
   const raw = res.headers['set-cookie'];
@@ -50,36 +58,42 @@ describe.skipIf(skip)('reset typo cluster bucket', () => {
     app = await build({ skipSafetyCheck: true });
   });
 
+  async function clearTaggedBuckets() {
+    // Scoped cleanup: only this suite's tagged email/cluster rows and
+    // the test-only IP key. Never touches non-tagged production state
+    // (e.g., a real user's locked email bucket from a real reset).
+    await sql`DELETE FROM rate_limit_buckets WHERE key = ${TEST_IP_KEY}`.execute(db);
+    await sql`DELETE FROM rate_limit_buckets WHERE key LIKE ${'reset:email:%' + tag + '%'}`.execute(db);
+    await sql`DELETE FROM rate_limit_buckets WHERE key LIKE ${'reset:cluster:%' + tag + '%'}`.execute(db);
+  }
+
   afterAll(async () => {
     if (app) await app.close();
     if (db) {
-      // The cluster key is keyed off the lex-min email, which contains
-      // the tag; the IP key is just 'reset:ip:127.0.0.1' and would
-      // otherwise leak a 429-locked state into adjacent reset tests
-      // that share the loopback IP. Clear every reset:* bucket the
-      // suite could have touched, plus the tagged per-email rows.
-      await sql`DELETE FROM rate_limit_buckets WHERE key LIKE 'reset:cluster:%'`.execute(db);
-      await sql`DELETE FROM rate_limit_buckets WHERE key LIKE 'reset:ip:%'`.execute(db);
-      await sql`DELETE FROM rate_limit_buckets WHERE key LIKE ${'reset:email:%' + tag + '%'}`.execute(db);
+      await clearTaggedBuckets();
       await db.destroy();
     }
   });
 
   beforeEach(async () => {
-    // Clear ALL reset buckets between tests — clusterKeyForResetEmail
-    // looks at active rows globally, so leftover buckets from earlier
-    // suites would skew the representative.
-    await sql`DELETE FROM rate_limit_buckets WHERE key LIKE 'reset:%'`.execute(db);
+    await clearTaggedBuckets();
   });
 
   async function postReset(email) {
     const jar = {};
-    const get = await app.inject({ method: 'GET', url: '/reset' });
+    const get = await app.inject({
+      method: 'GET', url: '/reset',
+      headers: { 'x-forwarded-for': TEST_IP },
+    });
     mergeCookies(jar, get);
     const csrf = extractInputValue(get.body, '_csrf');
     const res = await app.inject({
       method: 'POST', url: '/reset',
-      headers: { cookie: cookieHeader(jar), 'content-type': 'application/x-www-form-urlencoded' },
+      headers: {
+        cookie: cookieHeader(jar),
+        'content-type': 'application/x-www-form-urlencoded',
+        'x-forwarded-for': TEST_IP,
+      },
       payload: `email=${encodeURIComponent(email)}&_csrf=${encodeURIComponent(csrf)}`,
     });
     return res;
@@ -143,9 +157,9 @@ describe.skipIf(skip)('reset typo cluster bucket', () => {
     }
     const sixth = await postReset(emails[0]);
     // The IP bucket DOES trip at this point because all 5 share the
-    // same client IP (vitest's app.inject defaults). That's the
-    // existing IP-bucket behaviour, not the new cluster bucket. We
-    // assert the cluster row count separately.
+    // same x-forwarded-for IP. That's the existing IP-bucket behaviour,
+    // not the new cluster bucket. We assert the cluster row count
+    // separately.
     expect([200, 429]).toContain(sixth.statusCode);
 
     const clusterRows = await sql`
@@ -161,5 +175,61 @@ describe.skipIf(skip)('reset typo cluster bucket', () => {
     }
     // Should be exactly 5 separate cluster rows.
     expect(clusterRows.rows.length).toBe(5);
+  });
+
+  it('cluster-aging bypass is closed: an aged-out reset:email candidate still keeps the cluster rep discoverable via the live cluster bucket', async () => {
+    // Threat: attempts 1-5 build a cluster around an anchor and lock it.
+    // The lockout window (30 min) is longer than the per-email reset
+    // window (15 min). After the 15-min mark, every reset:email row's
+    // reset_at has aged out, so a 6th attempt's clusterKeyForResetEmail
+    // would — under the original implementation — find no email
+    // candidates and invent a fresh representative, sidestepping the
+    // still-locked cluster bucket. The fix: clusterKeyForResetEmail also
+    // looks at active reset:cluster:* rows.
+    const anchor = `${tag}aged-aaaaa@x.com`;
+    const sibling = `${tag}aged-aaaab@x.com`; // Lev-1 to anchor
+    const newTypo = `${tag}aged-aaaac@x.com`; // Lev-1 to anchor
+
+    // Seed: anchor's email bucket aged out (reset_at in the past), but
+    // the cluster bucket is still locked. This simulates the 16-30 min
+    // window of a typo loop.
+    await sql`
+      INSERT INTO rate_limit_buckets (key, count, reset_at, locked_until)
+      VALUES (
+        ${'reset:email:' + anchor}, 5,
+        now() - interval '20 minutes',
+        NULL
+      )
+    `.execute(db);
+    await sql`
+      INSERT INTO rate_limit_buckets (key, count, reset_at, locked_until)
+      VALUES (
+        ${'reset:cluster:' + anchor}, 5,
+        now() - interval '20 minutes',
+        now() + interval '10 minutes'
+      )
+    `.execute(db);
+    await sql`
+      INSERT INTO rate_limit_buckets (key, count, reset_at, locked_until)
+      VALUES (
+        ${'reset:email:' + sibling}, 1,
+        now() - interval '20 minutes',
+        NULL
+      )
+    `.execute(db);
+
+    // 6th attempt: typo'd to a NEW Lev-1 neighbour of the anchor.
+    // Without the fix, this returns 200 (cluster bypass — fresh rep,
+    // fresh bucket). With the fix, the live cluster bucket is found,
+    // its rep is the anchor, and the request returns 429.
+    const res = await postReset(newTypo);
+    expect(res.statusCode, `cluster-aging bypass should be blocked; got ${res.statusCode}`).toBe(429);
+
+    // Sanity: no NEW cluster row was created with newTypo as the rep.
+    const newRow = await sql`
+      SELECT key FROM rate_limit_buckets
+       WHERE key = ${'reset:cluster:' + newTypo}
+    `.execute(db);
+    expect(newRow.rows).toHaveLength(0);
   });
 });

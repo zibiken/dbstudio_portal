@@ -171,8 +171,10 @@ list, customer activity, customer profile) using the existing
 fixture-login machinery — admin via `/login` + `/login/2fa` and
 customer via `completeCustomerWelcome` + `signCookie`. Asserts no
 impact ≥ serious / critical violations on any route. JSDOM skips the
-canvas-dependent `color-contrast` rule; that gap is covered by the
-static checker.
+canvas-dependent `color-contrast` rule; that gap is not covered by
+either the static checker or the axe pass — the design tokens are
+themselves AA-compliant on `--color-ink-900` against `--color-bg`,
+which is the defence-in-depth position recorded in `follow-ups.md`.
 
 **Static input-label false-positive fix (`f164799`).** The static
 input-label check in `scripts/a11y-check.js` was building its
@@ -211,7 +213,9 @@ identical to their POST-handler counterparts; functional impact zero
 (302 → 303 on an auth gate is a no-op since the user agent does GET
 on `/admin/step-up` either way). GET handlers explicitly kept on 302:
 `routes/admin/_index.js` (GET `/admin` → `/admin/customers`),
-`routes/admin/profile.js` 5 GET-handler `/login` bounces,
+`routes/admin/profile.js` 4 GET-handler `/login` bounces (the 5th
+landed in the `renderIndex` helper which is also called from POST
+handlers and was flipped to 303 in the polish commit `802d708`),
 `routes/admin/documents.js` signed-URL handoff to `/files/${token}`.
 Test fixes: 12 assertions in 9 test files updated from
 `.toBe(302)` to `.toBe(303)`; login-flow `lOk`/`cOk` 302s

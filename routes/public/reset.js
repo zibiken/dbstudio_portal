@@ -132,7 +132,10 @@ export function registerResetRoutes(app) {
     // representative is the lex-smallest email within edit-distance 1
     // of the current attempt across recent reset buckets.
     const clusterRep = email
-      ? await clusterKeyForResetEmail(app.db, email, { windowMs: RESET_WINDOW_MS })
+      ? await clusterKeyForResetEmail(app.db, email, {
+          windowMs: RESET_WINDOW_MS,
+          lockoutMs: RESET_LOCKOUT_MS,
+        })
       : 'unknown';
     const clusterKey = `reset:cluster:${clusterRep}`;
 
