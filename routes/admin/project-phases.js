@@ -147,6 +147,46 @@ export function registerAdminProjectPhasesRoutes(app) {
       return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id);
     });
 
+  app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/dates',
+    { preHandler: app.csrfProtection },
+    async (req, reply) => {
+      const guards = await loadGuardsWithPhase(app, req, reply);
+      if (!guards) return;
+      const body = req.body ?? {};
+      function parseYmd(s) {
+        if (typeof s !== 'string' || s.trim() === '') return null;
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
+        if (!m) throw new Error('PHASE_DATE_INVALID');
+        const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+        if (Number.isNaN(d.getTime())) throw new Error('PHASE_DATE_INVALID');
+        return d;
+      }
+      let startedAt, completedAt;
+      try {
+        startedAt = parseYmd(body.started_at);
+        completedAt = parseYmd(body.completed_at);
+        if (startedAt && completedAt && completedAt < startedAt) {
+          throw new Error('PHASE_DATE_RANGE_INVALID');
+        }
+      } catch (err) {
+        const safe =
+          err.message === 'PHASE_DATE_INVALID' ? 'Use the date picker — DD/MM/YYYY format.' :
+          err.message === 'PHASE_DATE_RANGE_INVALID' ? 'Completed date can’t be earlier than Started.' :
+          'Could not save the dates.';
+        return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id, safe);
+      }
+      try {
+        await phasesService.setPhaseDates(app.db,
+          { phaseId: guards.phase.id, customerId: guards.customer.id },
+          { startedAt, completedAt },
+          ctxFromReq(req),
+          { adminId: guards.adminId });
+      } catch (err) {
+        return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id, flashFromError(err));
+      }
+      return back(app, req, reply, guards.customer.id, guards.project.id, guards.phase.id);
+    });
+
   app.post('/admin/customers/:customerId/projects/:projectId/phases/:phaseId/reorder',
     { preHandler: app.csrfProtection },
     async (req, reply) => {

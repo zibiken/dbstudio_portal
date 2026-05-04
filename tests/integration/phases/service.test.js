@@ -187,6 +187,60 @@ describe.skipIf(skip)('domain/phases/service', () => {
     expect(last.visible_to_customer).toBe(false);
   });
 
+  describe('setPhaseDates', () => {
+    it('writes both dates when provided', async () => {
+      const ctx = await makeCustomerAndProject(db, tag, 'sd1');
+      const { phaseId } = await phasesService.create(db,
+        { projectId: ctx.projectId, customerId: ctx.customerId, label: 'X' },
+        { ...baseCtx(tag), actorType: 'admin' }, { adminId });
+
+      await phasesService.setPhaseDates(db,
+        { phaseId, customerId: ctx.customerId },
+        { startedAt: new Date('2024-03-01T00:00:00Z'),
+          completedAt: new Date('2024-04-15T00:00:00Z') },
+        { ...baseCtx(tag), actorType: 'admin' }, { adminId });
+
+      const row = await phasesRepo.findPhaseById(db, phaseId);
+      expect(row.started_at.toISOString()).toMatch(/^2024-03-01/);
+      expect(row.completed_at.toISOString()).toMatch(/^2024-04-15/);
+    });
+
+    it('clears a date when null is passed', async () => {
+      const ctx = await makeCustomerAndProject(db, tag, 'sd2');
+      const { phaseId } = await phasesService.create(db,
+        { projectId: ctx.projectId, customerId: ctx.customerId, label: 'Y' },
+        { ...baseCtx(tag), actorType: 'admin' }, { adminId });
+      await phasesService.setPhaseDates(db,
+        { phaseId, customerId: ctx.customerId },
+        { startedAt: new Date('2024-01-01T00:00:00Z'), completedAt: null },
+        { ...baseCtx(tag), actorType: 'admin' }, { adminId });
+
+      await phasesService.setPhaseDates(db,
+        { phaseId, customerId: ctx.customerId },
+        { startedAt: null, completedAt: null },
+        { ...baseCtx(tag), actorType: 'admin' }, { adminId });
+
+      const row = await phasesRepo.findPhaseById(db, phaseId);
+      expect(row.started_at).toBeNull();
+      expect(row.completed_at).toBeNull();
+    });
+
+    it('rejects when phase belongs to a different customer (CROSS_CUSTOMER)', async () => {
+      const a = await makeCustomerAndProject(db, tag, 'sd3a');
+      const b = await makeCustomerAndProject(db, tag, 'sd3b');
+      const { phaseId } = await phasesService.create(db,
+        { projectId: a.projectId, customerId: a.customerId, label: 'Z' },
+        { ...baseCtx(tag), actorType: 'admin' }, { adminId });
+
+      await expect(
+        phasesService.setPhaseDates(db,
+          { phaseId, customerId: b.customerId },
+          { startedAt: new Date(), completedAt: null },
+          { ...baseCtx(tag), actorType: 'admin' }, { adminId })
+      ).rejects.toMatchObject({ code: 'CROSS_CUSTOMER' });
+    });
+  });
+
   it('delete on a customer-visible phase writes a customer-visible audit; on not_started phase writes admin-only audit', async () => {
     const ctx = await makeCustomerAndProject(db, tag, 'del');
     const visible = await phasesService.create(db, { projectId: ctx.projectId, customerId: ctx.customerId, label: 'V' },

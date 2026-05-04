@@ -1584,6 +1584,18 @@ body.public .subtabs { background: var(--bg-dark); }
   border-radius: 999px; min-width: 1.75rem; text-align: center; color: var(--fg-on-light);
 }
 .phase-row__rename { flex: 1 1 14rem; display: flex; gap: 0.5rem; align-items: center; margin: 0; }
+.phase-row__dates { display: inline-flex; gap: var(--s-2); align-items: center; margin: 0; }
+.phase-row__date-cell { display: inline-flex; flex-direction: column; }
+.phase-row__date {
+  font-size: var(--f-xs); padding: 0.25rem 0.4rem;
+  border: 1px solid var(--border-light); border-radius: var(--radius-btn);
+  background: var(--c-white); color: var(--fg-on-light);
+  font-family: inherit;
+}
+.phase-row__date:focus { outline: none; border-color: var(--c-moss); }
+@media (max-width: 640px) {
+  .phase-row__dates { flex-wrap: wrap; gap: var(--s-1); }
+}
 .phase-row__label-input {
   flex: 1; background: transparent; border: 1px solid transparent;
   padding: 0.35rem 0.5rem; border-radius: var(--radius-btn); color: inherit;

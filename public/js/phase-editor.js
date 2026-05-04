@@ -95,9 +95,9 @@
     });
   });
 
-  // Autosave-on-blur for label inputs.
+  // Autosave-on-blur for label inputs and inline date inputs.
   section.addEventListener('blur', function (ev) {
-    var input = ev.target.closest('input.phase-row__label-input');
+    var input = ev.target.closest('input.phase-row__label-input, input.phase-row__date');
     if (!input) return;
     var original = input.dataset.originalValue;
     if (input.value === original) return;

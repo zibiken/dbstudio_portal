@@ -272,4 +272,40 @@ describe.skipIf(skip)('admin project-phases routes (HTTP)', () => {
     expect(res.statusCode).toBe(303);
     expect(decodeURIComponent(res.headers.location)).toContain('A phase with that label already exists.');
   });
+
+  it('POST /dates writes started_at + completed_at and 303-redirects', async () => {
+    const jar = await loginAdmin('dates-happy');
+    const csrf = await csrfFromProjectDetail(jar, customerAId, projectAId);
+    const create = await postPhaseForm(jar,
+      `/admin/customers/${customerAId}/projects/${projectAId}/phases`,
+      { _csrf: csrf, label: 'date-target' }, { csrf });
+    expect(create.statusCode).toBe(303);
+    const phase = await sql`SELECT id::text AS id FROM project_phases
+                              WHERE project_id = ${projectAId}::uuid AND label = ${'date-target'}`.execute(db);
+    const phaseId = phase.rows[0].id;
+
+    const res = await postPhaseForm(jar,
+      `/admin/customers/${customerAId}/projects/${projectAId}/phases/${phaseId}/dates`,
+      { _csrf: csrf, started_at: '2024-01-15', completed_at: '2024-03-30' }, { csrf });
+    expect(res.statusCode).toBe(303);
+    const row = await sql`SELECT started_at::text AS s, completed_at::text AS c
+                            FROM project_phases WHERE id = ${phaseId}::uuid`.execute(db);
+    expect(row.rows[0].s).toMatch(/^2024-01-15/);
+    expect(row.rows[0].c).toMatch(/^2024-03-30/);
+  });
+
+  it('POST /dates with completed_at < started_at flashes safe copy via phaseError', async () => {
+    const jar = await loginAdmin('dates-bad-range');
+    const csrf = await csrfFromProjectDetail(jar, customerAId, projectAId);
+    await postPhaseForm(jar,
+      `/admin/customers/${customerAId}/projects/${projectAId}/phases`,
+      { _csrf: csrf, label: 'bad-range' }, { csrf });
+    const phase = await sql`SELECT id::text AS id FROM project_phases
+                              WHERE project_id = ${projectAId}::uuid AND label = ${'bad-range'}`.execute(db);
+    const res = await postPhaseForm(jar,
+      `/admin/customers/${customerAId}/projects/${projectAId}/phases/${phase.rows[0].id}/dates`,
+      { _csrf: csrf, started_at: '2024-05-01', completed_at: '2024-04-01' }, { csrf });
+    expect(res.statusCode).toBe(303);
+    expect(decodeURIComponent(res.headers.location)).toContain('Completed date can');
+  });
 });

@@ -289,6 +289,64 @@ export async function changeStatus(db, { phaseId, customerId }, { newStatus }, c
   });
 }
 
+export class CrossCustomerError extends Error {
+  constructor() {
+    super('phase belongs to a different customer');
+    this.name = 'CrossCustomerError';
+    this.code = 'CROSS_CUSTOMER';
+  }
+}
+
+// Admin-driven explicit override of phase started_at / completed_at.
+// Pass `null` for either field to clear it (revert-to-auto). Survives
+// status transitions thanks to the conditional auto-stamp in
+// changeStatus.
+export async function setPhaseDates(
+  db,
+  { phaseId, customerId },
+  { startedAt, completedAt },
+  ctx = {},
+  { adminId } = {},
+) {
+  return await db.transaction().execute(async (tx) => {
+    const phase = await repo.findPhaseById(tx, phaseId);
+    if (!phase) throw new PhaseNotFoundError();
+    // Defence-in-depth: assert phase belongs to customerId via the
+    // projects join (route layer guards this too).
+    const own = await sql`
+      SELECT 1 FROM project_phases pp
+        JOIN projects p ON p.id = pp.project_id
+       WHERE pp.id = ${phaseId}::uuid
+         AND p.customer_id = ${customerId}::uuid
+    `.execute(tx);
+    if (own.rows.length === 0) throw new CrossCustomerError();
+
+    await repo.setPhaseStatus(tx, phaseId, {
+      status: phase.status,
+      startedAt: startedAt ?? null,
+      completedAt: completedAt ?? null,
+    });
+
+    const auditMeta = baseAuditMetadata(ctx);
+    await writeAudit(tx, {
+      actorType: 'admin', actorId: adminId,
+      action: 'phase.dates_overridden',
+      targetType: 'project_phase', targetId: phaseId,
+      metadata: {
+        ...auditMeta, customerId,
+        projectId: phase.project_id, phaseId,
+        startedAt: startedAt?.toISOString() ?? null,
+        completedAt: completedAt?.toISOString() ?? null,
+      },
+      visibleToCustomer: false,
+      ip: ctx?.ip ?? null,
+      userAgentHash: ctx?.userAgentHash ?? null,
+    });
+
+    return { phaseId };
+  });
+}
+
 async function deletePhaseService(db, { phaseId, customerId }, ctx, { adminId }) {
   return await db.transaction().execute(async (tx) => {
     const phase = await repo.findPhaseById(tx, phaseId);

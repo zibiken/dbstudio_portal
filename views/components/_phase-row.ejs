@@ -22,6 +22,22 @@
       <button class="btn btn--ghost btn--sm phase-row__rename-save" type="submit" hidden>Save</button>
     </form>
 
+    <%
+      var startedYmd = p.started_at ? new Date(p.started_at).toISOString().slice(0, 10) : '';
+      var completedYmd = p.completed_at ? new Date(p.completed_at).toISOString().slice(0, 10) : '';
+    %>
+    <form class="phase-row__dates" method="post" action="/admin/customers/<%= customer.id %>/projects/<%= project.id %>/phases/<%= p.id %>/dates" data-fragment="row">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="phase-row__date-cell">
+        <span class="visually-hidden">Started</span>
+        <input class="phase-row__date" name="started_at" type="date" value="<%= startedYmd %>" data-original-value="<%= startedYmd %>" aria-label="Started date for <%= p.label %>">
+      </label>
+      <label class="phase-row__date-cell">
+        <span class="visually-hidden">Completed</span>
+        <input class="phase-row__date" name="completed_at" type="date" value="<%= completedYmd %>" data-original-value="<%= completedYmd %>" aria-label="Completed date for <%= p.label %>">
+      </label>
+    </form>
+
     <div class="phase-row__status-wrap" data-status-menu>
       <button class="status-pill status-pill--phase-<%= statusKey %> status-pill--button" type="button" aria-haspopup="menu" aria-expanded="false">
         <%= statusLabel %>
