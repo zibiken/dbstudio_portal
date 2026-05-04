@@ -334,9 +334,13 @@ process.stdout.write(
 // Optional axe-core JSDOM mode (RUN_A11Y_AXE=1). Renders a small set of
 // public pages via app.inject(), parses the HTML through JSDOM, and runs
 // axe-core to surface impact >= 'serious' violations. Advisory by
-// default; only fails the script if RUN_A11Y_AXE_BLOCKING=1. v1.1 work
-// extends the route list to cover authenticated views (a fixture login
-// flow needs to land alongside that).
+// default; only fails the script if RUN_A11Y_AXE_BLOCKING=1.
+//
+// Authenticated-view axe coverage lives in
+// tests/integration/a11y/authenticated-routes.test.js — that file
+// reuses the existing fixture-login machinery (admin /login + /login/2fa
+// and customer completeCustomerWelcome) instead of duplicating it here.
+// Add new view families to that test as they land.
 if (process.env.RUN_A11Y_AXE === '1') {
   const { build } = await import('../server.js');
   const { JSDOM } = await import('jsdom');

@@ -30,6 +30,21 @@ below); `i18n-audit.js` reports 810 candidate offenders across 118 files.
   303 project-wide; migrate older 302s opportunistically as files are
   touched, no sweep PR. (**In flight 2026-05-04** — bundled sweep
   underway as Phase C of the current ship.)
+- **`setPhaseOrder` digest fan-out gap** (surfaced by Codex review
+  2026-05-04) — `domain/phases/service.js:361` writes a
+  `phase.reordered` audit row but does not fan out an admin digest
+  item, while the older adjacent `reorder` path at
+  `domain/phases/service.js:206` does fan out admin-only digest rows.
+  Drag-reorder and keyboard/menu reorder therefore behave differently
+  for the same event type. Align the two by moving the digest fan-out
+  into a shared helper called from both paths. Not v1-blocking — drag
+  reorder still audits, just doesn't trigger a digest line.
+- **`setPhaseDates` service-layer invariant gap** (surfaced by Codex
+  review 2026-05-04) — `domain/phases/service.js:304` relies on the
+  HTTP route layer for `completedAt >= startedAt` validation. Since the
+  service is exported, future non-route callers could violate the
+  invariant without warning. Add the check inside the service and
+  cover it with a direct service-call test.
 
 ---
 
@@ -77,12 +92,15 @@ acknowledged as not green and tracked here.
 
 ## Accessibility pass (plan Task 9.6)
 
-**Status (2026-05-04):** scaffolding has landed (see build-log Bundle 5),
-but the pass is incomplete. The static `scripts/a11y-check.js` is wired
-into `scripts/run-tests.sh` as advisory and reports 12 input-label
-offenders across 4 files. The axe-core JSDOM harness runs only on public
-routes (`/login`, `/reset`) — authenticated views still need a fixture
-login helper.
+**Status (2026-05-04):** scaffolding has landed (see build-log Bundle 5
+and the in-flight bundle below). The static `scripts/a11y-check.js` is
+wired into `scripts/run-tests.sh` as advisory and reports 12 input-label
+offenders across 4 files. The axe-core JSDOM harness runs on the public
+routes (`/login`, `/reset`); authenticated-route axe coverage lives in
+`tests/integration/a11y/authenticated-routes.test.js` (admin customers
+list, admin audit, admin profile, customer dashboard, customer
+credentials list, customer activity, customer profile — 0 serious /
+critical violations).
 
 **Currently blocking promotion to required:**
 - 12 input-label offenders (dynamic-id label association) across:
@@ -90,10 +108,6 @@ login helper.
   1× `views/components/_input.ejs`,
   4× `views/components/_phase-row.ejs`,
   4× `views/customer/credential-requests/detail.ejs`.
-- No fixture login helper in `scripts/a11y-check.js` — authenticated
-  views (admin customers list, customer dashboard, credentials, profile,
-  activity, admin/audit) are not covered by the axe-core run.
-- No skip-link from the brand header to `<main>`.
 - Heading-order audit pending — some pages currently jump h1 → h3.
 - Focus traps for any modal-style flows (currently none — confirmation
   pages are linear, but consider when re-templating).
@@ -103,10 +117,12 @@ headers, role="alert" on errors, ARIA-labelled brand link); design
 tokens hit AA contrast on `--color-ink-900` against `--color-bg`;
 `cancel-link` underline + focus styles inherited from the global
 `a:focus` rule; `<details>`/`<summary>` disclosure forms in place of
-`onsubmit="return confirm(...)"`.
+`onsubmit="return confirm(...)"`. **Skip-link from top nav to
+`#main-content`** is in all three layouts (`admin.ejs`, `customer.ejs`,
+`public.ejs`).
 
-**In flight 2026-05-04** — the bundled ship's Phase B closes the four
-items above and promotes `RUN_A11Y_AXE` to blocking.
+**In flight 2026-05-04** — the bundled ship's Phase B closes the
+remaining items above and promotes `RUN_A11Y_AXE` to blocking.
 
 ---
 
