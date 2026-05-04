@@ -48,7 +48,10 @@ function makeCtx(req, session, app) {
 
 async function renderIndex(req, reply, app, session, extra = {}) {
   const profile = await loadProfile(app, session);
-  if (!profile) return reply.redirect('/login', 302);
+  // 303: helper is called from POST handlers too (name/password/email),
+  // so the bounce can be a POST → GET redirect. 303 is correct in both
+  // GET and POST callers (browsers do GET on /login regardless).
+  if (!profile) return reply.redirect('/login', 303);
   const inflight = await loadInflightEmailChange(app, session);
   return renderAdmin(req, reply, 'admin/profile/index', {
     title: 'Profile',

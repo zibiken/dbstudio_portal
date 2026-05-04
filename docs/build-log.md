@@ -152,5 +152,106 @@ Migration ledger now at 14.
 the option (b) inline typo hint: "If your address is registered with us,
 we've sent a reset link. Single-use, expires in 7 days. If nothing arrives
 within a few minutes, double-check the address you entered (typos are
-common — e.g. .com vs .eu) or check your spam folder." Options (c) and
-(d) deferred at the time; (d) tracked in `follow-ups.md`.
+common — e.g. .com vs .eu) or check your spam folder." Option (c) was
+deferred; (d) shipped 2026-05-04 (see next section). Option (c) remains
+in `follow-ups.md`.
+
+## v1 acceptance bundle — accessibility + 303 sweep + reset typo cluster (2026-05-04)
+
+Five-phase bundle that closes most of the remaining v1 acceptance
+items in one ship. Codex review hit a usage limit during phase B2;
+Sonnet provided the backup APPROVE WITH CHANGES verdict and the
+follow-up doc fixes were applied before tagging the bundle shipped.
+
+**Authenticated-route axe-core coverage (`4e99d16`).** New
+`tests/integration/a11y/authenticated-routes.test.js` runs axe-core
+via JSDOM against seven authenticated views (admin customers list,
+admin audit, admin profile, customer dashboard, customer credentials
+list, customer activity, customer profile) using the existing
+fixture-login machinery — admin via `/login` + `/login/2fa` and
+customer via `completeCustomerWelcome` + `signCookie`. Asserts no
+impact ≥ serious / critical violations on any route. JSDOM skips the
+canvas-dependent `color-contrast` rule; that gap is covered by the
+static checker.
+
+**Static input-label false-positive fix (`f164799`).** The static
+input-label check in `scripts/a11y-check.js` was building its
+`labelTargets` set from raw EJS source while scanning input ids on
+the EJS-stripped source. Dynamic-id pairs like
+`<label for="phase-label-<%= p.id %>">` / `<input id="phase-label-<%= p.id %>">`
+captured `phase-label-<%= p.id %>` (raw) on one side and
+`phase-label-_%= p.id %_` (stripped) on the other, never reconciling.
+Moved the strip step earlier so both label-target collection and
+input-id matching run against the same stripped source. Closed 12
+false-positive offenders (3 in `views/admin/credential-requests/new.ejs`,
+1 in `views/components/_input.ejs`, 4 in
+`views/components/_phase-row.ejs`, 4 in
+`views/customer/credential-requests/detail.ejs`) and added one real
+fix: `aria-label="Phase status"` on the `<select>` inside the
+noscript fallback form in `views/components/_phase-row.ejs`.
+
+**Blocking a11y gate (`25d83b2`).** `scripts/run-tests.sh` no longer
+swallows non-zero exits from the a11y check; sets `RUN_A11Y_AXE=1` +
+`RUN_A11Y_AXE_BLOCKING=1` so the wrapper aborts on any static offender
+or any impact ≥ 'serious' axe violation on `/login` + `/reset`.
+Escape hatches: `A11Y_STATIC_ADVISORY=1` keeps static failures
+non-fatal; drop `RUN_A11Y_AXE_BLOCKING=1` to make axe advisory.
+Both gates report 0 violations across the codebase.
+
+**Admin POST → GET redirects 302 → 303 (`30943b9`).** Aligned the
+admin route layer with the operator's "303 project-wide" decision.
+Phase routes already used 303 via the POST → 303 → GET fragment-swap
+pattern; the remaining 39 admin POST→GET redirects across 11 route
+files now match. Touched: `routes/admin/credential-requests.js`,
+`credentials.js`, `customer-questions.js`, `customers.js`,
+`documents.js`, `invoices.js`, `ndas.js`, `profile.js`, `projects.js`,
+`step-up.js`. The `credentials.js` sweep was a blanket replace_all
+because three GET-handler step-up auth-gate redirects were textually
+identical to their POST-handler counterparts; functional impact zero
+(302 → 303 on an auth gate is a no-op since the user agent does GET
+on `/admin/step-up` either way). GET handlers explicitly kept on 302:
+`routes/admin/_index.js` (GET `/admin` → `/admin/customers`),
+`routes/admin/profile.js` 5 GET-handler `/login` bounces,
+`routes/admin/documents.js` signed-URL handoff to `/files/${token}`.
+Test fixes: 12 assertions in 9 test files updated from
+`.toBe(302)` to `.toBe(303)`; login-flow `lOk`/`cOk` 302s
+deliberately untouched (`routes/public/login.js` +
+`routes/public/login-2fa.js` are out of scope).
+
+**Levenshtein-1 typo-cluster bucket on `/reset` (`97a8ed6`).** Closes
+follow-up option (d) from the password-reset enumeration UX brainstorm.
+The exact-email rate-limit bucket on `/reset` never accumulated across
+typo loops because each typo (`info@brainzr.eu` vs `.com` vs `.co`)
+keyed on a different bucket and reset fresh; the IP bucket caught the
+single-IP 2026-05-01 incident, but a multi-IP typo loop could repeat
+indefinitely. New module `lib/auth/email-cluster.js` exports
+`withinOneEdit(a, b)` (linear-time Lev-1 boolean) and
+`clusterKeyForResetEmail(db, email, { windowMs })` which returns the
+lex-smallest email within Lev-1 of the current attempt across recent
+`reset:email:*` buckets. Wired in `routes/public/reset.js` as
+`reset:cluster:${rep}`, joining the existing ip + exact-email keys in
+the `checkLockout` + `recordFail` flow with the same
+`RESET_LIMIT/window/lockout` settings. Cluster lookup is server-side;
+the rep never surfaces in the response, so no new enumeration vector.
+Known tradeoff: when a new attempt finds a lex-smaller neighbour than
+an existing cluster's rep, the rep can shift, fragmenting the cluster
+across multiple bucket rows under pathological (descending-lex)
+arrival orders. Acceptable for the threat model — typo-loop users
+anchor on a stable seed, and an attacker has no incentive to fragment
+their own bucket. Tests: `tests/unit/auth/email-cluster.test.js`
+(10 unit tests covering substitution / single insertion / single
+deletion / case-insensitivity / two-edit rejection / TLD typo cases)
+and `tests/integration/auth/reset-typo-cluster.test.js` (2 tests:
+star-pattern of 5 Lev-1 typos around a fixed anchor trips the cluster
+bucket lockout on the 5th increment, returns 429 on the 6th attempt;
+Lev-distance > 1 emails do not share a cluster bucket).
+
+**Test count: 740 → 818 passing / 3 skipped / 0 failing.**
+
+Reviews:
+- DeepSeek: USE on B2; UNAVAILABLE on B1, D.
+- Codex: APPROVE WITH CHANGES on B1; UNAVAILABLE on B2 onward (usage
+  limit).
+- Sonnet (backup reviewer): APPROVE WITH CHANGES on the consolidated
+  bundle. Doc-hygiene fixes (this build-log entry + matching
+  follow-ups.md cleanup) applied before tagging shipped.

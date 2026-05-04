@@ -10,12 +10,13 @@ For history of what has shipped, see `docs/build-log.md`.
 
 ## ROADMAP STATUS (2026-05-04)
 
-Test count: 740 passing / 3 skipped / 0 failing.
+Test count: 818 passing / 3 skipped / 0 failing.
 Migration ledger: `0014_audit_metadata_customer_index`.
-Advisory linters: `check-detail-pattern.js` has 2 pre-existing out-of-scope
-warnings (`customers/detail.ejs`, `projects/detail.ejs`); `a11y-check.js`
-reports 12 input-label offenders across 4 files (see Accessibility pass
-below); `i18n-audit.js` reports 810 candidate offenders across 118 files.
+Advisory linters: `check-detail-pattern.js` has 3 pre-existing
+out-of-scope warnings (`customers/detail.ejs`, `projects/detail.ejs`,
+`customer/projects/show.ejs`); `a11y-check.js` reports 0 offenders
+(static + axe-core both blocking, see Accessibility pass below);
+`i18n-audit.js` reports 810 candidate offenders across 118 files.
 
 ---
 
@@ -25,17 +26,6 @@ below); `i18n-audit.js` reports 810 candidate offenders across 118 files.
   `Promise.all(phases.map(listItemsByPhase))` is O(phases). Acceptable
   for the current admin tool; replace with a single JOIN if a project
   ever crosses ~30 phases.
-- ~~**303 vs 302 redirect inconsistency**~~ — SHIPPED 2026-05-04 in
-  the bundled accessibility ship. Admin POST → GET handlers across
-  `routes/admin/credential-requests.js`, `customers.js`,
-  `customer-questions.js`, `documents.js`, `invoices.js`, `ndas.js`,
-  `profile.js`, `projects.js`, `step-up.js`, and `credentials.js`
-  (the latter via blanket replace because three GET-handler step-up
-  auth gates were textually identical to POST-handler ones — 302→303
-  on auth gates is functionally a no-op) now return 303. The
-  GET-handler `/login` auth-fail bounces in `profile.js` and
-  `_index.js` and the signed-URL handoff in `documents.js` remain
-  302 — out of the "admin POST routes" sweep scope.
 - **`setPhaseOrder` digest fan-out gap** (surfaced by Codex review
   2026-05-04) — `domain/phases/service.js:361` writes a
   `phase.reordered` audit row but does not fan out an admin digest
@@ -98,8 +88,9 @@ acknowledged as not green and tracked here.
 
 ## Accessibility pass (plan Task 9.6)
 
-**Status (2026-05-04):** the v1 a11y pass is closed by the in-flight
-bundle. Both gates are now blocking in `scripts/run-tests.sh`:
+**Status (2026-05-04):** the v1 a11y pass is closed; see `docs/build-log.md`
+for the bundle that landed it. Both gates are now blocking in
+`scripts/run-tests.sh`:
 - The static `scripts/a11y-check.js` checks (img alt, heading order,
   input labels, nav labelling, hamburger ARIA, modal aria-modal,
   sidebar aria-current, native `confirm()`, reduced-motion partner)
@@ -133,15 +124,11 @@ tokens hit AA contrast on `--color-ink-900` against `--color-bg`;
 `#main-content`** is in all three layouts (`admin.ejs`, `customer.ejs`,
 `public.ejs`).
 
-**In flight 2026-05-04** — the bundled ship's Phase B closes the
-remaining items above and promotes `RUN_A11Y_AXE` to blocking.
-
 ---
 
-## Password-reset enumeration UX — options (c) and (d)
+## Password-reset enumeration UX — option (c)
 
-Options (a) and (b) (the inline typo hint on `views/public/reset-sent.ejs`)
-already shipped; see build-log.
+Options (a), (b), and (d) shipped (see `docs/build-log.md`).
 
 - **(c) out-of-band typo notification** — when a Levenshtein-1 typo of a
   registered address attempts a reset, optionally email the real
@@ -151,19 +138,6 @@ already shipped; see build-log.
   anxiety-inducing, slight existence-leak to anyone watching the
   recipient's mailbox). Worth doing eventually but needs its own
   brainstorm. Not v1.
-- ~~**(d) Levenshtein-1 rate-limit on reset attempts**~~ — SHIPPED
-  2026-05-04 in the bundled ship. New `lib/auth/email-cluster.js`
-  exports `withinOneEdit(a, b)` (linear-time Lev-1 check) and
-  `clusterKeyForResetEmail(db, email, { windowMs })` (returns the
-  lex-smallest email within Lev-1 of the current attempt across recent
-  `reset:email:*` buckets). `routes/public/reset.js` adds a third
-  bucket key `reset:cluster:${rep}` to the existing checkLockout +
-  recordFail pair, with the same RESET_LIMIT/window/lockout settings.
-  Privacy: bucket lookup happens server-side; the cluster rep never
-  surfaces in the response, so no enumeration leak. Tests:
-  `tests/unit/auth/email-cluster.test.js` (10 unit tests) +
-  `tests/integration/auth/reset-typo-cluster.test.js` (2 integration
-  tests covering the typo-loop trip + the non-clustering case).
 
 ---
 
