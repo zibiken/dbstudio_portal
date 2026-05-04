@@ -151,13 +151,19 @@ already shipped; see build-log.
   anxiety-inducing, slight existence-leak to anyone watching the
   recipient's mailbox). Worth doing eventually but needs its own
   brainstorm. Not v1.
-- **(d) Levenshtein-1 rate-limit on reset attempts** — share a rate-limit
-  bucket across address-cluster typos so a fat-finger typo loop is
-  caught after a few tries instead of repeating indefinitely against
-  non-existent addresses. Privacy-safe (no existence leak; existence is
-  already revealed by login bucket counts to attackers, but reset is
-  separately bucketed and that boundary is preserved). **In flight
-  2026-05-04** as Phase D of the current ship.
+- ~~**(d) Levenshtein-1 rate-limit on reset attempts**~~ — SHIPPED
+  2026-05-04 in the bundled ship. New `lib/auth/email-cluster.js`
+  exports `withinOneEdit(a, b)` (linear-time Lev-1 check) and
+  `clusterKeyForResetEmail(db, email, { windowMs })` (returns the
+  lex-smallest email within Lev-1 of the current attempt across recent
+  `reset:email:*` buckets). `routes/public/reset.js` adds a third
+  bucket key `reset:cluster:${rep}` to the existing checkLockout +
+  recordFail pair, with the same RESET_LIMIT/window/lockout settings.
+  Privacy: bucket lookup happens server-side; the cluster rep never
+  surfaces in the response, so no enumeration leak. Tests:
+  `tests/unit/auth/email-cluster.test.js` (10 unit tests) +
+  `tests/integration/auth/reset-typo-cluster.test.js` (2 integration
+  tests covering the typo-loop trip + the non-clustering case).
 
 ---
 

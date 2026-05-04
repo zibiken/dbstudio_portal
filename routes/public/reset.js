@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import { renderPublic } from '../../lib/render.js';
 import { checkLockout, recordFail } from '../../lib/auth/rate-limit.js';
+import { clusterKeyForResetEmail } from '../../lib/auth/email-cluster.js';
 import { computeDeviceFingerprint } from '../../lib/auth/session.js';
 import { setSessionCookie } from '../../lib/auth/middleware.js';
 import * as adminsService from '../../domain/admins/service.js';
@@ -125,12 +126,22 @@ export function registerResetRoutes(app) {
     const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
     const ipKey = `reset:ip:${req.ip ?? 'unknown'}`;
     const emailKey = `reset:email:${email.toLowerCase()}`;
+    // Levenshtein-1 cluster bucket: catches typo loops where each
+    // attempt uses a slightly different non-existent email so the
+    // per-exact-email bucket never accumulates. The cluster
+    // representative is the lex-smallest email within edit-distance 1
+    // of the current attempt across recent reset buckets.
+    const clusterRep = email
+      ? await clusterKeyForResetEmail(app.db, email, { windowMs: RESET_WINDOW_MS })
+      : 'unknown';
+    const clusterKey = `reset:cluster:${clusterRep}`;
 
-    const [ipLock, emailLock] = await Promise.all([
+    const [ipLock, emailLock, clusterLock] = await Promise.all([
       checkLockout(app.db, ipKey),
       checkLockout(app.db, emailKey),
+      checkLockout(app.db, clusterKey),
     ]);
-    if (ipLock.locked || emailLock.locked) {
+    if (ipLock.locked || emailLock.locked || clusterLock.locked) {
       reply.code(429);
       return renderPublic(req, reply, 'public/reset-request', {
         title: 'Reset your password',
@@ -156,8 +167,9 @@ export function registerResetRoutes(app) {
       } catch (_) { /* never leak which type matched */ }
     }
     await Promise.all([
-      recordFail(app.db, ipKey,    { limit: RESET_LIMIT, windowMs: RESET_WINDOW_MS, lockoutMs: RESET_LOCKOUT_MS }),
-      recordFail(app.db, emailKey, { limit: RESET_LIMIT, windowMs: RESET_WINDOW_MS, lockoutMs: RESET_LOCKOUT_MS }),
+      recordFail(app.db, ipKey,      { limit: RESET_LIMIT, windowMs: RESET_WINDOW_MS, lockoutMs: RESET_LOCKOUT_MS }),
+      recordFail(app.db, emailKey,   { limit: RESET_LIMIT, windowMs: RESET_WINDOW_MS, lockoutMs: RESET_LOCKOUT_MS }),
+      recordFail(app.db, clusterKey, { limit: RESET_LIMIT, windowMs: RESET_WINDOW_MS, lockoutMs: RESET_LOCKOUT_MS }),
     ]);
 
     return renderPublic(req, reply, 'public/reset-sent', {
