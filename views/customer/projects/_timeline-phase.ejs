@@ -1,0 +1,39 @@
+<%# Single phase row in the customer timeline.
+    Locals: phase, isLast %>
+<%
+  var statusKey = phase.status === 'done' ? 'phase-done'
+                : phase.status === 'blocked' ? 'phase-blocked'
+                : phase.status === 'in_progress' ? 'phase-in-progress'
+                : 'phase-not-started';
+  var statusLabel = phase.status === 'in_progress' ? 'in progress'
+                  : phase.status === 'not_started' ? 'not started'
+                  : phase.status;
+  var total = (phase.items || []).length;
+  var done = phase.doneCount || 0;
+%>
+<li class="customer-timeline__item<%= isLast ? ' customer-timeline__item--last' : '' %>">
+  <span class="customer-timeline__rail" aria-hidden="true">
+    <span class="customer-timeline__node"></span>
+  </span>
+  <article class="customer-timeline__card">
+    <header class="customer-timeline__header">
+      <h2 class="customer-timeline__title"><%= phase.label %></h2>
+      <span class="status-pill status-pill--<%= statusKey %>"><%= statusLabel %></span>
+    </header>
+    <% if (phase.started_at || phase.completed_at) { %>
+      <p class="customer-timeline__meta">
+        <% if (phase.started_at) { %>Started <%= euDate(phase.started_at) %><% } %>
+        <% if (phase.started_at && phase.completed_at) { %> &middot; <% } %>
+        <% if (phase.completed_at) { %>Completed <%= euDate(phase.completed_at) %><% } %>
+      </p>
+    <% } %>
+    <% if (total > 0) { %>
+      <details class="customer-timeline__details">
+        <summary class="customer-timeline__summary"><%= done %> of <%= total %> done <span class="customer-timeline__summary-toggle">— Show checklist</span></summary>
+        <%- include('_timeline-checklist', { items: phase.items }) %>
+      </details>
+    <% } else { %>
+      <p class="customer-timeline__summary">No checklist items yet.</p>
+    <% } %>
+  </article>
+</li>

@@ -57,7 +57,9 @@ export function registerCustomerProjectsRoutes(app) {
     const visiblePhases = allPhases.filter(p => p.status !== 'not_started');
     const phasesWithItems = await Promise.all(visiblePhases.map(async (p) => {
       const items = await listItemsByPhase(app.db, p.id);
-      return { ...p, items: items.filter(i => i.visible_to_customer) };
+      const visible = items.filter(i => i.visible_to_customer);
+      const doneCount = visible.filter(i => i.done_at).length;
+      return { ...p, items: visible, doneCount };
     }));
 
     return renderCustomer(req, reply, 'customer/projects/show', {

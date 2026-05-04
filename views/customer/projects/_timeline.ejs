@@ -1,0 +1,20 @@
+<%# Customer-facing project timeline.
+    Locals:
+      phases - array of phases (already filtered to drop not_started),
+               each with `items` (already filtered to visible_to_customer)
+               and `doneCount` (precomputed in route).
+%>
+<% if (!phases || phases.length === 0) { %>
+  <%- include('../../components/_empty-state', {
+    headline: 'No active phases yet',
+    lead: 'Once we start work on a phase, you will see it here with its progress and any checklist items.',
+    secondaryHref: '/customer/projects',
+    secondaryLabel: 'Back to projects'
+  }) %>
+<% } else { %>
+  <ol class="customer-timeline">
+    <% phases.forEach(function(phase, idx) { %>
+      <%- include('_timeline-phase', { phase: phase, isLast: idx === phases.length - 1 }) %>
+    <% }) %>
+  </ol>
+<% } %>

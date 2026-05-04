@@ -1,0 +1,32 @@
+<%# Checklist body inside an open <details>. Splits into Outstanding
+    then Completed groups so customers see remaining work without
+    pagination. Locals: items %>
+<%
+  var outstanding = items.filter(function(i) { return !i.done_at; });
+  var completed = items.filter(function(i) { return !!i.done_at; });
+%>
+<div class="customer-timeline__checklist">
+  <% if (outstanding.length > 0) { %>
+    <h3 class="customer-timeline__checklist-group">Still to do</h3>
+    <ul>
+      <% outstanding.forEach(function(it) { %>
+        <li class="customer-timeline__checklist-item">
+          <span class="customer-timeline__checklist-icon" aria-hidden="true">☐</span>
+          <span class="customer-timeline__checklist-label"><%= it.label %></span>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+  <% if (completed.length > 0) { %>
+    <h3 class="customer-timeline__checklist-group">Done</h3>
+    <ul>
+      <% completed.forEach(function(it) { %>
+        <li class="customer-timeline__checklist-item customer-timeline__checklist-item--done">
+          <span class="customer-timeline__checklist-icon" aria-hidden="true">☑</span>
+          <span class="customer-timeline__checklist-label"><%= it.label %></span>
+          <span class="customer-timeline__checklist-when">done <%= euDate(it.done_at) %></span>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
