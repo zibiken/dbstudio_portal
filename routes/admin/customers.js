@@ -366,4 +366,57 @@ export function registerAdminCustomerRoutes(app) {
     }
     reply.redirect(`/admin/customers/${id}?auth_reset=1`, 303);
   });
+
+  // Admin-driven email change for a customer_user. Common case: typo
+  // when creating the user — fix the address without invalidating the
+  // welcome link the customer hasn't consumed yet. The service
+  // preserves invite_token_hash and resends the original email body
+  // (with its plaintext inviteUrl from email_outbox.locals) to the
+  // new address, so the unconsumed link still works.
+  app.post('/admin/customers/:id/users/:userId/email', { preHandler: app.csrfProtection }, async (req, reply) => {
+    const session = await requireAdminSession(app, req, reply);
+    if (!session) return;
+    const { id, userId } = req.params ?? {};
+    if (typeof id !== 'string' || !UUID_RE.test(id) ||
+        typeof userId !== 'string' || !UUID_RE.test(userId)) {
+      reply.code(404);
+      return renderAdmin(req, reply, 'admin/customers/not-found', {
+        title: 'Not found', activeNav: 'customers', mainWidth: 'wide',
+        sectionLabel: 'ADMIN · CUSTOMERS',
+      });
+    }
+    const customer = await findCustomerById(app.db, id);
+    if (!customer) {
+      reply.code(404);
+      return renderAdmin(req, reply, 'admin/customers/not-found', {
+        title: 'Not found', activeNav: 'customers', mainWidth: 'wide',
+        sectionLabel: 'ADMIN · CUSTOMERS',
+      });
+    }
+    const newEmail = typeof req.body?.email === 'string' ? req.body.email : '';
+    let result;
+    try {
+      result = await customersService.adminUpdateCustomerUserEmail(app.db, {
+        customerId: id, customerUserId: userId, newEmail, adminId: session.user_id,
+      }, {
+        actorType: 'admin', actorId: session.user_id,
+        ip: req.ip ?? null, userAgentHash: null,
+        audit: {},
+      });
+    } catch (err) {
+      const users = await listCustomerUsersByCustomer(app.db, customer.id);
+      reply.code(422);
+      return renderAdmin(req, reply, 'admin/customers/detail', {
+        title: customer.razon_social,
+        customer, users,
+        csrfToken: await reply.generateCsrf(),
+        error: err.message || 'Could not change that email.',
+        activeNav: 'customers', mainWidth: 'wide',
+        sectionLabel: 'ADMIN · CUSTOMERS · ' + customer.razon_social.toUpperCase(),
+        activeTab: 'detail',
+      });
+    }
+    const flash = result.resentInvite ? 'email_changed_resent' : 'email_changed';
+    reply.redirect(`/admin/customers/${id}?${flash}=1`, 303);
+  });
 }

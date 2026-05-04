@@ -12,6 +12,12 @@
 <% if (typeof query !== 'undefined' && query && query.auth_reset === '1') { %>
   <%- include('../../components/_alert', { variant: 'success', body: 'Reset email sent. The user will receive a link to set a new password and re-enrol their authenticator.' }) %>
 <% } %>
+<% if (typeof query !== 'undefined' && query && query.email_changed_resent === '1') { %>
+  <%- include('../../components/_alert', { variant: 'success', body: 'Email updated. A copy of the original welcome link has been sent to the new address — the link itself is unchanged so the user can still use it.' }) %>
+<% } %>
+<% if (typeof query !== 'undefined' && query && query.email_changed === '1') { %>
+  <%- include('../../components/_alert', { variant: 'success', body: 'Email updated. The invite was already consumed (or expired) so no welcome email was resent.' }) %>
+<% } %>
 
 <div class="card">
   <div class="card__title-row">
@@ -56,6 +62,24 @@
           </div>
           <% if (customer.status !== 'archived') { %>
             <div class="customer-users__actions">
+              <details class="inline-form">
+                <summary class="btn btn--ghost btn--sm">Edit email…</summary>
+                <form method="post" action="/admin/customers/<%= customer.id %>/users/<%= u.id %>/email" class="inline-form__body" aria-label="Change email for <%= u.name %>">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <%- include('../../components/_input', {
+                    name: 'email',
+                    type: 'email',
+                    label: 'New email address',
+                    required: true,
+                    autocomplete: 'off',
+                    value: u.email,
+                    helper: u.invite_consumed_at
+                      ? 'User has already signed in — they will sign in with this new address from now on.'
+                      : 'Invite is still pending. The original welcome link stays valid; a copy will be sent to the new address.',
+                  }) %>
+                  <%- include('../../components/_button', { variant: 'primary', size: 'sm', type: 'submit', label: 'Save email' }) %>
+                </form>
+              </details>
               <%- include('../../components/_confirm-dialog', {
                 id: 'reset-auth-' + u.id,
                 triggerLabel: 'Reset auth',
