@@ -222,6 +222,40 @@ describe('files', () => {
       const out = await mimeFromMagic(buf);
       expect(out).toBeNull();
     });
+
+    it('detects a PDF whose %PDF- signature is preceded by leading bytes (email forwards / print drivers)', async () => {
+      // Real-world PDFs from email forwards land in the inbox with a
+      // few hundred bytes of email-style headers prepended before the
+      // actual %PDF- signature. file-type's strict offset-0 check
+      // misses these; our fallback scans the first 1024 bytes.
+      const leading = Buffer.from(
+        'date: Mon, 04 May 2026 07:09:53 +0200\r\n'
+        + 'from: invoices@example.com\r\n'
+        + 'subject: Your invoice\r\n'
+        + '\r\n',
+      );
+      const buf = Buffer.concat([
+        leading,
+        Buffer.from('%PDF-1.4\n'),
+        Buffer.alloc(64, 0x20),
+      ]);
+      const out = await mimeFromMagic(buf);
+      expect(out).not.toBeNull();
+      expect(out.mime).toBe('application/pdf');
+      expect(out.ext).toBe('pdf');
+    });
+
+    it('does NOT accept a PDF signature beyond the 1024-byte scan window', async () => {
+      // Bound the permissive scan: a %PDF- signature buried 2 KiB
+      // deep is suspicious (almost certainly not a real PDF) and
+      // should be rejected.
+      const buf = Buffer.concat([
+        Buffer.alloc(2048, 0x20),
+        Buffer.from('%PDF-1.4\n'),
+      ]);
+      const out = await mimeFromMagic(buf);
+      expect(out).toBeNull();
+    });
   });
 
   describe('signDownloadToken / verifyDownloadToken', () => {
