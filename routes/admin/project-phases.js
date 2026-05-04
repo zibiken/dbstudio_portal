@@ -157,8 +157,13 @@ export function registerAdminProjectPhasesRoutes(app) {
         if (typeof s !== 'string' || s.trim() === '') return null;
         const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
         if (!m) throw new Error('PHASE_DATE_INVALID');
-        const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+        const y = Number(m[1]), mo = Number(m[2]) - 1, dd = Number(m[3]);
+        const d = new Date(Date.UTC(y, mo, dd));
         if (Number.isNaN(d.getTime())) throw new Error('PHASE_DATE_INVALID');
+        // Reject calendar-invalid dates like 2024-02-31 that JS rolls forward.
+        if (d.getUTCFullYear() !== y || d.getUTCMonth() !== mo || d.getUTCDate() !== dd) {
+          throw new Error('PHASE_DATE_INVALID');
+        }
         return d;
       }
       let startedAt, completedAt;

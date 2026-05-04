@@ -319,6 +319,21 @@ describe.skipIf(skip)('admin project-phases routes (HTTP)', () => {
     expect(after.rows.map(r => r.label)).toEqual(['C2', 'A2', 'B2']);
   });
 
+  it('POST /dates with calendar-invalid date (2024-02-31) flashes safe copy', async () => {
+    const jar = await loginAdmin('dates-calendar-invalid');
+    const csrf = await csrfFromProjectDetail(jar, customerAId, projectAId);
+    await postPhaseForm(jar,
+      `/admin/customers/${customerAId}/projects/${projectAId}/phases`,
+      { _csrf: csrf, label: 'cal-invalid' }, { csrf });
+    const phase = await sql`SELECT id::text AS id FROM project_phases
+                              WHERE project_id = ${projectAId}::uuid AND label = ${'cal-invalid'}`.execute(db);
+    const res = await postPhaseForm(jar,
+      `/admin/customers/${customerAId}/projects/${projectAId}/phases/${phase.rows[0].id}/dates`,
+      { _csrf: csrf, started_at: '2024-02-31', completed_at: '' }, { csrf });
+    expect(res.statusCode).toBe(303);
+    expect(decodeURIComponent(res.headers.location)).toContain('Use the date picker');
+  });
+
   it('POST /dates with completed_at < started_at flashes safe copy via phaseError', async () => {
     const jar = await loginAdmin('dates-bad-range');
     const csrf = await csrfFromProjectDetail(jar, customerAId, projectAId);

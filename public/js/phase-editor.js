@@ -177,7 +177,12 @@
       ev.dataTransfer.effectAllowed = 'move';
       ev.dataTransfer.setData('text/plain', draggingId);
     }
-    setTimeout(function () { row.classList.add('phase-row--dragging'); }, 0);
+    setTimeout(function () {
+      row.classList.add('phase-row--dragging');
+      row.setAttribute('aria-grabbed', 'true');
+    }, 0);
+    var lbl = row.querySelector('.phase-row__label-input');
+    announce('Picked up phase ' + (lbl ? lbl.value : '') + '. Drop on another row to reorder.');
   });
 
   function clearDropMarkers() {
@@ -187,7 +192,10 @@
   }
 
   section.addEventListener('dragend', function () {
-    if (draggingEl) draggingEl.classList.remove('phase-row--dragging');
+    if (draggingEl) {
+      draggingEl.classList.remove('phase-row--dragging');
+      draggingEl.removeAttribute('aria-grabbed');
+    }
     clearDropMarkers();
     draggingEl = null; draggingId = null;
   });
@@ -224,6 +232,14 @@
     params.append('_csrf', csrf);
     params.append('target_index', String(insertAt));
 
+    var draggedLabel = '';
+    var draggedLabelInput = draggingEl && draggingEl.querySelector('.phase-row__label-input');
+    if (draggedLabelInput) draggedLabel = draggedLabelInput.value;
+
+    // Preserve scroll position across the post-drop reload so the admin
+    // doesn't snap to the top of the page after a successful reorder.
+    try { sessionStorage.setItem('phase-reorder-scroll', String(window.scrollY)); } catch (_) { /* private mode */ }
+
     fetch(url, {
       method: 'POST',
       headers: {
@@ -233,7 +249,12 @@
       body: params.toString(),
       credentials: 'same-origin',
     }).then(function (res) {
-      if (res.redirected || res.ok) {
+      // Treat only true 2xx + 3xx as success. The route 303-redirects on
+      // success and on flash-error; check the redirected URL for the
+      // phaseError query string to disambiguate.
+      var redirectedToError = res.redirected && /phaseError=/.test(res.url || '');
+      if ((res.redirected || res.ok) && !redirectedToError) {
+        announce('Phase ' + draggedLabel + ' moved to position ' + (insertAt + 1) + '.');
         window.location.reload();
       } else {
         announce('Could not reorder — please retry.');
@@ -242,4 +263,13 @@
       announce('Could not reorder — please retry.');
     });
   });
+
+  // Restore scroll position after a reorder-triggered reload.
+  try {
+    var prevScroll = sessionStorage.getItem('phase-reorder-scroll');
+    if (prevScroll !== null) {
+      window.scrollTo(0, Number(prevScroll) || 0);
+      sessionStorage.removeItem('phase-reorder-scroll');
+    }
+  } catch (_) { /* private mode */ }
 })();
