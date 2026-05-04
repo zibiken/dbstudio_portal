@@ -92,25 +92,31 @@ acknowledged as not green and tracked here.
 
 ## Accessibility pass (plan Task 9.6)
 
-**Status (2026-05-04):** scaffolding has landed (see build-log Bundle 5
-and the in-flight bundle below). The static `scripts/a11y-check.js` is
-wired into `scripts/run-tests.sh` as advisory and reports 12 input-label
-offenders across 4 files. The axe-core JSDOM harness runs on the public
-routes (`/login`, `/reset`); authenticated-route axe coverage lives in
-`tests/integration/a11y/authenticated-routes.test.js` (admin customers
-list, admin audit, admin profile, customer dashboard, customer
-credentials list, customer activity, customer profile — 0 serious /
-critical violations).
+**Status (2026-05-04):** the v1 a11y pass is closed by the in-flight
+bundle. Both gates are now blocking in `scripts/run-tests.sh`:
+- The static `scripts/a11y-check.js` checks (img alt, heading order,
+  input labels, nav labelling, hamburger ARIA, modal aria-modal,
+  sidebar aria-current, native `confirm()`, reduced-motion partner)
+  fail the wrapper on any offender. Codebase reports 0 today.
+- The axe-core JSDOM pass (`RUN_A11Y_AXE=1` + `RUN_A11Y_AXE_BLOCKING=1`)
+  on `/login` + `/reset` fails the wrapper on any impact ≥ 'serious'
+  violation. Codebase reports 0 today.
+- Authenticated-route axe coverage lives in
+  `tests/integration/a11y/authenticated-routes.test.js` (admin
+  customers list, admin audit, admin profile, customer dashboard,
+  customer credentials list, customer activity, customer profile);
+  failure is a vitest test failure.
 
-**Currently blocking promotion to required:**
-- 12 input-label offenders (dynamic-id label association) across:
-  3× `views/admin/credential-requests/new.ejs`,
-  1× `views/components/_input.ejs`,
-  4× `views/components/_phase-row.ejs`,
-  4× `views/customer/credential-requests/detail.ejs`.
-- Heading-order audit pending — some pages currently jump h1 → h3.
-- Focus traps for any modal-style flows (currently none — confirmation
-  pages are linear, but consider when re-templating).
+**Escape hatches** (use sparingly, document why):
+- `A11Y_STATIC_ADVISORY=1` keeps the static-check failure non-fatal.
+- Drop `RUN_A11Y_AXE_BLOCKING=1` to keep axe advisory.
+
+**Open (post-v1):**
+- Focus traps for any future modal-style flows (currently none —
+  confirmation pages are linear; consider when re-templating).
+- Extend `tests/integration/a11y/authenticated-routes.test.js` to
+  cover phase editor / admin customer detail / credential detail /
+  credential edit pages as those view families stabilise.
 
 **Already in place:** semantic HTML (form labels with `for=`, table
 headers, role="alert" on errors, ARIA-labelled brand link); design

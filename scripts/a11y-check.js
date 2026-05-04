@@ -336,6 +336,13 @@ process.stdout.write(
   `\n${offenders.length} a11y candidate offenders across ${byFile.size} files.\n`,
 );
 
+// Static-check blocking gate. Set A11Y_STATIC_ADVISORY=1 to keep the
+// historical advisory behaviour (exit 0 even with offenders). Default is
+// blocking now that the codebase reports 0 offenders; any regression
+// should fail the test wrapper.
+const staticAdvisory = process.env.A11Y_STATIC_ADVISORY === '1';
+let staticFailed = !staticAdvisory && offenders.length > 0;
+
 // Optional axe-core JSDOM mode (RUN_A11Y_AXE=1). Renders a small set of
 // public pages via app.inject(), parses the HTML through JSDOM, and runs
 // axe-core to surface impact >= 'serious' violations. Advisory by
@@ -410,4 +417,7 @@ if (process.env.RUN_A11Y_AXE === '1') {
   }
 }
 
+if (staticFailed) {
+  process.exit(1);
+}
 process.exit(0);

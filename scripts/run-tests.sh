@@ -66,6 +66,13 @@ sudo -u portal-app -E env \
 sudo -u portal-app -E env PATH="$ROOT/.node/bin:/usr/bin:/bin" \
   "$NODE" "$ROOT/scripts/check-detail-pattern.js" || true
 
-# Bundle 5: advisory a11y check (non-blocking, exit code 0).
-sudo -u portal-app -E env PATH="$ROOT/.node/bin:/usr/bin:/bin" \
-  "$NODE" "$ROOT/scripts/a11y-check.js" || true
+# a11y check — blocking as of Phase B4. Static checks always run; the
+# axe-core JSDOM pass on public routes runs when RUN_A11Y_AXE=1 +
+# RUN_A11Y_AXE_BLOCKING=1. Static failure or axe failure ⇒ non-zero exit
+# from a11y-check.js and the wrapper aborts. Set A11Y_STATIC_ADVISORY=1
+# to fall back to advisory mode if a regression needs to merge first.
+sudo -u portal-app -E env \
+  PATH="$ROOT/.node/bin:/usr/bin:/bin" \
+  RUN_A11Y_AXE=1 \
+  RUN_A11Y_AXE_BLOCKING=1 \
+  "$NODE" "$ROOT/scripts/a11y-check.js"
